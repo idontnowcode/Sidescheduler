@@ -132,7 +132,7 @@ export function parseNaturalLanguage(input: string): ParsedInput {
   else if ((dm = text.match(/\b(\d+)\s*m(in)?s?\b/i))) { durMin = parseInt(dm[1]); text = text.replace(dm[0], ' ') }
 
   // ── Build result ────────────────────────────────────────────────────────
-  const title = text.replace(/\s+/g, ' ').trim() || '제목 없음'
+  const title = text.replace(/\s+/g, ' ').trim() || 'Untitled'
 
   if (date && hour >= 0) {
     // Has time → event

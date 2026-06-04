@@ -3,7 +3,7 @@ import { CalEvent, Task } from '../types'
 import RecurrenceConfirm from '../components/modals/RecurrenceConfirm'
 import EventModal from '../components/modals/EventModal'
 
-const DAY_NAMES = ['일', '월', '화', '수', '목', '금', '토']
+const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
 interface Props {
   current: Date
@@ -147,7 +147,7 @@ export default function MonthView({ current, events, tasks, onReload, onNavigate
                 </div>
               ))}
               {dayEvents.length > 3 && (
-                <span className="text-2xs text-ink-400 px-1 font-medium">+{dayEvents.length - 3}개</span>
+                <span className="text-2xs text-ink-400 px-1 font-medium">+{dayEvents.length - 3} more</span>
               )}
             </div>
           )

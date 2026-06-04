@@ -116,7 +116,7 @@ function openDashboard(): void {
   if (dashboardWindow && !dashboardWindow.isDestroyed()) { dashboardWindow.focus(); return }
   dashboardWindow = new BrowserWindow({
     width: 960, height: 700, minWidth: 800, minHeight: 560,
-    title: 'Daily Sidebar Planner — 달력',
+    title: 'Daily Sidebar Planner — Calendar',
     show: false,
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
@@ -138,11 +138,11 @@ function buildTrayMenu() {
   return Menu.buildFromTemplate([
     { label: 'Daily Sidebar Planner', enabled: false },
     { type: 'separator' },
-    { label: '창 표시', click: () => mainWindow?.show() },
-    { label: '대시보드 열기', click: openDashboard },
+    { label: 'Show Sidebar', click: () => mainWindow?.show() },
+    { label: 'Open Dashboard', click: openDashboard },
     { type: 'separator' },
     {
-      label: '자동 시작', type: 'checkbox',
+      label: 'Launch at Startup', type: 'checkbox',
       checked: app.getLoginItemSettings().openAtLogin,
       click: (item) => {
         app.setLoginItemSettings({ openAtLogin: item.checked })
@@ -150,7 +150,7 @@ function buildTrayMenu() {
       }
     },
     { type: 'separator' },
-    { label: '종료', click: () => app.quit() }
+    { label: 'Quit', click: () => app.quit() }
   ])
 }
 

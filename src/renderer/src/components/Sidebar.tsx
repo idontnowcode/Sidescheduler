@@ -4,7 +4,8 @@ import { useSettingsStore } from '../store/settingsStore'
 
 interface Props { onHover: () => void }
 
-const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토']
+const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
 const DRAG_REGION = { WebkitAppRegion: 'drag' } as React.CSSProperties
 const NO_DRAG = { WebkitAppRegion: 'no-drag' } as React.CSSProperties
@@ -25,7 +26,7 @@ export default function Sidebar({ onHover }: Props) {
 
   return (
     <div
-      className="fixed top-0 flex flex-col items-center z-20 bg-white dark:bg-ink-900 border border-ink-200 dark:border-ink-800 shadow-glass dark:shadow-glass-dark"
+      className="fixed top-0 flex flex-col items-center z-20 bg-white dark:bg-ink-900 border border-ink-200 dark:border-ink-800"
       style={{
         width: w, height: sidebarH,
         [isLeft ? 'left' : 'right']: 0,
@@ -40,7 +41,7 @@ export default function Sidebar({ onHover }: Props) {
           the sidebar so hover events fire reliably) */}
       {!locked && (
         <div
-          title="드래그하여 위치 이동"
+          title="Drag to move"
           style={{ width: w - 10, height: 8, ...DRAG_REGION, cursor: 'grab' }}
           className="flex items-center justify-center mt-1 mb-1 group"
         >
@@ -52,24 +53,24 @@ export default function Sidebar({ onHover }: Props) {
       <div className="flex flex-col items-center leading-none select-none">
         <span className="text-2xs font-medium text-accent-500 dark:text-accent-400">{WEEKDAYS[now.getDay()]}</span>
         <span className="text-xl font-bold tracking-tight text-ink-900 dark:text-ink-100 leading-none">{now.getDate()}</span>
-        <span className="text-2xs text-ink-400">{now.getMonth() + 1}월</span>
+        <span className="text-2xs text-ink-400">{MONTHS_SHORT[now.getMonth()]}</span>
       </div>
 
       <div className="w-5 h-px bg-ink-200 dark:bg-ink-700" />
 
       {/* Quick add (Cmd+K) */}
-      <IconBtn title="빠른 추가 (Ctrl+K)" size={btnSize} onClick={(e) => { e.stopPropagation(); window.electronAPI.openPalette() }}>
+      <IconBtn title="Quick add (Ctrl+K)" size={btnSize} onClick={(e) => { e.stopPropagation(); window.electronAPI.openPalette() }}>
         <SearchIcon size={iconSize} />
       </IconBtn>
 
       {/* Dashboard */}
-      <IconBtn title="대시보드" size={btnSize}
+      <IconBtn title="Dashboard" size={btnSize}
         onClick={(e) => { e.stopPropagation(); window.electronAPI.openDashboard() }}>
         <GridIcon size={iconSize} />
       </IconBtn>
 
       {/* Today */}
-      <IconBtn title={isToday ? '오늘' : '오늘로 이동'} size={btnSize}
+      <IconBtn title={isToday ? 'Today' : 'Go to today'} size={btnSize}
         active={isToday} onClick={(e) => { e.stopPropagation(); goToToday() }}>
         <CalendarIcon size={iconSize} />
       </IconBtn>
@@ -79,7 +80,7 @@ export default function Sidebar({ onHover }: Props) {
       {/* Lock toggle */}
       <button
         onClick={(e) => { e.stopPropagation(); patch({ locked: !locked }) }}
-        title={locked ? '잠금 해제' : '위치 고정'}
+        title={locked ? 'Unlock' : 'Lock position'}
         style={{ width: btnSize - 4, height: btnSize - 4, ...NO_DRAG }}
         className={`rounded-lg flex items-center justify-center transition-colors duration-150 ${
           locked ? 'bg-accent-100 dark:bg-accent-500/20 text-accent-600 dark:text-accent-400'

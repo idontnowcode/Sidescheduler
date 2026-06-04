@@ -10,6 +10,11 @@ import { useThemeStore } from '../store/themeStore'
 
 type ViewMode = 'today' | 'month' | 'week' | 'settings'
 
+const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June',
+                'July', 'August', 'September', 'October', 'November', 'December']
+const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+
 function sod(d: Date) { return new Date(d.getFullYear(), d.getMonth(), d.getDate()) }
 function monthStart(d: Date) { return sod(new Date(d.getFullYear(), d.getMonth(), 1)) }
 function monthEnd(d: Date)   { return new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59, 999) }
@@ -88,22 +93,21 @@ export default function DashboardApp() {
   })
 
   const headerLabel =
-    view === 'today' ? `${today.getFullYear()}년 ${today.getMonth() + 1}월 ${today.getDate()}일` :
-    view === 'month' ? `${current.getFullYear()}년 ${current.getMonth() + 1}월` :
+    view === 'today' ? `${MONTHS[today.getMonth()]} ${today.getDate()}, ${today.getFullYear()}` :
+    view === 'month' ? `${MONTHS[current.getMonth()]} ${current.getFullYear()}` :
     view === 'week'  ? (() => {
       const ws = weekStart(current), we = weekEnd(current)
-      return `${ws.getFullYear()}년 ${ws.getMonth() + 1}월 ${ws.getDate()}일 – ${we.getMonth() + 1}월 ${we.getDate()}일`
-    })() : '설정'
+      return `${MONTHS_SHORT[ws.getMonth()]} ${ws.getDate()} – ${MONTHS_SHORT[we.getMonth()]} ${we.getDate()}, ${we.getFullYear()}`
+    })() : 'Settings'
 
   const showNav = view !== 'today' && view !== 'settings'
 
   return (
     <div className="h-screen flex flex-col surface select-none overflow-hidden">
-      {/* Header */}
       <div className="flex items-center gap-3 px-6 py-3 border-b border-ink-100 dark:border-ink-800 flex-shrink-0">
         <div className="flex rounded-xl bg-ink-100 dark:bg-ink-800 p-0.5">
           {([
-            ['today', '오늘'], ['month', '월간'], ['week', '주간'], ['settings', '설정']
+            ['today', 'Today'], ['month', 'Month'], ['week', 'Week'], ['settings', 'Settings']
           ] as const).map(([v, label]) => (
             <button key={v} onClick={() => setView(v)}
               className={`px-3.5 py-1.5 rounded-lg text-sm font-medium transition-all ${
@@ -120,7 +124,7 @@ export default function DashboardApp() {
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" />
           </svg>
-          빠른 추가
+          Quick add
           <kbd className="text-2xs font-mono px-1 py-0.5 rounded bg-white dark:bg-ink-900 text-ink-400">⌘K</kbd>
         </button>
 
@@ -128,35 +132,35 @@ export default function DashboardApp() {
           <div className="flex items-center gap-1.5">
             <button onClick={() => setAddEvent({ date: view === 'today' ? today : current })}
               className="btn btn-primary text-sm flex items-center gap-1">
-              <span className="text-base leading-none">+</span> 일정
+              <span className="text-base leading-none">+</span> Event
             </button>
             <button onClick={() => setAddTask({ date: view === 'today' ? today : current })}
               className="btn bg-orange-500 text-white hover:bg-orange-600 text-sm flex items-center gap-1">
-              <span className="text-base leading-none">+</span> 태스크
+              <span className="text-base leading-none">+</span> Task
             </button>
           </div>
         )}
 
         {showNav && (
           <div className="flex items-center gap-0.5">
-            <button onClick={goToPrev} className="w-8 h-8 rounded-lg flex items-center justify-center text-ink-500 hover:bg-ink-100 dark:hover:bg-ink-800 text-lg leading-none">‹</button>
+            <button onClick={goToPrev} title="Previous" className="w-8 h-8 rounded-lg flex items-center justify-center text-ink-500 hover:bg-ink-100 dark:hover:bg-ink-800 text-lg leading-none">‹</button>
             <button onClick={() => setCurrent(new Date())}
               className="px-3 h-8 rounded-lg text-xs font-medium text-ink-600 dark:text-ink-300 hover:bg-ink-100 dark:hover:bg-ink-800">
-              오늘
+              Today
             </button>
-            <button onClick={goToNext} className="w-8 h-8 rounded-lg flex items-center justify-center text-ink-500 hover:bg-ink-100 dark:hover:bg-ink-800 text-lg leading-none">›</button>
+            <button onClick={goToNext} title="Next" className="w-8 h-8 rounded-lg flex items-center justify-center text-ink-500 hover:bg-ink-100 dark:hover:bg-ink-800 text-lg leading-none">›</button>
           </div>
         )}
 
         {view !== 'settings' && (
-          <button onClick={reload} title="새로고침"
+          <button onClick={reload} title="Refresh"
             className="w-8 h-8 rounded-lg flex items-center justify-center text-ink-400 hover:bg-ink-100 dark:hover:bg-ink-800">↻</button>
         )}
       </div>
 
       <div className="flex-1 overflow-hidden">
         {view === 'settings' ? <SettingsView />
-         : loading ? <div className="h-full flex items-center justify-center text-ink-400 text-sm">불러오는 중...</div>
+         : loading ? <div className="h-full flex items-center justify-center text-ink-400 text-sm">Loading...</div>
          : view === 'today' ? <TodayView events={events} allIncompleteTasks={allIncompleteTasks} onReload={reload} />
          : view === 'month' ? (
             <MonthView current={current} events={events} tasks={allIncompleteTasks}
@@ -181,7 +185,6 @@ export default function DashboardApp() {
         <TaskModal mode="create" defaultDueDate={addTask.date}
           onClose={() => setAddTask(null)} onSaved={reload} />
       )}
-
     </div>
   )
 }

@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { useDateStore } from '../../store/dateStore'
 
-const WEEKDAYS = ['일요일', '월요일', '화요일', '수요일', '목요일', '금요일', '토요일']
+const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
 
 function toInputValue(d: Date) {
   const y = d.getFullYear()
@@ -23,15 +24,14 @@ export default function DateCard() {
 
   return (
     <div className="px-5 pt-5 pb-4 border-b border-ink-100 dark:border-ink-800 flex-shrink-0">
-      {/* Header row */}
       <div className="flex items-center justify-between mb-3">
-        <span className="section-label">스케줄</span>
+        <span className="section-label">Schedule</span>
         <div className="flex items-center gap-0.5">
-          <NavBtn onClick={goToPrev} title="이전 날">‹</NavBtn>
+          <NavBtn onClick={goToPrev} title="Previous day">‹</NavBtn>
           <button
             onClick={() => setShowPicker((v) => !v)}
             className="px-2 h-7 rounded-lg text-xs font-medium text-ink-500 hover:bg-ink-100 dark:hover:bg-ink-800 hover:text-ink-700 dark:hover:text-ink-200 transition-colors relative"
-            title="날짜 선택"
+            title="Pick date"
           >
             📅
             {showPicker && (
@@ -44,23 +44,22 @@ export default function DateCard() {
               />
             )}
           </button>
-          <NavBtn onClick={goToNext} title="다음 날">›</NavBtn>
+          <NavBtn onClick={goToNext} title="Next day">›</NavBtn>
         </div>
       </div>
 
-      {/* Big date */}
       <div className="flex items-end gap-3">
         <span className="text-5xl font-bold tracking-tight leading-none">{selected.getDate()}</span>
         <div className="pb-1.5">
           <p className="text-sm font-semibold text-ink-700 dark:text-ink-300">{WEEKDAYS[selected.getDay()]}</p>
-          <p className="text-xs text-ink-400 mt-0.5">{selected.getFullYear()}년 {selected.getMonth() + 1}월</p>
+          <p className="text-xs text-ink-400 mt-0.5">{MONTHS[selected.getMonth()]} {selected.getFullYear()}</p>
         </div>
         <div className="flex-1" />
         {isToday ? (
-          <span className="chip bg-accent-500 text-white">오늘</span>
+          <span className="chip bg-accent-500 text-white">Today</span>
         ) : (
           <button onClick={goToToday} className="chip bg-ink-100 dark:bg-ink-800 text-ink-500 hover:bg-accent-50 dark:hover:bg-accent-500/20 hover:text-accent-600 transition-colors">
-            오늘로
+            Go to today
           </button>
         )}
       </div>

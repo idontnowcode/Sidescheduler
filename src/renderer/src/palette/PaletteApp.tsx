@@ -54,10 +54,10 @@ export default function PaletteApp() {
       if (parsed.isTask) {
         list.push({
           id: 'create-task-nl', group: 'create', icon: '✓',
-          title: `태스크 추가: "${parsed.title}"`,
+          title: `Add task: "${parsed.title}"`,
           hint: parsed.dueAt
-            ? new Date(parsed.dueAt).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' }) + ' 마감'
-            : '기한 없음',
+            ? 'Due ' + new Date(parsed.dueAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+            : 'No due date',
           run: async () => {
             await window.electronAPI.createTask({
               title: parsed.title, due_at: parsed.dueAt ?? null, priority: 'normal'
@@ -71,8 +71,8 @@ export default function PaletteApp() {
         const sd = new Date(parsed.startAt), ed = new Date(parsed.endAt ?? parsed.startAt + 3600000)
         list.push({
           id: 'create-event-nl', group: 'create', icon: '📅',
-          title: `일정 추가: "${parsed.title}"`,
-          hint: `${sd.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' })} ${String(sd.getHours()).padStart(2,'0')}:${String(sd.getMinutes()).padStart(2,'0')} – ${String(ed.getHours()).padStart(2,'0')}:${String(ed.getMinutes()).padStart(2,'0')}`,
+          title: `Add event: "${parsed.title}"`,
+          hint: `${sd.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} ${String(sd.getHours()).padStart(2,'0')}:${String(sd.getMinutes()).padStart(2,'0')} – ${String(ed.getHours()).padStart(2,'0')}:${String(ed.getMinutes()).padStart(2,'0')}`,
           run: async () => {
             await window.electronAPI.createEvent({
               title: parsed.title, start_at: parsed.startAt!, end_at: parsed.endAt!, color: '#6366F1'
@@ -84,13 +84,13 @@ export default function PaletteApp() {
       }
     }
     list.push(
-      { id: 'open-dashboard', group: 'nav', icon: '📊', title: '대시보드 열기',
+      { id: 'open-dashboard', group: 'nav', icon: '📊', title: 'Open dashboard',
         hint: 'D', run: () => { window.electronAPI.openDashboard(); close() } },
-      { id: 'today',          group: 'nav', icon: '🏠', title: '오늘로 이동',
+      { id: 'today',          group: 'nav', icon: '🏠', title: 'Go to today',
         hint: 'T', run: () => send('today') },
-      { id: 'new-event',      group: 'create', icon: '+', title: '새 일정 (편집기)',
+      { id: 'new-event',      group: 'create', icon: '+', title: 'New event (editor)',
         hint: 'N', run: () => send('new-event') },
-      { id: 'new-task',       group: 'create', icon: '+', title: '새 태스크 (편집기)',
+      { id: 'new-task',       group: 'create', icon: '+', title: 'New task (editor)',
         hint: 'Shift+N', run: () => send('new-task') }
     )
     return list
@@ -140,7 +140,7 @@ export default function PaletteApp() {
           </svg>
           <input ref={inputRef} type="text" value={query}
             onChange={(e) => { setQuery(e.target.value); setActive(0) }}
-            placeholder='일정 / 태스크 추가, 검색... (예: "내일 3시 회의 1시간")'
+            placeholder='Add event/task or search... (e.g. "tomorrow 3pm meeting 1h")'
             className="flex-1 bg-transparent text-base focus:outline-none placeholder:text-ink-400" />
           <kbd className="text-2xs px-1.5 py-0.5 rounded-md bg-ink-100 dark:bg-ink-800 text-ink-500 font-mono">ESC</kbd>
         </div>
@@ -148,7 +148,7 @@ export default function PaletteApp() {
         {/* Results */}
         <div className="flex-1 overflow-y-auto py-1">
           {items.length === 0 ? (
-            <div className="text-center text-sm text-ink-400 py-8">아무 항목도 없습니다</div>
+            <div className="text-center text-sm text-ink-400 py-8">No items</div>
           ) : (
             items.map((item, i) => {
               const isActive = i === active
@@ -164,7 +164,7 @@ export default function PaletteApp() {
                       {c.hint && <p className="text-xs text-ink-500 mt-0.5 truncate">{c.hint}</p>}
                     </div>
                     <span className="text-2xs text-ink-400 uppercase tracking-wide">
-                      {c.group === 'create' ? '생성' : '탐색'}
+                      {c.group === 'create' ? 'Create' : 'Navigate'}
                     </span>
                   </button>
                 )
@@ -181,11 +181,11 @@ export default function PaletteApp() {
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium truncate">{ev.title}</p>
                       <p className="text-xs text-ink-500 mt-0.5">
-                        {d.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric', weekday: 'short' })}
+                        {d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', weekday: 'short' })}
                         {' · '}{String(d.getHours()).padStart(2,'0')}:{String(d.getMinutes()).padStart(2,'0')}
                       </p>
                     </div>
-                    <span className="text-2xs text-ink-400 uppercase">일정</span>
+                    <span className="text-2xs text-ink-400 uppercase">Event</span>
                   </button>
                 )
               }
@@ -199,10 +199,10 @@ export default function PaletteApp() {
                   <div className="flex-1 min-w-0">
                     <p className={`text-sm truncate ${tk.done ? 'line-through text-ink-400' : 'font-medium'}`}>{tk.title}</p>
                     <p className="text-xs text-ink-500 mt-0.5">
-                      {tk.due_at ? new Date(tk.due_at).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' }) : '기한 없음'}
+                      {tk.due_at ? new Date(tk.due_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'No due date'}
                     </p>
                   </div>
-                  <span className="text-2xs text-ink-400 uppercase">태스크</span>
+                  <span className="text-2xs text-ink-400 uppercase">Task</span>
                 </button>
               )
             })
@@ -211,10 +211,10 @@ export default function PaletteApp() {
 
         <div className="flex items-center justify-between px-4 py-2 border-t border-ink-100 dark:border-ink-800 text-2xs text-ink-400 flex-shrink-0">
           <div className="flex gap-3">
-            <span><kbd className="font-mono px-1 py-0.5 bg-ink-100 dark:bg-ink-800 rounded">↑↓</kbd> 이동</span>
-            <span><kbd className="font-mono px-1 py-0.5 bg-ink-100 dark:bg-ink-800 rounded">↵</kbd> 선택</span>
+            <span><kbd className="font-mono px-1 py-0.5 bg-ink-100 dark:bg-ink-800 rounded">↑↓</kbd> Navigate</span>
+            <span><kbd className="font-mono px-1 py-0.5 bg-ink-100 dark:bg-ink-800 rounded">↵</kbd> Select</span>
           </div>
-          <span>자연어 입력 가능 · 예: "내일 9시 헬스 1시간"</span>
+          <span>Natural language supported · e.g. "tomorrow 9am gym 1h"</span>
         </div>
     </div>
   )

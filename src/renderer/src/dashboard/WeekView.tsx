@@ -7,7 +7,7 @@ import TaskModal from '../components/modals/TaskModal'
 const HOUR_H   = 56
 const TOTAL_H  = 24 * HOUR_H
 const SNAP_MIN = 15
-const DAY_NAMES = ['일', '월', '화', '수', '목', '금', '토']
+const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
 interface Props {
   current: Date; events: CalEvent[]; tasks: Task[]
@@ -215,17 +215,17 @@ export default function WeekView({ current, events, tasks, onReload, onNavigate,
         style={{ height: taskOpen ? taskH : 40 }}>
         <div className="flex items-center justify-between px-5 py-2.5 border-b border-ink-100 dark:border-ink-800 flex-shrink-0">
           <div className="flex items-center gap-2">
-            <span className="section-label">태스크</span>
+            <span className="section-label">Tasks</span>
             {tasks.length > 0 && (
-              <span className="chip bg-ink-100 dark:bg-ink-800 text-ink-500">{tasks.length} 미완료</span>
+              <span className="chip bg-ink-100 dark:bg-ink-800 text-ink-500">{tasks.length} incomplete</span>
             )}
           </div>
           <div className="flex items-center gap-1">
-            <button onClick={() => onAddTask?.(today)} title="태스크 추가"
+            <button onClick={() => onAddTask?.(today)} title="Add task"
               className="w-6 h-6 rounded-lg bg-orange-100 dark:bg-orange-500/20 hover:bg-orange-200 dark:hover:bg-orange-500/30 text-orange-600 dark:text-orange-400 flex items-center justify-center text-sm font-medium">+</button>
             <button onClick={() => setTaskOpen(v => !v)}
               className="text-xs text-ink-400 hover:text-ink-700 dark:hover:text-ink-300 ml-1">
-              {taskOpen ? '숨기기 ▼' : '태스크 ▲'}
+              {taskOpen ? 'Hide ▼' : 'Tasks ▲'}
             </button>
           </div>
         </div>
@@ -233,7 +233,7 @@ export default function WeekView({ current, events, tasks, onReload, onNavigate,
         {taskOpen && (
           <div className="flex-1 overflow-y-auto">
             {tasks.length === 0 ? (
-              <p className="text-sm text-ink-400 text-center py-5">미완료 태스크 없음 ✓</p>
+              <p className="text-sm text-ink-400 text-center py-5">No incomplete tasks ✓</p>
             ) : (
               <div className="px-5 py-2 space-y-0">
                 {overdueTasks.map(t => <PanelTaskRow key={t.id} task={t} overdue onReload={onReload} onEdit={() => setEditTask(t)} />)}
@@ -287,7 +287,7 @@ function PanelTaskRow({ task, overdue, today, onReload, onEdit }: {
       <span className={`chip ${
         task.priority==='urgent' ? 'bg-red-50 dark:bg-red-500/15 text-red-500' :
         task.priority==='low'    ? 'bg-ink-50 dark:bg-ink-900 text-ink-400' : 'bg-ink-100 dark:bg-ink-800 text-ink-500'}`}>
-        {task.priority==='urgent'?'긴급':task.priority==='low'?'낮음':'보통'}
+        {task.priority==='urgent'?'Urgent':task.priority==='low'?'Low':'Normal'}
       </span>
     </div>
   )

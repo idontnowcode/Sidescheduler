@@ -3,11 +3,10 @@ import { CalEvent, RecurrenceRule } from '../../types'
 import RecurrenceConfirm from './RecurrenceConfirm'
 
 const COLORS = ['#6366F1', '#3B82F6', '#22C55E', '#EF4444', '#F59E0B', '#EC4899', '#14B8A6', '#A855F7']
-const DOW = ['일', '월', '화', '수', '목', '금', '토']
+const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
 interface Props {
   mode: 'create' | 'edit'
-  /** When create: defaultDate is the base date. When edit: the existing event. */
   event?: CalEvent
   defaultDate?: Date
   defaultStartTime?: string
@@ -42,7 +41,6 @@ export default function EventModal({ mode, event, defaultDate, defaultStartTime,
   const [location, setLoc]  = useState(event?.location ?? '')
   const [description, setDescription] = useState(event?.description ?? '')
 
-  // Recurrence (only meaningful for create / 'all' edit on non-instance)
   const initialRecur = event?.recurrence
   const [recurOn, setRecurOn]     = useState(!!initialRecur)
   const [recurType, setRecurType] = useState<RecurrenceRule['type']>(initialRecur?.type ?? 'weekly')
@@ -88,9 +86,7 @@ export default function EventModal({ mode, event, defaultDate, defaultStartTime,
       return
     }
 
-    // Edit
     if (event!.isRecurringInstance && event!.originalId) {
-      // Ask scope
       setRecurChoice({ payload })
       return
     }
@@ -115,8 +111,6 @@ export default function EventModal({ mode, event, defaultDate, defaultStartTime,
   async function handleDelete() {
     if (!isEdit) return
     if (event!.isRecurringInstance && event!.originalId) {
-      // For recurring delete, defer to caller's existing flow via deleteEventInstance
-      // We open recurrence scope chooser
       setRecurChoice({ payload: {} })
       return
     }
@@ -132,29 +126,28 @@ export default function EventModal({ mode, event, defaultDate, defaultStartTime,
   return (
     <div className="fixed inset-0 bg-black/40 dark:bg-black/60 flex items-center justify-center z-50 p-4" onClick={onClose}>
       <form onSubmit={submit} onClick={(e) => e.stopPropagation()}
-        className="glass-panel rounded-2xl shadow-glass-lg w-full max-w-md max-h-[90vh] overflow-y-auto border border-ink-200 dark:border-ink-800">
-        {/* Header */}
+        className="glass-panel rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto border border-ink-200 dark:border-ink-800">
         <div className="px-5 py-4 border-b border-ink-100 dark:border-ink-800 flex items-center justify-between">
-          <h2 className="text-base font-semibold">{isEdit ? '일정 편집' : '일정 추가'}</h2>
+          <h2 className="text-base font-semibold">{isEdit ? 'Edit Event' : 'Add Event'}</h2>
           <button type="button" onClick={onClose} className="btn-ghost btn -mr-2">✕</button>
         </div>
 
         <div className="p-5 space-y-4">
-          <Field label="제목">
+          <Field label="Title">
             <input autoFocus type="text" value={title} onChange={(e) => setTitle(e.target.value)}
-              placeholder="일정 제목" className="input text-base" />
+              placeholder="Event title" className="input text-base" />
           </Field>
 
-          <Field label="날짜">
+          <Field label="Date">
             <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="input" />
           </Field>
 
           <div className="grid grid-cols-2 gap-3">
-            <Field label="시작"><input type="time" value={start} onChange={(e) => setStart(e.target.value)} className="input" /></Field>
-            <Field label="종료"><input type="time" value={end} onChange={(e) => setEnd(e.target.value)} className="input" /></Field>
+            <Field label="Start"><input type="time" value={start} onChange={(e) => setStart(e.target.value)} className="input" /></Field>
+            <Field label="End"><input type="time" value={end} onChange={(e) => setEnd(e.target.value)} className="input" /></Field>
           </div>
 
-          <Field label="색상">
+          <Field label="Color">
             <div className="flex gap-2 flex-wrap">
               {COLORS.map((c) => (
                 <button key={c} type="button" onClick={() => setColor(c)}
@@ -164,20 +157,19 @@ export default function EventModal({ mode, event, defaultDate, defaultStartTime,
             </div>
           </Field>
 
-          <Field label="장소 (선택)">
+          <Field label="Location (optional)">
             <input type="text" value={location} onChange={(e) => setLoc(e.target.value)}
-              placeholder="회의실, 카페 등" className="input" />
+              placeholder="Room, cafe, etc." className="input" />
           </Field>
 
-          <Field label="메모 (선택)">
+          <Field label="Notes (optional)">
             <textarea value={description} onChange={(e) => setDescription(e.target.value)}
-              placeholder="추가 정보" rows={2} className="input resize-none" />
+              placeholder="Additional details" rows={2} className="input resize-none" />
           </Field>
 
-          {/* Recurrence */}
           <div className="pt-2 border-t border-ink-100 dark:border-ink-800">
             <label className="flex items-center justify-between cursor-pointer">
-              <span className="text-sm font-medium">반복</span>
+              <span className="text-sm font-medium">Repeat</span>
               <button type="button" onClick={() => setRecurOn((v) => !v)}
                 className={`relative w-10 h-6 rounded-full transition-colors ${recurOn ? 'bg-accent-500' : 'bg-ink-300 dark:bg-ink-700'}`}>
                 <span className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow-sm transition-transform ${recurOn ? 'translate-x-5 left-0.5' : 'left-0.5'}`} />
@@ -190,7 +182,7 @@ export default function EventModal({ mode, event, defaultDate, defaultStartTime,
                   {(['daily', 'weekly', 'monthly', 'yearly'] as const).map((t) => (
                     <button key={t} type="button" onClick={() => setRecurType(t)}
                       className={`flex-1 text-xs py-1.5 rounded-lg font-medium transition-colors ${recurType === t ? 'bg-accent-500 text-white' : 'bg-white dark:bg-ink-900 text-ink-500 hover:bg-ink-100 dark:hover:bg-ink-700'}`}>
-                      {t === 'daily' ? '매일' : t === 'weekly' ? '매주' : t === 'monthly' ? '매월' : '매년'}
+                      {t === 'daily' ? 'Daily' : t === 'weekly' ? 'Weekly' : t === 'monthly' ? 'Monthly' : 'Yearly'}
                     </button>
                   ))}
                 </div>
@@ -207,11 +199,11 @@ export default function EventModal({ mode, event, defaultDate, defaultStartTime,
                 )}
 
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-xs text-ink-500">종료:</span>
+                  <span className="text-xs text-ink-500">Ends:</span>
                   {(['never', 'count', 'date'] as const).map((et) => (
                     <button key={et} type="button" onClick={() => setEndType(et)}
                       className={`text-xs px-2.5 py-1 rounded-lg ${endType === et ? 'bg-accent-100 dark:bg-accent-500/20 text-accent-600 dark:text-accent-400 font-medium' : 'text-ink-400 hover:bg-white dark:hover:bg-ink-700'}`}>
-                      {et === 'never' ? '없음' : et === 'count' ? 'N회' : '날짜'}
+                      {et === 'never' ? 'Never' : et === 'count' ? 'After N' : 'On Date'}
                     </button>
                   ))}
                 </div>
@@ -219,7 +211,7 @@ export default function EventModal({ mode, event, defaultDate, defaultStartTime,
                   <div className="flex items-center gap-2">
                     <input type="number" min="1" max="365" value={endCount}
                       onChange={(e) => setEndCount(e.target.value)} className="input w-24 text-sm" />
-                    <span className="text-xs text-ink-500">회 후 종료</span>
+                    <span className="text-xs text-ink-500">times</span>
                   </div>
                 )}
                 {endType === 'date' && (
@@ -230,16 +222,15 @@ export default function EventModal({ mode, event, defaultDate, defaultStartTime,
           </div>
         </div>
 
-        {/* Footer */}
         <div className="px-5 py-3 border-t border-ink-100 dark:border-ink-800 flex gap-2 justify-between">
           {isEdit ? (
             <button type="button" onClick={handleDelete}
-              className="btn text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10">삭제</button>
+              className="btn text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10">Delete</button>
           ) : <span />}
           <div className="flex gap-2">
-            <button type="button" onClick={onClose} className="btn btn-ghost">취소</button>
+            <button type="button" onClick={onClose} className="btn btn-ghost">Cancel</button>
             <button type="submit" disabled={saving || !title.trim()} className="btn btn-primary disabled:opacity-50">
-              {saving ? '저장 중...' : isEdit ? '저장' : '추가'}
+              {saving ? 'Saving...' : isEdit ? 'Save' : 'Add'}
             </button>
           </div>
         </div>
@@ -250,7 +241,6 @@ export default function EventModal({ mode, event, defaultDate, defaultStartTime,
           actionType="move"
           onSelect={async (scope) => {
             if (Object.keys(recurChoice.payload).length === 0) {
-              // delete intent
               await window.electronAPI.deleteEventInstance({
                 originalId: event.originalId!, instanceDate: event.startAt, mode: scope
               })

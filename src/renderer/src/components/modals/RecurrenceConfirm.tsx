@@ -5,31 +5,31 @@ interface Props {
 }
 
 export default function RecurrenceConfirm({ actionType, onSelect, onCancel }: Props) {
-  const verb = actionType === 'move' ? '변경' : '삭제'
+  const verb = actionType === 'move' ? 'Edit' : 'Delete'
 
   return (
     <div className="fixed inset-0 bg-black/40 dark:bg-black/60 flex items-center justify-center z-[60]" onClick={onCancel}>
-      <div className="glass-panel rounded-2xl shadow-glass-lg w-80 p-5 border border-ink-200 dark:border-ink-800"
+      <div className="glass-panel rounded-2xl w-80 p-5 border border-ink-200 dark:border-ink-800"
         onClick={(e) => e.stopPropagation()}>
-        <h3 className="text-base font-semibold mb-1">반복 일정 {verb}</h3>
-        <p className="text-xs text-ink-500 mb-4">어느 범위에 적용할까요?</p>
+        <h3 className="text-base font-semibold mb-1">{verb} repeating event</h3>
+        <p className="text-xs text-ink-500 mb-4">Apply to which scope?</p>
 
         <div className="space-y-2">
-          <OptionBtn label="이 일정만"
-            desc="이 날짜의 일정에만 적용"
+          <OptionBtn label="This event only"
+            desc="Apply only to this occurrence"
             onClick={() => onSelect('only')} />
-          <OptionBtn label="이후 모든 일정"
-            desc="이 일정과 이후 반복에 적용"
+          <OptionBtn label="This and following"
+            desc="Apply to this occurrence and all future"
             onClick={() => onSelect('future')} />
           {actionType === 'delete' && (
-            <OptionBtn label="모든 반복 일정"
-              desc="반복 전체 삭제"
+            <OptionBtn label="All occurrences"
+              desc="Delete the entire repeating series"
               danger
               onClick={() => onSelect('all')} />
           )}
         </div>
 
-        <button onClick={onCancel} className="btn btn-ghost mt-3 w-full">취소</button>
+        <button onClick={onCancel} className="btn btn-ghost mt-3 w-full">Cancel</button>
       </div>
     </div>
   )

@@ -13,9 +13,9 @@ function fmt(ms: number) {
 
 function duration(s: number, e: number) {
   const m = Math.round((e - s) / 60000)
-  if (m < 60) return `${m}분`
+  if (m < 60) return `${m} min`
   const h = Math.floor(m / 60), r = m % 60
-  return r ? `${h}시간 ${r}분` : `${h}시간`
+  return r ? `${h}h ${r}m` : `${h}h`
 }
 
 export default function EventItem({ event }: Props) {

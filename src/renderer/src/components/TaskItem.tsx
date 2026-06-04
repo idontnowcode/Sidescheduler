@@ -9,7 +9,7 @@ interface Props {
   overdue?: boolean
 }
 
-const LABEL = { urgent: '긴급', normal: '보통', low: '낮음' } as const
+const LABEL = { urgent: 'Urgent', normal: 'Normal', low: 'Low' } as const
 const BADGE = {
   urgent: 'bg-red-50 dark:bg-red-500/15 text-red-500 dark:text-red-400',
   normal: 'bg-ink-100 dark:bg-ink-800 text-ink-500 dark:text-ink-400',
@@ -82,25 +82,25 @@ export default function TaskItem({ task, dueBadge, overdue }: Props) {
 
         {!dueBadge && (
           <span className={`chip ${task.done ? 'bg-green-50 dark:bg-green-500/15 text-green-600 dark:text-green-400' : BADGE[task.priority]}`}>
-            {task.done ? '완료' : LABEL[task.priority]}
+            {task.done ? 'Done' : LABEL[task.priority]}
           </span>
         )}
 
-        {/* Snooze menu */}
         <div className="relative">
           <button onClick={(e) => { e.stopPropagation(); setMenu((v) => !v) }}
+            title="More"
             className="opacity-0 group-hover:opacity-100 w-5 h-5 rounded-md hover:bg-ink-100 dark:hover:bg-ink-700 text-ink-400 transition-opacity flex items-center justify-center text-xs">
             ⋯
           </button>
           {menu && (
             <div ref={menuRef}
-              className="absolute right-0 top-6 z-30 surface-card rounded-xl shadow-glass-lg py-1 min-w-[140px]">
-              <MenuItem onClick={() => snooze(0)}>오늘로</MenuItem>
-              <MenuItem onClick={() => snooze(1)}>내일로</MenuItem>
-              <MenuItem onClick={() => snooze(7)}>다음 주</MenuItem>
-              <MenuItem onClick={() => snooze(null)}>기한 없애기</MenuItem>
+              className="absolute right-0 top-6 z-30 surface-card rounded-xl shadow-glass-lg py-1 min-w-[160px]">
+              <MenuItem onClick={() => snooze(0)}>Move to today</MenuItem>
+              <MenuItem onClick={() => snooze(1)}>Move to tomorrow</MenuItem>
+              <MenuItem onClick={() => snooze(7)}>Move to next week</MenuItem>
+              <MenuItem onClick={() => snooze(null)}>Clear due date</MenuItem>
               <hr className="my-1 border-ink-100 dark:border-ink-800" />
-              <MenuItem danger onClick={() => { setMenu(false); remove(task.id) }}>삭제</MenuItem>
+              <MenuItem danger onClick={() => { setMenu(false); remove(task.id) }}>Delete</MenuItem>
             </div>
           )}
         </div>

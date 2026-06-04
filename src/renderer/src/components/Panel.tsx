@@ -12,12 +12,13 @@ export default function Panel({ isExpanded, sidebarW, edge }: Props) {
   const innerSide = edge === 'right' ? 'right' : 'left'
   return (
     <div
-      className={`fixed top-0 bottom-0 w-[300px] surface-card flex flex-col z-10 transition-all duration-200 ${
-        isExpanded ? 'opacity-100 translate-x-0' : 'opacity-0 pointer-events-none'
+      className={`fixed top-0 bottom-0 w-[300px] bg-white dark:bg-ink-900 border border-ink-200 dark:border-ink-800 text-ink-900 dark:text-ink-100 flex flex-col z-10 transition-opacity duration-200 ${
+        isExpanded ? 'opacity-100' : 'opacity-0 pointer-events-none'
       }`}
       style={{
         [innerSide]: sidebarW,
-        borderRadius: edge === 'right' ? '14px 0 0 14px' : '0 14px 14px 0'
+        borderRadius: edge === 'right' ? '14px 0 0 14px' : '0 14px 14px 0',
+        [edge === 'right' ? 'borderRight' : 'borderLeft']: 'none'
       }}
     >
       <DateCard />

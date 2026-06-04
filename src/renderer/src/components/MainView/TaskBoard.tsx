@@ -33,43 +33,43 @@ export default function TaskBoard() {
     <div className="px-5 py-4 border-t border-ink-100 dark:border-ink-800">
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
-          <span className="section-label">마감 태스크</span>
+          <span className="section-label">Due Tasks</span>
           {selectedDayTasks.length > 0 && (
             <span className="chip bg-orange-50 dark:bg-orange-500/15 text-orange-600 dark:text-orange-400">{selectedDayTasks.length}</span>
           )}
         </div>
         <button onClick={() => setAdding(true)}
+          title="Add task"
           className="w-6 h-6 rounded-lg bg-ink-100 dark:bg-ink-800 hover:bg-orange-100 dark:hover:bg-orange-500/20 hover:text-orange-600 dark:hover:text-orange-400 text-ink-500 flex items-center justify-center text-base font-medium transition-colors">
           +
         </button>
       </div>
 
       {selectedDayTasks.length === 0 ? (
-        <p className="text-xs text-ink-400 py-1.5 text-center">이 날의 태스크 없음</p>
+        <p className="text-xs text-ink-400 py-1.5 text-center">Nothing due this day</p>
       ) : (
         <div className="space-y-1">
           {selectedDayTasks.map((t) => <TaskItem key={t.id} task={t} />)}
         </div>
       )}
 
-      {/* All incomplete */}
       {totalCount > 0 && (
         <div className="mt-4">
           <button onClick={() => setShowAll((v) => !v)}
             className="w-full flex items-center justify-between py-2 group">
             <div className="flex items-center gap-2">
-              <span className="section-label">전체 미완료</span>
+              <span className="section-label">All Incomplete</span>
               <span className="chip bg-ink-100 dark:bg-ink-800 text-ink-500">{totalCount}</span>
             </div>
             <span className="text-2xs text-ink-400 group-hover:text-ink-600 dark:group-hover:text-ink-300">
-              {showAll ? '숨기기 ▲' : '표시 ▼'}
+              {showAll ? 'Hide ▲' : 'Show ▼'}
             </span>
           </button>
 
           {showAll && (
             <div className="space-y-3 mt-2">
               {overdueTasks.length > 0 && (
-                <SubSection title="지연" color="red" count={overdueTasks.length}>
+                <SubSection title="Overdue" color="red" count={overdueTasks.length}>
                   {overdueTasks.map((t) => (
                     <TaskItem key={t.id} task={t}
                       dueBadge={t.dueAt != null ? fmtDue(t.dueAt) : undefined}
@@ -78,7 +78,7 @@ export default function TaskBoard() {
                 </SubSection>
               )}
               {futureTasks.length > 0 && (
-                <SubSection title="예정" color="ink" count={futureTasks.length}>
+                <SubSection title="Upcoming" color="ink" count={futureTasks.length}>
                   {futureTasks.map((t) => (
                     <TaskItem key={t.id} task={t}
                       dueBadge={t.dueAt != null ? fmtDue(t.dueAt) : undefined} />
@@ -86,7 +86,7 @@ export default function TaskBoard() {
                 </SubSection>
               )}
               {noDueTasks.length > 0 && (
-                <SubSection title="기한 없음" color="ink-light" count={noDueTasks.length}>
+                <SubSection title="No Due Date" color="ink-light" count={noDueTasks.length}>
                   {noDueTasks.map((t) => <TaskItem key={t.id} task={t} />)}
                 </SubSection>
               )}

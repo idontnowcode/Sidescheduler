@@ -23,7 +23,7 @@ export default function SettingsView() {
   }, [])
 
   if (!settings) {
-    return <div className="h-full flex items-center justify-center text-sm text-ink-400">불러오는 중...</div>
+    return <div className="h-full flex items-center justify-center text-sm text-ink-400">Loading...</div>
   }
 
   const update = async (patch: Partial<WindowSettings>) => {
@@ -40,43 +40,43 @@ export default function SettingsView() {
 
   return (
     <div className="h-full overflow-y-auto px-8 py-6 max-w-3xl mx-auto space-y-8">
-      <h1 className="text-2xl font-bold">설정</h1>
+      <h1 className="text-2xl font-bold">Settings</h1>
 
-      <Section title="테마" desc="외관 모드 선택">
+      <Section title="Theme" desc="Appearance mode">
         <RadioRow value={themeMode}
-          options={[{ value: 'light', label: '라이트' }, { value: 'dark', label: '다크' }, { value: 'system', label: '시스템' }]}
+          options={[{ value: 'light', label: 'Light' }, { value: 'dark', label: 'Dark' }, { value: 'system', label: 'System' }]}
           onChange={(v) => setThemeMode(v as ThemeMode)} />
       </Section>
 
-      <Section title="사이드바 위치" desc="화면 좌/우 어느 쪽에 붙일지">
+      <Section title="Sidebar Position" desc="Anchor the sidebar to which edge">
         <RadioRow value={settings.edge}
-          options={[{ value: 'right', label: '오른쪽' }, { value: 'left', label: '왼쪽' }]}
+          options={[{ value: 'right', label: 'Right' }, { value: 'left', label: 'Left' }]}
           onChange={(v) => update({ edge: v as 'left' | 'right' })} />
         <div className="mt-3 flex items-center gap-2">
           <button onClick={() => update({ locked: !settings.locked })}
             className={`btn text-sm ${settings.locked ? 'btn-primary' : 'btn-secondary'}`}>
-            {settings.locked ? '🔒 위치 고정됨' : '🔓 자유 이동'}
+            {settings.locked ? '🔒 Locked' : '🔓 Movable'}
           </button>
           <button onClick={() => update({ customY: undefined })} className="btn btn-ghost text-xs">
-            세로 위치 초기화
+            Reset Y position
           </button>
         </div>
         <p className="text-xs text-ink-400 mt-2">
-          💡 잠금 해제 상태에서 사이드바를 드래그하면 위아래 위치를 조정할 수 있습니다.
+          💡 When unlocked, drag the small grip at the top of the sidebar to move it vertically.
         </p>
       </Section>
 
-      <Section title="사이드바 너비" desc="접혔을 때 표시되는 폭">
+      <Section title="Sidebar Width" desc="Collapsed width">
         <RadioRow value={String(settings.width)}
           options={[
-            { value: '32', label: '32px (슬림)' },
-            { value: '40', label: '40px (기본)' },
-            { value: '52', label: '52px (와이드)' }
+            { value: '32', label: '32px (Slim)' },
+            { value: '40', label: '40px (Default)' },
+            { value: '52', label: '52px (Wide)' }
           ]}
           onChange={(v) => update({ width: parseInt(v) as 32 | 40 | 52 })} />
       </Section>
 
-      <Section title="모니터" desc="여러 모니터 중 사이드바를 표시할 화면">
+      <Section title="Monitor" desc="Choose which display to anchor the sidebar to">
         <div className="space-y-2">
           {displays.map((d) => {
             const checked = (settings.displayId ?? displays.find(x => x.isPrimary)?.id) === d.id
@@ -91,7 +91,7 @@ export default function SettingsView() {
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium">
                     {d.label || `Display ${d.id}`}
-                    {d.isPrimary && <span className="ml-2 chip bg-accent-500 text-white">기본</span>}
+                    {d.isPrimary && <span className="ml-2 chip bg-accent-500 text-white">Primary</span>}
                   </p>
                   <p className="text-xs text-ink-500 mt-0.5">
                     {d.bounds.width} × {d.bounds.height} @ {d.scaleFactor}× · ({d.bounds.x}, {d.bounds.y})
@@ -103,37 +103,37 @@ export default function SettingsView() {
         </div>
       </Section>
 
-      <Section title="앱" desc="">
+      <Section title="App" desc="">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-sm font-medium">Windows 시작 시 자동 실행</p>
-            <p className="text-xs text-ink-400 mt-0.5">로그인 시 앱 자동 시작</p>
+            <p className="text-sm font-medium">Launch at Windows startup</p>
+            <p className="text-xs text-ink-400 mt-0.5">Auto-start when you sign in</p>
           </div>
           <Toggle checked={autoStart} onChange={toggleAuto} />
         </div>
       </Section>
 
-      <Section title="단축키" desc="">
+      <Section title="Shortcuts" desc="">
         <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
-          <Shortcut k="⌘K / Ctrl+K" label="명령 팔레트" />
-          <Shortcut k="N" label="새 일정" />
-          <Shortcut k="Shift+N" label="새 태스크" />
-          <Shortcut k="T" label="오늘" />
-          <Shortcut k="M" label="월간 뷰" />
-          <Shortcut k="W" label="주간 뷰" />
+          <Shortcut k="⌘K / Ctrl+K" label="Command palette" />
+          <Shortcut k="N" label="New event" />
+          <Shortcut k="Shift+N" label="New task" />
+          <Shortcut k="T" label="Today" />
+          <Shortcut k="M" label="Month view" />
+          <Shortcut k="W" label="Week view" />
         </div>
       </Section>
 
-      <Section title="데이터" desc="">
+      <Section title="Data" desc="">
         <p className="text-xs text-ink-400 break-all">
-          저장 위치: %APPDATA%\daily-sidebar-planner\planner.json
+          Stored at: %APPDATA%\daily-sidebar-planner\planner.json
         </p>
-        <p className="text-xs text-ink-400 mt-1">버전: 0.2.0</p>
+        <p className="text-xs text-ink-400 mt-1">Version: 0.2.0</p>
       </Section>
 
       {saving && (
         <div className="fixed bottom-4 right-4 text-xs bg-ink-800 text-white px-3 py-2 rounded-xl shadow-lg">
-          저장 중...
+          Saving...
         </div>
       )}
     </div>

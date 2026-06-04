@@ -9,6 +9,10 @@ interface Props {
   onReload: () => void
 }
 
+const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June',
+                'July', 'August', 'September', 'October', 'November', 'December']
+
 function sod(d: Date) { return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime() }
 function fmtTime(ts: number) {
   const d = new Date(ts)
@@ -36,23 +40,19 @@ export default function TodayView({ events, allIncompleteTasks, onReload }: Prop
 
   return (
     <div className="h-full overflow-y-auto px-8 py-6 max-w-5xl mx-auto">
-      {/* Hero */}
       <div className="flex items-end gap-4 mb-8 pb-6 border-b border-ink-100 dark:border-ink-800">
         <span className="text-5xl font-bold tracking-tight">{today.getDate()}</span>
         <div className="pb-1">
-          <p className="text-lg font-semibold">
-            {['일요일','월요일','화요일','수요일','목요일','금요일','토요일'][today.getDay()]}
-          </p>
-          <p className="text-sm text-ink-500">{today.getFullYear()}년 {today.getMonth() + 1}월</p>
+          <p className="text-lg font-semibold">{WEEKDAYS[today.getDay()]}</p>
+          <p className="text-sm text-ink-500">{MONTHS[today.getMonth()]} {today.getFullYear()}</p>
         </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-        {/* Today's events */}
         <Card>
-          <CardHeader label="오늘 일정" count={todayEvents.length} color="accent" />
+          <CardHeader label="Today's Events" count={todayEvents.length} color="accent" />
           {todayEvents.length === 0 ? (
-            <Empty text="오늘 예정된 일정이 없습니다" />
+            <Empty text="Nothing scheduled today" />
           ) : (
             <div className="space-y-1">
               {todayEvents.map((ev) => (
@@ -73,12 +73,11 @@ export default function TodayView({ events, allIncompleteTasks, onReload }: Prop
           )}
         </Card>
 
-        {/* Overdue */}
         <Card>
-          <CardHeader label="지연 중인 태스크" count={overdueTasks.length} color="red"
+          <CardHeader label="Overdue Tasks" count={overdueTasks.length} color="red"
             empty={overdueTasks.length === 0} />
           {overdueTasks.length === 0 ? (
-            <Empty text="지연된 태스크 없음" success />
+            <Empty text="No overdue tasks" success />
           ) : (
             <div className="space-y-1">
               {overdueTasks.map((t) => (
@@ -90,11 +89,10 @@ export default function TodayView({ events, allIncompleteTasks, onReload }: Prop
           )}
         </Card>
 
-        {/* Today's tasks */}
         <Card className="md:col-span-2">
-          <CardHeader label="오늘 태스크" count={todayTasks.length} color="orange" />
+          <CardHeader label="Due Today" count={todayTasks.length} color="orange" />
           {todayTasks.length === 0 ? (
-            <Empty text="오늘 마감 태스크 없음" />
+            <Empty text="Nothing due today" />
           ) : (
             <div className="space-y-1">
               {todayTasks.map((t) => (
@@ -121,7 +119,7 @@ export default function TodayView({ events, allIncompleteTasks, onReload }: Prop
 
 function Card({ children, className = '' }: { children: React.ReactNode; className?: string }) {
   return (
-    <section className={`surface-card rounded-2xl p-5 ${className}`}>{children}</section>
+    <section className={`bg-white dark:bg-ink-900 border border-ink-200 dark:border-ink-800 rounded-2xl p-5 ${className}`}>{children}</section>
   )
 }
 
@@ -153,7 +151,7 @@ function Empty({ text, success }: { text: string; success?: boolean }) {
 function TaskRow({ task, showDue, overdue, onToggle, onEdit }: {
   task: Task; showDue?: boolean; overdue?: boolean; onToggle: () => void; onEdit: () => void
 }) {
-  const PRI: Record<string, string> = { urgent: '긴급', normal: '보통', low: '낮음' }
+  const PRI: Record<string, string> = { urgent: 'Urgent', normal: 'Normal', low: 'Low' }
   const BADGE: Record<string, string> = {
     urgent: 'bg-red-50 dark:bg-red-500/15 text-red-500',
     normal: 'bg-ink-100 dark:bg-ink-800 text-ink-500',
@@ -178,7 +176,7 @@ function TaskRow({ task, showDue, overdue, onToggle, onEdit }: {
         {task.recurrence && <span className="ml-1 text-2xs opacity-60">↻</span>}
       </button>
       {showDue && task.dueAt && (
-        <span className="text-xs text-red-400 flex-shrink-0">{fmtDue(task.dueAt)} 마감</span>
+        <span className="text-xs text-red-400 flex-shrink-0">Due {fmtDue(task.dueAt)}</span>
       )}
       <span className={`chip ${BADGE[task.priority]}`}>{PRI[task.priority]}</span>
     </div>
