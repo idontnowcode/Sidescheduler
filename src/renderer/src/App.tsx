@@ -87,7 +87,7 @@ export default function App() {
     collapseTimer.current = setTimeout(() => {
       setIsExpanded(false)
       setTimeout(() => window.electronAPI.collapseWindow(), 220)
-    }, 150)
+    }, 400)
   }, [])
 
   const isLeft = settings.edge === 'left'
@@ -95,6 +95,7 @@ export default function App() {
   return (
     <div className="fixed top-0 bottom-0"
       style={{ width: settings.width + 300, [isLeft ? 'left' : 'right']: 0 }}
+      onMouseEnter={expand}
       onMouseLeave={collapse}>
       <Panel isExpanded={isExpanded} sidebarW={settings.width} edge={settings.edge} />
       <Sidebar onHover={expand} />

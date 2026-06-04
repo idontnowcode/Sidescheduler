@@ -32,13 +32,22 @@ export default function Sidebar({ onHover }: Props) {
         [isLeft ? 'borderLeft' : 'borderRight']: 'none',
         [isLeft ? 'borderTopRightRadius' : 'borderTopLeftRadius']: '12px',
         [isLeft ? 'borderBottomRightRadius' : 'borderBottomLeftRadius']: '12px',
-        paddingTop: 6, paddingBottom: 6, gap: 5,
-        ...(locked ? {} : DRAG_REGION),
-        cursor: locked ? 'default' : 'grab'
+        paddingTop: 0, paddingBottom: 6, gap: 5
       }}
       onMouseEnter={onHover}
-      title={locked ? '' : '드래그하여 위치 이동'}
     >
+      {/* Tiny drag-handle strip only at the very top (no-drag on the rest of
+          the sidebar so hover events fire reliably) */}
+      {!locked && (
+        <div
+          title="드래그하여 위치 이동"
+          style={{ width: w - 10, height: 8, ...DRAG_REGION, cursor: 'grab' }}
+          className="flex items-center justify-center mt-1 mb-1 group"
+        >
+          <div className="w-5 h-0.5 bg-ink-200 dark:bg-ink-700 rounded-full group-hover:bg-ink-300 dark:group-hover:bg-ink-600 transition-colors" />
+        </div>
+      )}
+      {locked && <div style={{ height: 6 }} />}
       {/* Date display */}
       <div className="flex flex-col items-center leading-none select-none">
         <span className="text-2xs font-medium text-accent-500 dark:text-accent-400">{WEEKDAYS[now.getDay()]}</span>

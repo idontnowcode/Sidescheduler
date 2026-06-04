@@ -131,8 +131,7 @@ export default function PaletteApp() {
   }, [items, active])
 
   return (
-    <div className="w-screen h-screen overflow-hidden p-2 bg-transparent">
-      <div className="glass-panel rounded-2xl shadow-glass-lg w-full h-full border border-ink-200 dark:border-ink-800 overflow-hidden flex flex-col">
+    <div className="glass-panel w-screen h-screen rounded-2xl border border-ink-200 dark:border-ink-800 overflow-hidden flex flex-col">
         {/* Search input */}
         <div className="flex items-center gap-3 px-4 py-3.5 border-b border-ink-100 dark:border-ink-800 flex-shrink-0">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
@@ -217,7 +216,6 @@ export default function PaletteApp() {
           </div>
           <span>자연어 입력 가능 · 예: "내일 9시 헬스 1시간"</span>
         </div>
-      </div>
     </div>
   )
 }
