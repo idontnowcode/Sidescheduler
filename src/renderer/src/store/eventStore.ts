@@ -7,7 +7,7 @@ interface EventState {
   load: (start: number, end: number) => Promise<void>
   add: (data: {
     title: string; start_at: number; end_at: number;
-    color?: string; location?: string
+    color?: string; location?: string; recurrence?: string
   }) => Promise<void>
   remove: (id: string) => Promise<void>
 }

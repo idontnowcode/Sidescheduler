@@ -11,13 +11,20 @@ export default function App() {
 
   const { selectedStart, selectedEnd } = useDateStore()
   const loadEvents = useEventStore((s) => s.load)
-  const loadTasks = useTaskStore((s) => s.load)
+  const loadTasks  = useTaskStore((s) => s.load)
 
-  // Reload whenever selected date changes
   useEffect(() => {
     loadEvents(selectedStart, selectedEnd)
     loadTasks(selectedEnd)
   }, [selectedStart, selectedEnd, loadEvents, loadTasks])
+
+  // Navigate sidebar to a date when dashboard sends it
+  useEffect(() => {
+    const unsub = window.electronAPI.onNavigateToDate((ts) => {
+      useDateStore.getState().goToDate(new Date(ts))
+    })
+    return unsub
+  }, [])
 
   useEffect(() => {
     const unsub = window.electronAPI.onDisplayChanged(() => {
