@@ -7,7 +7,6 @@ export default function SettingsView() {
   const [autoStart, setAutoStart] = useState(false)
   const [saving, setSaving] = useState(false)
 
-  // Initial load
   useEffect(() => {
     Promise.all([
       window.electronAPI.getSettings(),
@@ -34,6 +33,10 @@ export default function SettingsView() {
     setSaving(false)
   }
 
+  const resetPosition = async () => {
+    await update({ customY: undefined })
+  }
+
   const toggleAuto = async () => {
     const next = !autoStart
     await window.electronAPI.setAutoStart(next)
@@ -44,7 +47,6 @@ export default function SettingsView() {
     <div className="h-full overflow-y-auto p-6 max-w-2xl mx-auto space-y-7">
       <h1 className="text-lg font-bold text-gray-900">설정</h1>
 
-      {/* ── 사이드바 위치 ────────────────────────────────────────────── */}
       <Section title="사이드바 위치" desc="화면 좌/우 어느 쪽에 붙일지 선택">
         <RadioRow
           options={[
@@ -54,44 +56,27 @@ export default function SettingsView() {
           value={settings.edge}
           onChange={(v) => update({ edge: v as 'left' | 'right' })}
         />
+        <div className="mt-3 flex items-center gap-2">
+          <button
+            onClick={() => update({ locked: !settings.locked })}
+            className={`text-[12px] px-3 py-1.5 rounded-lg font-medium transition-colors ${
+              settings.locked ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+            }`}
+          >
+            {settings.locked ? '🔒 위치 고정됨' : '🔓 자유 이동'}
+          </button>
+          <button
+            onClick={resetPosition}
+            className="text-[11px] text-gray-400 hover:text-gray-600 px-2 py-1.5"
+          >
+            세로 위치 초기화
+          </button>
+        </div>
+        <p className="text-[11px] text-gray-400 mt-2">
+          💡 잠금 해제 상태에서 사이드바를 드래그하면 위아래 위치를 조정할 수 있습니다.
+        </p>
       </Section>
 
-      {/* ── 세로 모드 ─────────────────────────────────────────────────── */}
-      <Section title="세로 위치" desc="사이드바가 차지할 세로 영역">
-        <RadioRow
-          options={[
-            { value: 'full',   label: '전체 높이' },
-            { value: 'top',    label: '상단 절반' },
-            { value: 'bottom', label: '하단 절반' },
-            { value: 'custom', label: '사용자 지정' }
-          ]}
-          value={settings.verticalMode}
-          onChange={(v) => update({ verticalMode: v as WindowSettings['verticalMode'] })}
-        />
-        {settings.verticalMode === 'custom' && (
-          <div className="mt-3 p-3 bg-blue-50 rounded-lg space-y-2">
-            <p className="text-[11px] text-blue-600">
-              💡 사이드바 상단의 회색 막대를 드래그하면 세로 위치를 조정할 수 있습니다.
-            </p>
-            <div className="grid grid-cols-2 gap-2">
-              <NumInput
-                label="Y 위치 (px)"
-                value={settings.customY ?? 0}
-                min={0} max={2000}
-                onChange={(v) => update({ customY: v })}
-              />
-              <NumInput
-                label="높이 (px)"
-                value={settings.customHeight ?? 600}
-                min={120} max={2000}
-                onChange={(v) => update({ customHeight: v })}
-              />
-            </div>
-          </div>
-        )}
-      </Section>
-
-      {/* ── 사이드바 폭 ───────────────────────────────────────────────── */}
       <Section title="사이드바 너비" desc="접혔을 때 표시되는 폭">
         <RadioRow
           options={[
@@ -104,7 +89,6 @@ export default function SettingsView() {
         />
       </Section>
 
-      {/* ── 모니터 선택 ──────────────────────────────────────────────── */}
       <Section title="모니터" desc="여러 모니터 중 사이드바를 표시할 화면">
         <div className="space-y-1.5">
           {displays.map((d) => {
@@ -114,12 +98,10 @@ export default function SettingsView() {
                 className={`flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer border transition-colors ${
                   checked ? 'bg-blue-50 border-blue-200' : 'border-gray-100 hover:bg-gray-50'
                 }`}>
-                <input
-                  type="radio" name="display"
+                <input type="radio" name="display"
                   checked={checked}
                   onChange={() => update({ displayId: d.id })}
-                  className="accent-blue-500"
-                />
+                  className="accent-blue-500" />
                 <div className="flex-1 min-w-0">
                   <p className="text-[12px] font-medium text-gray-800">
                     {d.label || `Display ${d.id}`}
@@ -137,7 +119,6 @@ export default function SettingsView() {
         </div>
       </Section>
 
-      {/* ── 기타 ──────────────────────────────────────────────────────── */}
       <Section title="앱" desc="">
         <div className="flex items-center justify-between">
           <div>
@@ -164,7 +145,6 @@ export default function SettingsView() {
   )
 }
 
-// ── Sub-components ────────────────────────────────────────────────────────
 function Section({ title, desc, children }: { title: string; desc: string; children: React.ReactNode }) {
   return (
     <section>
@@ -191,22 +171,6 @@ function RadioRow({ options, value, onChange }: {
           {o.label}
         </button>
       ))}
-    </div>
-  )
-}
-
-function NumInput({ label, value, min, max, onChange }: {
-  label: string; value: number; min: number; max: number; onChange: (v: number) => void
-}) {
-  return (
-    <div>
-      <p className="text-[10px] text-gray-500 mb-1">{label}</p>
-      <input type="number" value={value} min={min} max={max}
-        onChange={(e) => {
-          const v = parseInt(e.target.value || '0')
-          if (!isNaN(v)) onChange(Math.max(min, Math.min(max, v)))
-        }}
-        className="w-full text-[12px] px-2 py-1.5 rounded-lg border border-blue-200 bg-white focus:outline-none focus:border-blue-400" />
     </div>
   )
 }

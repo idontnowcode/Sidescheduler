@@ -1,11 +1,10 @@
 // ── Window settings ───────────────────────────────────────────────────────
 export interface WindowSettings {
   edge: 'left' | 'right'
-  verticalMode: 'full' | 'top' | 'bottom' | 'custom'
-  customY?: number
-  customHeight?: number
+  customY?: number          // px from work-area top
   displayId?: number
   width: 32 | 40 | 52
+  locked: boolean
 }
 
 export interface DisplayInfo {

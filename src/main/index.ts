@@ -13,7 +13,11 @@ let mainWindow: BrowserWindow | null = null
 let dashboardWindow: BrowserWindow | null = null
 let tray: Tray | null = null
 let windowExpanded = false
-const PANEL_W = 280
+
+// ── Layout constants ──────────────────────────────────────────────────────
+const SIDEBAR_HEIGHT  = 156   // collapsed height
+const EXPANDED_HEIGHT = 560   // height when panel is open
+const PANEL_W         = 280
 
 // ── Display / bounds ──────────────────────────────────────────────────────
 function getDisplayForSettings(s: WindowSettings): Display {
@@ -27,31 +31,32 @@ function getDisplayForSettings(s: WindowSettings): Display {
 function calcBounds(expanded: boolean): { x: number; y: number; width: number; height: number } {
   const s = loadSettings()
   const display = getDisplayForSettings(s)
-  const wa = display.workArea // { x, y, width, height } — accounts for taskbar
+  const wa = display.workArea
   const sidebarW = s.width
   const totalW = expanded ? sidebarW + PANEL_W : sidebarW
+  const totalH = expanded ? EXPANDED_HEIGHT : SIDEBAR_HEIGHT
 
   const x = s.edge === 'right'
     ? wa.x + wa.width - totalW
     : wa.x
 
-  let y = wa.y
-  let h = wa.height
-  if (s.verticalMode === 'top') {
-    h = Math.floor(wa.height / 2)
-  } else if (s.verticalMode === 'bottom') {
-    y = wa.y + Math.floor(wa.height / 2)
-    h = wa.height - Math.floor(wa.height / 2)
-  } else if (s.verticalMode === 'custom') {
-    y = wa.y + (s.customY ?? 0)
-    h = s.customHeight ?? wa.height
-  }
-  return { x, y, width: totalW, height: h }
+  // Default Y = vertically centered on work area
+  const defaultY = wa.y + Math.max(0, Math.floor((wa.height - SIDEBAR_HEIGHT) / 2))
+  const baseY = s.customY != null ? wa.y + s.customY : defaultY
+  // Clamp so window stays inside work area
+  const y = Math.max(wa.y, Math.min(wa.y + wa.height - totalH, baseY))
+
+  return { x, y, width: totalW, height: totalH }
 }
 
 function applyBounds() {
   if (!mainWindow) return
   mainWindow.setBounds(calcBounds(windowExpanded))
+}
+
+function applyMovable() {
+  if (!mainWindow) return
+  mainWindow.setMovable(!loadSettings().locked)
 }
 
 // ── Sidebar window ────────────────────────────────────────────────────────
@@ -60,6 +65,7 @@ function createWindow(): void {
     ...calcBounds(false),
     frame: false, transparent: true, alwaysOnTop: true,
     skipTaskbar: true, resizable: false, hasShadow: false, focusable: true,
+    movable: !loadSettings().locked,
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       contextIsolation: true, nodeIntegration: false, sandbox: false
@@ -76,11 +82,11 @@ function createWindow(): void {
 
   mainWindow.on('blur', () => mainWindow?.setAlwaysOnTop(true, 'screen-saver'))
 
-  // Track user-initiated drag (when custom mode) → persist new Y
+  // Persist Y after user drags the window
   mainWindow.on('moved', () => {
     if (!mainWindow) return
     const s = loadSettings()
-    if (s.verticalMode !== 'custom') return
+    if (s.locked) return
     const b = mainWindow.getBounds()
     const display = getDisplayForSettings(s)
     saveSettings({ customY: Math.max(0, b.y - display.workArea.y) })
@@ -173,15 +179,14 @@ ipcMain.handle('settings:get', () => loadSettings())
 ipcMain.handle('settings:set', (_e, patch: Partial<WindowSettings>) => {
   const next = saveSettings(patch)
   applyBounds()
+  applyMovable()
   mainWindow?.webContents.send('settings:changed', next)
   return next
 })
 ipcMain.handle('displays:list', () => {
   return screen.getAllDisplays().map(d => ({
-    id: d.id,
-    label: d.label || '',
-    bounds: d.bounds,
-    workArea: d.workArea,
+    id: d.id, label: d.label || '',
+    bounds: d.bounds, workArea: d.workArea,
     scaleFactor: d.scaleFactor,
     isPrimary: d.id === screen.getPrimaryDisplay().id
   }))

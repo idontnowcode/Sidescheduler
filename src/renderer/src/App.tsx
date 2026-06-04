@@ -16,7 +16,6 @@ export default function App() {
   const settings   = useSettingsStore((s) => s.settings)
   const loadSettings = useSettingsStore((s) => s.load)
 
-  // Initial load
   useEffect(() => { loadSettings() }, [loadSettings])
   useEffect(() => { loadAll() }, [loadAll])
 
@@ -24,15 +23,11 @@ export default function App() {
     loadEvents(selectedStart, selectedEnd)
   }, [selectedStart, selectedEnd, loadEvents])
 
-  // Re-fetch on settings change broadcast (from dashboard settings tab)
   useEffect(() => {
-    const unsub = window.electronAPI.onSettingsChanged(() => {
-      loadSettings()
-    })
+    const unsub = window.electronAPI.onSettingsChanged(() => loadSettings())
     return unsub
   }, [loadSettings])
 
-  // Navigate from dashboard
   useEffect(() => {
     const unsub = window.electronAPI.onNavigateToDate((ts) => {
       useDateStore.getState().goToDate(new Date(ts))
@@ -64,21 +59,15 @@ export default function App() {
     }, 150)
   }, [])
 
-  const sidebarW = settings.width
-  const panelW = 280
-  const totalW = sidebarW + panelW
   const isLeft = settings.edge === 'left'
 
   return (
     <div
-      className="fixed inset-y-0"
-      style={{
-        width: totalW,
-        [isLeft ? 'left' : 'right']: 0
-      }}
+      className="fixed top-0 bottom-0"
+      style={{ width: settings.width + 280, [isLeft ? 'left' : 'right']: 0 }}
       onMouseLeave={collapse}
     >
-      <Panel isExpanded={isExpanded} sidebarW={sidebarW} edge={settings.edge} />
+      <Panel isExpanded={isExpanded} sidebarW={settings.width} edge={settings.edge} />
       <Sidebar onHover={expand} />
     </div>
   )

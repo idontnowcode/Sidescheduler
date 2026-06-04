@@ -7,17 +7,16 @@ import { join } from 'path'
 
 export interface WindowSettings {
   edge: 'left' | 'right'
-  verticalMode: 'full' | 'top' | 'bottom' | 'custom'
-  customY?: number          // px from work-area top (custom mode)
-  customHeight?: number     // px (custom mode)
+  customY?: number          // px from work-area top (vertical position)
   displayId?: number        // electron screen.Display.id
   width: 32 | 40 | 52       // collapsed sidebar width
+  locked: boolean           // when true, sidebar cannot be dragged
 }
 
 const DEFAULT: WindowSettings = {
   edge: 'right',
-  verticalMode: 'full',
-  width: 40
+  width: 40,
+  locked: false
 }
 
 let cache: WindowSettings | null = null
@@ -32,9 +31,7 @@ export function loadSettings(): WindowSettings {
   if (existsSync(p)) {
     try {
       cache = { ...DEFAULT, ...(JSON.parse(readFileSync(p, 'utf-8')) as Partial<WindowSettings>) }
-    } catch {
-      cache = { ...DEFAULT }
-    }
+    } catch { cache = { ...DEFAULT } }
   } else {
     cache = { ...DEFAULT }
   }
