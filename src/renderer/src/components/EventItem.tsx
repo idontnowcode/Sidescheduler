@@ -1,5 +1,8 @@
+import { useState } from 'react'
 import { CalEvent } from '../types'
+import EventModal from './modals/EventModal'
 import { useEventStore } from '../store/eventStore'
+import { useDateStore } from '../store/dateStore'
 
 interface Props { event: CalEvent }
 
@@ -16,37 +19,41 @@ function duration(s: number, e: number) {
 }
 
 export default function EventItem({ event }: Props) {
-  const remove = useEventStore((s) => s.remove)
+  const [editing, setEditing] = useState(false)
+  const reload = () => useEventStore.getState().load(
+    useDateStore.getState().selectedStart, useDateStore.getState().selectedEnd
+  )
 
   return (
-    <div className="flex gap-2 group py-1 pr-1">
-      {/* Time */}
-      <span className="text-[11px] font-mono text-gray-400 w-[34px] flex-shrink-0 pt-0.5">
-        {fmt(event.startAt)}
-      </span>
-
-      {/* Color dot + content */}
-      <div className="flex items-start gap-1.5 flex-1 min-w-0">
-        <span
-          className="w-2 h-2 rounded-full mt-1.5 flex-shrink-0"
-          style={{ backgroundColor: event.color }}
-        />
-        <div className="flex-1 min-w-0">
-          <p className="text-[12px] font-medium text-gray-800 truncate">{event.title}</p>
-          <p className="text-[10px] text-gray-400">
-            {duration(event.startAt, event.endAt)}
-            {event.location ? ` · ${event.location}` : ''}
-          </p>
+    <>
+      <button onClick={() => setEditing(true)}
+        className="flex gap-3 py-1.5 group w-full text-left rounded-lg hover:bg-ink-50 dark:hover:bg-ink-800/50 -mx-1 px-1 transition-colors">
+        <span className="text-xs font-mono text-ink-400 w-9 flex-shrink-0 pt-1 tabular-nums">
+          {fmt(event.startAt)}
+        </span>
+        <div className="flex items-start gap-2 flex-1 min-w-0">
+          <span
+            className="w-1 h-9 rounded-full mt-0.5 flex-shrink-0"
+            style={{ backgroundColor: event.color }}
+          />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-ink-800 dark:text-ink-100 truncate">
+              {event.title}
+              {event.isRecurringInstance && <span className="ml-1 text-2xs opacity-60">↻</span>}
+            </p>
+            <p className="text-xs text-ink-500 mt-0.5">
+              {duration(event.startAt, event.endAt)}
+              {event.location ? ` · ${event.location}` : ''}
+            </p>
+          </div>
         </div>
-      </div>
-
-      {/* Delete */}
-      <button
-        onClick={() => remove(event.id)}
-        className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-400 transition-opacity text-base leading-none self-start mt-0.5"
-      >
-        ×
       </button>
-    </div>
+
+      {editing && (
+        <EventModal mode="edit" event={event}
+          onClose={() => setEditing(false)}
+          onSaved={reload} />
+      )}
+    </>
   )
 }

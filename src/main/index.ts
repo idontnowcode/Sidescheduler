@@ -3,7 +3,8 @@ import { join } from 'path'
 import {
   initDb,
   listEvents, createEvent, updateEvent, updateEventMove, updateEventInstance, deleteEvent, deleteEventInstance,
-  listTasks, listAllIncompleteTasks, createTask, toggleTask, deleteTask
+  listTasks, listAllIncompleteTasks, createTask, updateTask, toggleTask, snoozeTask, deleteTask,
+  searchAll
 } from './db/storage'
 import { loadSettings, saveSettings, WindowSettings } from './settings'
 
@@ -205,8 +206,13 @@ ipcMain.handle('db:events:delete-instance', (_e, data) => { deleteEventInstance(
 ipcMain.handle('db:tasks:list',                (_e, { end }: { end: number }) => listTasks(end))
 ipcMain.handle('db:tasks:list-all-incomplete', () => listAllIncompleteTasks())
 ipcMain.handle('db:tasks:create',              (_e, data) => createTask(data))
+ipcMain.handle('db:tasks:update',              (_e, data) => updateTask(data))
 ipcMain.handle('db:tasks:toggle',              (_e, { id }: { id: string }) => toggleTask(id))
+ipcMain.handle('db:tasks:snooze',              (_e, { id, due_at }: { id: string; due_at: number | null }) => snoozeTask(id, due_at))
 ipcMain.handle('db:tasks:delete',              (_e, { id }: { id: string }) => deleteTask(id))
+
+// ── IPC: Search ───────────────────────────────────────────────────────────
+ipcMain.handle('db:search', (_e, { query }: { query: string }) => searchAll(query))
 
 // ── IPC: App settings ─────────────────────────────────────────────────────
 ipcMain.handle('app:get-login-item', () => app.getLoginItemSettings().openAtLogin)

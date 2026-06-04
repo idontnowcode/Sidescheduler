@@ -1,4 +1,7 @@
+import { useState } from 'react'
 import { CalEvent, Task } from '../types'
+import EventModal from '../components/modals/EventModal'
+import TaskModal from '../components/modals/TaskModal'
 
 interface Props {
   events: CalEvent[]
@@ -7,20 +10,16 @@ interface Props {
 }
 
 function sod(d: Date) { return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime() }
-
 function fmtTime(ts: number) {
   const d = new Date(ts)
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
 }
-
 function fmtDue(ts: number) {
-  const d = new Date(ts)
-  return `${d.getMonth() + 1}/${d.getDate()}`
+  const d = new Date(ts); return `${d.getMonth() + 1}/${d.getDate()}`
 }
 
 async function handleToggle(id: string, onReload: () => void) {
-  await window.electronAPI.toggleTask(id)
-  onReload()
+  await window.electronAPI.toggleTask(id); onReload()
 }
 
 export default function TodayView({ events, allIncompleteTasks, onReload }: Props) {
@@ -32,144 +31,156 @@ export default function TodayView({ events, allIncompleteTasks, onReload }: Prop
   const overdueTasks  = allIncompleteTasks.filter((t) => t.dueAt != null && t.dueAt < todayStart)
   const todayTasks    = allIncompleteTasks.filter((t) => t.dueAt != null && t.dueAt >= todayStart && t.dueAt <= todayEnd)
 
+  const [editEvent, setEditEvent] = useState<CalEvent | null>(null)
+  const [editTask, setEditTask]   = useState<Task | null>(null)
+
   return (
-    <div className="h-full overflow-y-auto p-5 space-y-6">
-      {/* Header */}
-      <div className="flex items-baseline gap-3">
-        <span className="text-2xl font-bold text-gray-900">
-          {today.getMonth() + 1}월 {today.getDate()}일
-        </span>
-        <span className="text-sm text-gray-400">
-          {['일요일','월요일','화요일','수요일','목요일','금요일','토요일'][today.getDay()]}
-        </span>
+    <div className="h-full overflow-y-auto px-8 py-6 max-w-5xl mx-auto">
+      {/* Hero */}
+      <div className="flex items-end gap-4 mb-8 pb-6 border-b border-ink-100 dark:border-ink-800">
+        <span className="text-5xl font-bold tracking-tight">{today.getDate()}</span>
+        <div className="pb-1">
+          <p className="text-lg font-semibold">
+            {['일요일','월요일','화요일','수요일','목요일','금요일','토요일'][today.getDay()]}
+          </p>
+          <p className="text-sm text-ink-500">{today.getFullYear()}년 {today.getMonth() + 1}월</p>
+        </div>
       </div>
 
-      {/* Today's events */}
-      <section>
-        <SectionHeader label="오늘 일정" count={todayEvents.length} color="blue" />
-        {todayEvents.length === 0 ? (
-          <Empty text="오늘 예정된 일정이 없습니다" />
-        ) : (
-          <div className="space-y-1.5">
-            {todayEvents.map((ev) => (
-              <div key={ev.id} className="flex items-start gap-2.5 py-1">
-                <div className="w-2 h-2 rounded-full mt-1.5 flex-shrink-0" style={{ backgroundColor: ev.color }} />
-                <div className="flex-1 min-w-0">
-                  <p className="text-[13px] font-medium text-gray-800 truncate">{ev.title}</p>
-                  <p className="text-[11px] text-gray-400">
-                    {fmtTime(ev.startAt)} – {fmtTime(ev.endAt)}
-                    {ev.location ? ` · ${ev.location}` : ''}
-                  </p>
-                </div>
-                {ev.isRecurringInstance && (
-                  <span className="text-[10px] text-gray-400 flex-shrink-0">↻</span>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+        {/* Today's events */}
+        <Card>
+          <CardHeader label="오늘 일정" count={todayEvents.length} color="accent" />
+          {todayEvents.length === 0 ? (
+            <Empty text="오늘 예정된 일정이 없습니다" />
+          ) : (
+            <div className="space-y-1">
+              {todayEvents.map((ev) => (
+                <button key={ev.id} onClick={() => setEditEvent(ev)}
+                  className="w-full text-left flex items-start gap-3 py-2 px-2 -mx-2 rounded-lg hover:bg-ink-50 dark:hover:bg-ink-800/50 transition-colors">
+                  <span className="w-1 h-9 rounded-full mt-0.5 flex-shrink-0" style={{ backgroundColor: ev.color }} />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-base font-medium truncate">{ev.title}</p>
+                    <p className="text-xs text-ink-500 mt-0.5">
+                      {fmtTime(ev.startAt)} – {fmtTime(ev.endAt)}
+                      {ev.location ? ` · ${ev.location}` : ''}
+                    </p>
+                  </div>
+                  {ev.isRecurringInstance && <span className="text-2xs text-ink-400 flex-shrink-0">↻</span>}
+                </button>
+              ))}
+            </div>
+          )}
+        </Card>
 
-      {/* Overdue tasks */}
-      <section>
-        <SectionHeader
-          label="지연 중인 태스크"
-          count={overdueTasks.length}
-          color="red"
-          empty={overdueTasks.length === 0}
-        />
-        {overdueTasks.length === 0 ? (
-          <Empty text="지연된 태스크 없음 ✓" success />
-        ) : (
-          <div className="space-y-1.5">
-            {overdueTasks.map((t) => (
-              <TaskRow key={t.id} task={t} showDue overdue onToggle={() => handleToggle(t.id, onReload)} />
-            ))}
-          </div>
-        )}
-      </section>
+        {/* Overdue */}
+        <Card>
+          <CardHeader label="지연 중인 태스크" count={overdueTasks.length} color="red"
+            empty={overdueTasks.length === 0} />
+          {overdueTasks.length === 0 ? (
+            <Empty text="지연된 태스크 없음" success />
+          ) : (
+            <div className="space-y-1">
+              {overdueTasks.map((t) => (
+                <TaskRow key={t.id} task={t} showDue overdue
+                  onToggle={() => handleToggle(t.id, onReload)}
+                  onEdit={() => setEditTask(t)} />
+              ))}
+            </div>
+          )}
+        </Card>
 
-      {/* Today's tasks */}
-      <section>
-        <SectionHeader
-          label="오늘 태스크"
-          count={todayTasks.length}
-          color="orange"
-        />
-        {todayTasks.length === 0 ? (
-          <Empty text="오늘 마감 태스크 없음" />
-        ) : (
-          <div className="space-y-1.5">
-            {todayTasks.map((t) => (
-              <TaskRow key={t.id} task={t} onToggle={() => handleToggle(t.id, onReload)} />
-            ))}
-          </div>
-        )}
-      </section>
-    </div>
-  )
-}
+        {/* Today's tasks */}
+        <Card className="md:col-span-2">
+          <CardHeader label="오늘 태스크" count={todayTasks.length} color="orange" />
+          {todayTasks.length === 0 ? (
+            <Empty text="오늘 마감 태스크 없음" />
+          ) : (
+            <div className="space-y-1">
+              {todayTasks.map((t) => (
+                <TaskRow key={t.id} task={t}
+                  onToggle={() => handleToggle(t.id, onReload)}
+                  onEdit={() => setEditTask(t)} />
+              ))}
+            </div>
+          )}
+        </Card>
+      </div>
 
-// ── Sub-components ────────────────────────────────────────────────────────
-function SectionHeader({ label, count, color, empty }: {
-  label: string; count: number; color: string; empty?: boolean
-}) {
-  const colorMap: Record<string, string> = {
-    blue: 'text-blue-500', red: 'text-red-500', orange: 'text-orange-500'
-  }
-  const badgeMap: Record<string, string> = {
-    blue: 'bg-blue-50 text-blue-500', red: 'bg-red-50 text-red-500', orange: 'bg-orange-50 text-orange-500'
-  }
-  return (
-    <div className="flex items-center gap-2 mb-2">
-      <h2 className={`text-[11px] font-bold uppercase tracking-widest ${empty ? 'text-gray-300' : colorMap[color]}`}>
-        {label}
-      </h2>
-      {count > 0 && (
-        <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold ${badgeMap[color]}`}>
-          {count}
-        </span>
+      {editEvent && (
+        <EventModal mode="edit" event={editEvent}
+          onClose={() => setEditEvent(null)} onSaved={onReload} />
+      )}
+      {editTask && (
+        <TaskModal mode="edit" task={editTask}
+          onClose={() => setEditTask(null)} onSaved={onReload} />
       )}
     </div>
   )
 }
 
-function Empty({ text, success }: { text: string; success?: boolean }) {
+function Card({ children, className = '' }: { children: React.ReactNode; className?: string }) {
   return (
-    <p className={`text-[12px] py-1 ${success ? 'text-green-400' : 'text-gray-300'}`}>{text}</p>
+    <section className={`surface-card rounded-2xl p-5 ${className}`}>{children}</section>
   )
 }
 
-function TaskRow({ task, showDue, overdue, onToggle }: {
-  task: Task; showDue?: boolean; overdue?: boolean; onToggle: () => void
+function CardHeader({ label, count, color, empty }: {
+  label: string; count: number; color: string; empty?: boolean
 }) {
-  const PRIORITY: Record<string, string> = { urgent: '긴급', normal: '보통', low: '낮음' }
-  const BADGE: Record<string, string> = {
-    urgent: 'bg-red-50 text-red-500', normal: 'bg-gray-100 text-gray-500', low: 'bg-gray-50 text-gray-400'
+  const colorMap: Record<string, string> = {
+    accent: 'text-accent-600 dark:text-accent-400',
+    red:    'text-red-500 dark:text-red-400',
+    orange: 'text-orange-500 dark:text-orange-400'
+  }
+  const badgeMap: Record<string, string> = {
+    accent: 'bg-accent-50 dark:bg-accent-500/15 text-accent-600 dark:text-accent-400',
+    red:    'bg-red-50 dark:bg-red-500/15 text-red-500 dark:text-red-400',
+    orange: 'bg-orange-50 dark:bg-orange-500/15 text-orange-500 dark:text-orange-400'
   }
   return (
-    <div className={`flex items-center gap-2.5 py-1 group ${task.done ? 'opacity-50' : ''}`}>
+    <div className="flex items-center gap-2 mb-3">
+      <h2 className={`section-label ${empty ? 'text-ink-300 dark:text-ink-600' : colorMap[color]}`}>{label}</h2>
+      {count > 0 && (<span className={`chip ${badgeMap[color]}`}>{count}</span>)}
+    </div>
+  )
+}
+
+function Empty({ text, success }: { text: string; success?: boolean }) {
+  return <p className={`text-sm py-2 ${success ? 'text-green-500 dark:text-green-400' : 'text-ink-400 dark:text-ink-500'}`}>{text}</p>
+}
+
+function TaskRow({ task, showDue, overdue, onToggle, onEdit }: {
+  task: Task; showDue?: boolean; overdue?: boolean; onToggle: () => void; onEdit: () => void
+}) {
+  const PRI: Record<string, string> = { urgent: '긴급', normal: '보통', low: '낮음' }
+  const BADGE: Record<string, string> = {
+    urgent: 'bg-red-50 dark:bg-red-500/15 text-red-500',
+    normal: 'bg-ink-100 dark:bg-ink-800 text-ink-500',
+    low:    'bg-ink-50 dark:bg-ink-900 text-ink-400'
+  }
+  return (
+    <div className={`flex items-center gap-3 py-2 px-2 -mx-2 rounded-lg hover:bg-ink-50 dark:hover:bg-ink-800/50 ${task.done ? 'opacity-50' : ''}`}>
       <button onClick={onToggle}
         className={`w-4 h-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center transition-colors ${
           task.done ? 'bg-green-500 border-green-500' :
-          overdue ? 'border-red-300 hover:border-red-500' : 'border-gray-300 hover:border-blue-400'
-        }`}
-      >
+          overdue ? 'border-red-400 hover:border-red-500' : 'border-ink-300 dark:border-ink-600 hover:border-accent-500'
+        }`}>
         {task.done && (
           <svg width="8" height="6" viewBox="0 0 8 6" fill="none">
             <polyline points="1,3 3,5 7,1" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         )}
       </button>
-      <span className={`flex-1 text-[13px] ${task.done ? 'line-through text-gray-400' : overdue ? 'text-red-600' : 'text-gray-700'}`}>
+      <button onClick={onEdit}
+        className={`flex-1 text-left text-base truncate ${task.done ? 'line-through text-ink-400' : overdue ? 'text-red-600 dark:text-red-400 font-medium' : ''}`}>
         {task.title}
-      </span>
+        {task.recurrence && <span className="ml-1 text-2xs opacity-60">↻</span>}
+      </button>
       {showDue && task.dueAt && (
-        <span className="text-[10px] text-red-400 flex-shrink-0">{fmtDue(task.dueAt)} 마감</span>
+        <span className="text-xs text-red-400 flex-shrink-0">{fmtDue(task.dueAt)} 마감</span>
       )}
-      <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium flex-shrink-0 ${BADGE[task.priority]}`}>
-        {PRIORITY[task.priority]}
-      </span>
+      <span className={`chip ${BADGE[task.priority]}`}>{PRI[task.priority]}</span>
     </div>
   )
 }

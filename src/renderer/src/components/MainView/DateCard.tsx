@@ -14,7 +14,7 @@ export default function DateCard() {
   const { selected, isToday, goToPrev, goToNext, goToToday, goToDate } = useDateStore()
   const [showPicker, setShowPicker] = useState(false)
 
-  const handlePickerChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const onPickerChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.value) return
     const [y, m, d] = e.target.value.split('-').map(Number)
     goToDate(new Date(y, m - 1, d))
@@ -22,86 +22,57 @@ export default function DateCard() {
   }
 
   return (
-    <div className="px-4 pt-3 pb-3 border-b border-gray-100 flex-shrink-0">
-      {/* Navigation row */}
-      <div className="flex items-center justify-between mb-1">
-        {/* Prev */}
-        <button
-          onClick={goToPrev}
-          className="w-6 h-6 rounded-lg flex items-center justify-center text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors text-base font-light"
-          title="이전 날"
-        >
-          ‹
-        </button>
-
-        {/* Date display + calendar picker */}
-        <div className="flex-1 flex items-start justify-center gap-2 relative">
-          <div className="text-center">
-            <div className="flex items-baseline gap-1.5 justify-center">
-              <span className="text-[36px] font-bold text-gray-900 leading-none">
-                {selected.getDate()}
-              </span>
-              <span className="text-[14px] font-semibold text-gray-500">
-                {WEEKDAYS[selected.getDay()]}
-              </span>
-            </div>
-            <p className="text-[11px] text-gray-400 mt-0.5">
-              {selected.getFullYear()}년 {selected.getMonth() + 1}월
-            </p>
-          </div>
-
-          {/* Calendar icon + date input */}
-          <div className="relative mt-1">
-            <button
-              onClick={() => setShowPicker((v) => !v)}
-              title="날짜 선택"
-              className="w-6 h-6 rounded-lg flex items-center justify-center text-gray-300 hover:bg-blue-50 hover:text-blue-500 transition-colors"
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <rect x="3" y="4" width="18" height="18" rx="2" />
-                <line x1="16" y1="2" x2="16" y2="6" />
-                <line x1="8" y1="2" x2="8" y2="6" />
-                <line x1="3" y1="10" x2="21" y2="10" />
-              </svg>
-            </button>
+    <div className="px-5 pt-5 pb-4 border-b border-ink-100 dark:border-ink-800 flex-shrink-0">
+      {/* Header row */}
+      <div className="flex items-center justify-between mb-3">
+        <span className="section-label">스케줄</span>
+        <div className="flex items-center gap-0.5">
+          <NavBtn onClick={goToPrev} title="이전 날">‹</NavBtn>
+          <button
+            onClick={() => setShowPicker((v) => !v)}
+            className="px-2 h-7 rounded-lg text-xs font-medium text-ink-500 hover:bg-ink-100 dark:hover:bg-ink-800 hover:text-ink-700 dark:hover:text-ink-200 transition-colors relative"
+            title="날짜 선택"
+          >
+            📅
             {showPicker && (
               <input
-                type="date"
-                value={toInputValue(selected)}
-                onChange={handlePickerChange}
-                onBlur={() => setShowPicker(false)}
+                type="date" value={toInputValue(selected)}
+                onChange={onPickerChange}
+                onBlur={() => setTimeout(() => setShowPicker(false), 200)}
                 autoFocus
-                className="absolute top-7 right-0 z-50 text-[11px] border border-blue-300 rounded-lg shadow-lg bg-white p-1 focus:outline-none"
+                className="absolute top-8 right-0 z-50 input text-xs w-auto"
               />
             )}
-          </div>
+          </button>
+          <NavBtn onClick={goToNext} title="다음 날">›</NavBtn>
         </div>
-
-        {/* Next */}
-        <button
-          onClick={goToNext}
-          className="w-6 h-6 rounded-lg flex items-center justify-center text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors text-base font-light"
-          title="다음 날"
-        >
-          ›
-        </button>
       </div>
 
-      {/* Badges row */}
-      <div className="flex justify-center gap-1.5">
+      {/* Big date */}
+      <div className="flex items-end gap-3">
+        <span className="text-5xl font-bold tracking-tight leading-none">{selected.getDate()}</span>
+        <div className="pb-1.5">
+          <p className="text-sm font-semibold text-ink-700 dark:text-ink-300">{WEEKDAYS[selected.getDay()]}</p>
+          <p className="text-xs text-ink-400 mt-0.5">{selected.getFullYear()}년 {selected.getMonth() + 1}월</p>
+        </div>
+        <div className="flex-1" />
         {isToday ? (
-          <span className="text-[10px] bg-blue-500 text-white px-2 py-0.5 rounded-full font-medium">
-            오늘
-          </span>
+          <span className="chip bg-accent-500 text-white">오늘</span>
         ) : (
-          <button
-            onClick={goToToday}
-            className="text-[10px] bg-gray-100 text-gray-500 hover:bg-blue-50 hover:text-blue-500 px-2 py-0.5 rounded-full font-medium transition-colors"
-          >
+          <button onClick={goToToday} className="chip bg-ink-100 dark:bg-ink-800 text-ink-500 hover:bg-accent-50 dark:hover:bg-accent-500/20 hover:text-accent-600 transition-colors">
             오늘로
           </button>
         )}
       </div>
     </div>
+  )
+}
+
+function NavBtn({ onClick, title, children }: { onClick: () => void; title: string; children: React.ReactNode }) {
+  return (
+    <button onClick={onClick} title={title}
+      className="w-7 h-7 rounded-lg flex items-center justify-center text-ink-400 hover:bg-ink-100 dark:hover:bg-ink-800 hover:text-ink-700 dark:hover:text-ink-200 transition-colors text-base font-light">
+      {children}
+    </button>
   )
 }

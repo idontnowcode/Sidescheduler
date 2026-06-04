@@ -1,77 +1,81 @@
 import { useToday } from '../hooks/useToday'
 import { useDateStore } from '../store/dateStore'
 import { useSettingsStore } from '../store/settingsStore'
+import { useCommandStore } from '../store/commandStore'
 
 interface Props { onHover: () => void }
 
 const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토']
 
-// CSS regions for window-drag (only honored on the actual window edges)
 const DRAG_REGION = { WebkitAppRegion: 'drag' } as React.CSSProperties
-const NO_DRAG_REGION = { WebkitAppRegion: 'no-drag' } as React.CSSProperties
+const NO_DRAG = { WebkitAppRegion: 'no-drag' } as React.CSSProperties
 
 export default function Sidebar({ onHover }: Props) {
   const { now } = useToday()
   const { goToToday, isToday } = useDateStore()
   const settings = useSettingsStore((s) => s.settings)
   const patch    = useSettingsStore((s) => s.patch)
+  const showCmd  = useCommandStore((s) => s.show)
 
   const w = settings.width
   const isLeft = settings.edge === 'left'
   const locked = settings.locked
 
-  // Icon size scales with sidebar width
   const iconSize = w === 32 ? 14 : w === 40 ? 16 : 19
-  const btnSize  = w === 32 ? 24 : w === 40 ? 28 : 32
+  const btnSize  = w === 32 ? 24 : w === 40 ? 30 : 34
 
   return (
     <div
-      className="fixed top-0 bg-[#F8FAFC] flex flex-col items-center z-20"
+      className="fixed top-0 flex flex-col items-center z-20 bg-white dark:bg-ink-900 border border-ink-200 dark:border-ink-800 shadow-glass dark:shadow-glass-dark"
       style={{
-        width: w,
-        height: 156,
+        width: w, height: 156,
         [isLeft ? 'left' : 'right']: 0,
-        [isLeft ? 'borderRight' : 'borderLeft']: '2px solid #3B82F6',
-        borderTop: '1px solid #E5E7EB',
-        borderBottom: '1px solid #E5E7EB',
-        borderRadius: isLeft ? '0 8px 8px 0' : '8px 0 0 8px',
-        boxShadow: isLeft ? '2px 0 12px rgba(0,0,0,0.10)' : '-2px 0 12px rgba(0,0,0,0.10)',
-        paddingTop: 4, paddingBottom: 4, gap: 4,
-        // Whole sidebar is draggable; buttons opt out
+        [isLeft ? 'borderLeft' : 'borderRight']: 'none',
+        [isLeft ? 'borderTopRightRadius' : 'borderTopLeftRadius']: '12px',
+        [isLeft ? 'borderBottomRightRadius' : 'borderBottomLeftRadius']: '12px',
+        paddingTop: 6, paddingBottom: 6, gap: 5,
         ...(locked ? {} : DRAG_REGION),
         cursor: locked ? 'default' : 'grab'
       }}
       onMouseEnter={onHover}
       title={locked ? '' : '드래그하여 위치 이동'}
     >
-      {/* Mini date */}
+      {/* Date display */}
       <div className="flex flex-col items-center leading-none select-none">
-        <span className="text-[9px] text-blue-400 font-semibold">{WEEKDAYS[now.getDay()]}</span>
-        <span className="text-[18px] font-bold text-gray-800 leading-none">{now.getDate()}</span>
-        <span className="text-[8px] text-gray-400">{now.getMonth() + 1}월</span>
+        <span className="text-2xs font-medium text-accent-500 dark:text-accent-400">{WEEKDAYS[now.getDay()]}</span>
+        <span className="text-xl font-bold tracking-tight text-ink-900 dark:text-ink-100 leading-none">{now.getDate()}</span>
+        <span className="text-2xs text-ink-400">{now.getMonth() + 1}월</span>
       </div>
 
-      <div className="w-5 h-px bg-gray-200" />
+      <div className="w-5 h-px bg-ink-200 dark:bg-ink-700" />
 
+      {/* Quick add (Cmd+K) */}
+      <IconBtn title="빠른 추가 (Ctrl+K)" size={btnSize} onClick={(e) => { e.stopPropagation(); showCmd() }}>
+        <SearchIcon size={iconSize} />
+      </IconBtn>
+
+      {/* Dashboard */}
       <IconBtn title="대시보드" size={btnSize}
-        onClick={() => window.electronAPI.openDashboard()}>
+        onClick={(e) => { e.stopPropagation(); window.electronAPI.openDashboard() }}>
         <GridIcon size={iconSize} />
       </IconBtn>
 
-      <IconBtn title={isToday ? '오늘 (현재)' : '오늘로 이동'} size={btnSize}
-        active={isToday} onClick={goToToday}>
+      {/* Today */}
+      <IconBtn title={isToday ? '오늘' : '오늘로 이동'} size={btnSize}
+        active={isToday} onClick={(e) => { e.stopPropagation(); goToToday() }}>
         <CalendarIcon size={iconSize} />
       </IconBtn>
 
       <div className="flex-1" />
 
-      {/* Lock/Unlock toggle */}
+      {/* Lock toggle */}
       <button
         onClick={(e) => { e.stopPropagation(); patch({ locked: !locked }) }}
-        title={locked ? '잠금 해제 (드래그 가능)' : '위치 고정'}
-        style={{ width: btnSize - 4, height: btnSize - 4, ...NO_DRAG_REGION }}
-        className={`rounded-md flex items-center justify-center transition-colors duration-150 ${
-          locked ? 'bg-blue-100 text-blue-600' : 'text-gray-300 hover:bg-gray-100 hover:text-gray-500'
+        title={locked ? '잠금 해제' : '위치 고정'}
+        style={{ width: btnSize - 4, height: btnSize - 4, ...NO_DRAG }}
+        className={`rounded-lg flex items-center justify-center transition-colors duration-150 ${
+          locked ? 'bg-accent-100 dark:bg-accent-500/20 text-accent-600 dark:text-accent-400'
+                 : 'text-ink-300 dark:text-ink-600 hover:bg-ink-100 dark:hover:bg-ink-800'
         }`}
       >
         {locked ? <LockIcon size={iconSize - 3} /> : <UnlockIcon size={iconSize - 3} />}
@@ -81,29 +85,39 @@ export default function Sidebar({ onHover }: Props) {
 }
 
 function IconBtn({ children, title, size, active, onClick }: {
-  children: React.ReactNode; title: string; size: number; active?: boolean; onClick?: () => void
+  children: React.ReactNode; title: string; size: number; active?: boolean;
+  onClick?: (e: React.MouseEvent) => void
 }) {
   return (
     <button title={title} onClick={onClick}
-      style={{ width: size, height: size, ...NO_DRAG_REGION }}
-      className={`rounded-lg flex items-center justify-center transition-colors duration-150 ${
-        active ? 'bg-blue-100 text-blue-600' : 'text-gray-400 hover:bg-blue-50 hover:text-blue-500'}`}>
+      style={{ width: size, height: size, ...NO_DRAG }}
+      className={`rounded-xl flex items-center justify-center transition-all duration-150 ${
+        active
+          ? 'bg-accent-500 text-white shadow-sm'
+          : 'text-ink-400 dark:text-ink-500 hover:bg-ink-100 dark:hover:bg-ink-800 hover:text-ink-700 dark:hover:text-ink-200'
+      }`}>
       {children}
     </button>
   )
 }
 
-function GridIcon({ size }: { size: number }) {
+function SearchIcon({ size }: { size: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-      <rect x="3" y="3" width="7" height="7" rx="1" />
-      <rect x="14" y="3" width="7" height="7" rx="1" />
-      <rect x="3" y="14" width="7" height="7" rx="1" />
-      <rect x="14" y="14" width="7" height="7" rx="1" />
+      <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" />
     </svg>
   )
 }
-
+function GridIcon({ size }: { size: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <rect x="3" y="3" width="7" height="7" rx="1.5" />
+      <rect x="14" y="3" width="7" height="7" rx="1.5" />
+      <rect x="3" y="14" width="7" height="7" rx="1.5" />
+      <rect x="14" y="14" width="7" height="7" rx="1.5" />
+    </svg>
+  )
+}
 function CalendarIcon({ size }: { size: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
@@ -114,7 +128,6 @@ function CalendarIcon({ size }: { size: number }) {
     </svg>
   )
 }
-
 function LockIcon({ size }: { size: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -123,7 +136,6 @@ function LockIcon({ size }: { size: number }) {
     </svg>
   )
 }
-
 function UnlockIcon({ size }: { size: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

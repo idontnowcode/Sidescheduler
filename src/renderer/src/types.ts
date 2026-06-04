@@ -1,7 +1,7 @@
 // ── Window settings ───────────────────────────────────────────────────────
 export interface WindowSettings {
   edge: 'left' | 'right'
-  customY?: number          // px from work-area top
+  customY?: number
   displayId?: number
   width: 32 | 40 | 52
   locked: boolean
@@ -47,6 +47,7 @@ export interface Task {
   done: boolean
   priority: 'urgent' | 'normal' | 'low'
   project?: string
+  recurrence?: RecurrenceRule
 }
 
 // ── DB rows ───────────────────────────────────────────────────────────────
@@ -62,6 +63,7 @@ export interface EventRow {
 export interface TaskRow {
   id: string; title: string; due_at: number | null
   done: number; priority: string; project: string | null
+  recurrence?: string
   created_at: number; updated_at: number
 }
 
@@ -83,7 +85,8 @@ export function rowToTask(row: TaskRow): Task {
     id: row.id, title: row.title, dueAt: row.due_at ?? undefined,
     done: row.done === 1,
     priority: (row.priority as Task['priority']) || 'normal',
-    project: row.project ?? undefined
+    project: row.project ?? undefined,
+    recurrence: row.recurrence ? JSON.parse(row.recurrence) : undefined
   }
 }
 
@@ -91,6 +94,12 @@ export function parseVirtualId(id: string): { originalId: string; instanceDate: 
   const parts = id.split('__')
   if (parts.length !== 2) return null
   return { originalId: parts[0], instanceDate: parseInt(parts[1]) }
+}
+
+// ── Search result ─────────────────────────────────────────────────────────
+export interface SearchResult {
+  events: EventRow[]
+  tasks: TaskRow[]
 }
 
 // ── Window API ────────────────────────────────────────────────────────────
@@ -114,7 +123,7 @@ declare global {
       listEvents: (p: { start: number; end: number }) => Promise<EventRow[]>
       createEvent: (data: {
         title: string; start_at: number; end_at: number;
-        color?: string; location?: string; recurrence?: string
+        color?: string; location?: string; description?: string; recurrence?: string
       }) => Promise<EventRow>
       updateEvent: (data: Partial<EventRow> & { id: string }) => Promise<EventRow>
       moveEvent: (id: string, start_at: number, end_at: number) => Promise<EventRow>
@@ -130,9 +139,15 @@ declare global {
 
       listTasks: (p: { end: number }) => Promise<TaskRow[]>
       listAllIncompleteTasks: () => Promise<TaskRow[]>
-      createTask: (data: { title: string; due_at?: number | null; priority?: string }) => Promise<TaskRow>
+      createTask: (data: {
+        title: string; due_at?: number | null; priority?: string; project?: string; recurrence?: string
+      }) => Promise<TaskRow>
+      updateTask: (data: Partial<TaskRow> & { id: string }) => Promise<TaskRow>
       toggleTask: (id: string) => Promise<TaskRow>
+      snoozeTask: (id: string, due_at: number | null) => Promise<TaskRow>
       deleteTask: (id: string) => Promise<void>
+
+      search: (query: string) => Promise<SearchResult>
 
       getAutoStart: () => Promise<boolean>
       setAutoStart: (value: boolean) => Promise<void>
