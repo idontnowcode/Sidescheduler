@@ -41,15 +41,16 @@ function calcBounds(expanded: boolean): { x: number; y: number; width: number; h
   const display = getDisplayForSettings(s)
   const wa = display.workArea
   const sidebarW = s.width
+  const sH = sidebarHeight(sidebarW)
   const totalW = expanded ? sidebarW + PANEL_W : sidebarW
-  const totalH = expanded ? EXPANDED_HEIGHT : SIDEBAR_HEIGHT
+  const totalH = expanded ? EXPANDED_HEIGHT : sH
 
   const x = s.edge === 'right'
     ? wa.x + wa.width - totalW
     : wa.x
 
   // Default Y = vertically centered on work area
-  const defaultY = wa.y + Math.max(0, Math.floor((wa.height - SIDEBAR_HEIGHT) / 2))
+  const defaultY = wa.y + Math.max(0, Math.floor((wa.height - sH) / 2))
   const baseY = s.customY != null ? wa.y + s.customY : defaultY
   // Clamp so window stays inside work area
   const y = Math.max(wa.y, Math.min(wa.y + wa.height - totalH, baseY))
