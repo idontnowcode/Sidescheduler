@@ -5,10 +5,8 @@ import TodayView from './TodayView'
 import SettingsView from './SettingsView'
 import EventModal from '../components/modals/EventModal'
 import TaskModal from '../components/modals/TaskModal'
-import CommandPalette from '../components/CommandPalette'
 import { useDashboardData } from './useDashboardData'
 import { useThemeStore } from '../store/themeStore'
-import { useCommandStore } from '../store/commandStore'
 
 type ViewMode = 'today' | 'month' | 'week' | 'settings'
 
@@ -22,7 +20,6 @@ export default function DashboardApp() {
   const [view, setView] = useState<ViewMode>('today')
   const [current, setCurrent] = useState(() => new Date())
   const initTheme = useThemeStore((s) => s.init)
-  const showCmd   = useCommandStore((s) => s.show)
 
   useEffect(() => { initTheme() }, [initTheme])
 
@@ -52,7 +49,7 @@ export default function DashboardApp() {
     const onKey = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement).tagName
       const inField = tag === 'INPUT' || tag === 'TEXTAREA' || (e.target as HTMLElement).isContentEditable
-      if (e.key === 'k' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); showCmd(); return }
+      if (e.key === 'k' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); window.electronAPI.openPalette(); return }
       if (inField) return
       if (e.key === 't' && !e.metaKey && !e.ctrlKey) { setView('today'); setCurrent(new Date()) }
       else if (e.key === 'm' && !e.metaKey) setView('month')
@@ -64,7 +61,18 @@ export default function DashboardApp() {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [current, showCmd])
+  }, [current])
+
+  // Palette action / refresh listeners
+  useEffect(() => {
+    const unsubA = window.electronAPI.onPaletteAction((a) => {
+      if (a.kind === 'today') { setView('today'); setCurrent(new Date()) }
+      else if (a.kind === 'new-event') setAddEvent({ date: current })
+      else if (a.kind === 'new-task') setAddTask({ date: current })
+    })
+    const unsubR = window.electronAPI.onPaletteRefresh(() => reload())
+    return () => { unsubA(); unsubR() }
+  }, [current, reload])
 
   const goToPrev = () => setCurrent((c) => {
     const d = new Date(c)
@@ -107,7 +115,7 @@ export default function DashboardApp() {
 
         <span className="text-sm font-semibold text-ink-700 dark:text-ink-200 flex-1">{headerLabel}</span>
 
-        <button onClick={showCmd}
+        <button onClick={() => window.electronAPI.openPalette()}
           className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-ink-100 dark:bg-ink-800 hover:bg-ink-200 dark:hover:bg-ink-700 text-sm text-ink-500 transition-colors">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" />
@@ -174,12 +182,6 @@ export default function DashboardApp() {
           onClose={() => setAddTask(null)} onSaved={reload} />
       )}
 
-      <CommandPalette onAction={(a) => {
-        if (a === 'today') { setView('today'); setCurrent(new Date()) }
-        else if (a === 'new-event') setAddEvent({ date: current })
-        else if (a === 'new-task') setAddTask({ date: current })
-        else if (a === 'refresh') reload()
-      }} />
     </div>
   )
 }

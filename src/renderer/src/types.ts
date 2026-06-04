@@ -111,6 +111,10 @@ declare global {
       openDashboard: () => void
       openPalette: () => void
       closePalette: () => void
+      paletteAction: (action: { kind: string; payload?: unknown }) => void
+      paletteRefresh: () => void
+      onPaletteAction: (cb: (a: { kind: string; payload?: unknown }) => void) => () => void
+      onPaletteRefresh: (cb: () => void) => () => void
       navigateToDate: (ts: number) => void
 
       onDisplayChanged: (cb: () => void) => () => void

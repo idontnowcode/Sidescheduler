@@ -1,7 +1,6 @@
 import { useToday } from '../hooks/useToday'
 import { useDateStore } from '../store/dateStore'
 import { useSettingsStore } from '../store/settingsStore'
-import { useCommandStore } from '../store/commandStore'
 
 interface Props { onHover: () => void }
 
@@ -15,7 +14,6 @@ export default function Sidebar({ onHover }: Props) {
   const { goToToday, isToday } = useDateStore()
   const settings = useSettingsStore((s) => s.settings)
   const patch    = useSettingsStore((s) => s.patch)
-  const showCmd  = useCommandStore((s) => s.show)
 
   const w = settings.width
   const isLeft = settings.edge === 'left'
@@ -51,7 +49,7 @@ export default function Sidebar({ onHover }: Props) {
       <div className="w-5 h-px bg-ink-200 dark:bg-ink-700" />
 
       {/* Quick add (Cmd+K) */}
-      <IconBtn title="빠른 추가 (Ctrl+K)" size={btnSize} onClick={(e) => { e.stopPropagation(); showCmd() }}>
+      <IconBtn title="빠른 추가 (Ctrl+K)" size={btnSize} onClick={(e) => { e.stopPropagation(); window.electronAPI.openPalette() }}>
         <SearchIcon size={iconSize} />
       </IconBtn>
 

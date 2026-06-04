@@ -12,9 +12,10 @@ if (!app.requestSingleInstanceLock()) { app.quit(); process.exit(0) }
 
 let mainWindow: BrowserWindow | null = null
 let dashboardWindow: BrowserWindow | null = null
+let paletteWindow: BrowserWindow | null = null
+let paletteRequester: 'sidebar' | 'dashboard' = 'sidebar'
 let tray: Tray | null = null
 let windowExpanded = false
-let paletteMode = false   // when true, mainWindow is sized for command palette
 
 // ── Layout constants ──────────────────────────────────────────────────────
 const EXPANDED_HEIGHT = 580   // height when panel is open
@@ -171,11 +172,11 @@ function createTray(): void {
 
 // ── IPC: Window ───────────────────────────────────────────────────────────
 ipcMain.on('window:expand', () => {
-  if (!mainWindow || windowExpanded || paletteMode) return
+  if (!mainWindow || windowExpanded) return
   windowExpanded = true; applyBounds()
 })
 ipcMain.on('window:collapse', () => {
-  if (!mainWindow || !windowExpanded || paletteMode) return
+  if (!mainWindow || !windowExpanded) return
   windowExpanded = false; applyBounds()
 })
 ipcMain.on('window:open-dashboard', openDashboard)
@@ -183,24 +184,69 @@ ipcMain.on('navigate-date', (_e, { ts }: { ts: number }) => {
   mainWindow?.webContents.send('navigate-to-date', { ts })
 })
 
-// Palette mode: temporarily resize the sidebar window to fit the command palette
-ipcMain.on('window:palette-open', () => {
-  if (!mainWindow) return
-  paletteMode = true
+// ── Palette window (separate floating overlay) ────────────────────────────
+function openPaletteWindow(requester: 'sidebar' | 'dashboard'): void {
+  if (paletteWindow && !paletteWindow.isDestroyed()) {
+    paletteRequester = requester
+    paletteWindow.show(); paletteWindow.focus(); return
+  }
+  paletteRequester = requester
+
   const display = getDisplayForSettings(loadSettings())
   const wa = display.workArea
-  const W = 680, H = 480
-  mainWindow.setBounds({
-    x: wa.x + Math.max(0, Math.floor((wa.width  - W) / 2)),
-    y: wa.y + Math.max(0, Math.floor((wa.height - H) / 3)),
-    width: W, height: H
+  const W = 640, H = 460
+  const x = wa.x + Math.max(0, Math.floor((wa.width  - W) / 2))
+  const y = wa.y + Math.max(0, Math.floor((wa.height - H) / 3))
+
+  paletteWindow = new BrowserWindow({
+    x, y, width: W, height: H,
+    frame: false, transparent: true,
+    alwaysOnTop: true, skipTaskbar: true,
+    resizable: false, hasShadow: false, focusable: true,
+    show: false,
+    webPreferences: {
+      preload: join(__dirname, '../preload/index.js'),
+      contextIsolation: true, nodeIntegration: false, sandbox: false
+    }
   })
-  mainWindow.focus()
+  paletteWindow.setAlwaysOnTop(true, 'screen-saver')
+
+  if (process.env.NODE_ENV === 'development' && process.env['ELECTRON_RENDERER_URL']) {
+    paletteWindow.loadURL(process.env['ELECTRON_RENDERER_URL'] + '#palette')
+  } else {
+    paletteWindow.loadFile(join(__dirname, '../renderer/index.html'), { hash: 'palette' })
+  }
+
+  paletteWindow.once('ready-to-show', () => paletteWindow?.show())
+  paletteWindow.on('blur', () => closePaletteWindow())
+  paletteWindow.on('closed', () => { paletteWindow = null })
+}
+
+function closePaletteWindow(): void {
+  if (paletteWindow && !paletteWindow.isDestroyed()) {
+    paletteWindow.close()
+  }
+  paletteWindow = null
+}
+
+ipcMain.on('palette:open', (e) => {
+  const requester: 'sidebar' | 'dashboard' =
+    dashboardWindow && e.sender.id === dashboardWindow.webContents.id ? 'dashboard' : 'sidebar'
+  openPaletteWindow(requester)
 })
-ipcMain.on('window:palette-close', () => {
-  if (!mainWindow) return
-  paletteMode = false
-  applyBounds()
+ipcMain.on('palette:close', () => closePaletteWindow())
+
+/** Palette tells main to forward an action (e.g. open-event-modal) to its requester window */
+ipcMain.on('palette:action', (_e, action: { kind: string; payload?: unknown }) => {
+  const target = paletteRequester === 'dashboard' ? dashboardWindow : mainWindow
+  target?.webContents.send('palette:action', action)
+  closePaletteWindow()
+})
+
+/** After palette directly created an event/task, refresh both windows */
+ipcMain.on('palette:refresh', () => {
+  mainWindow?.webContents.send('palette:refresh')
+  dashboardWindow?.webContents.send('palette:refresh')
 })
 
 // ── IPC: Window settings + displays ───────────────────────────────────────

@@ -5,8 +5,20 @@ contextBridge.exposeInMainWorld('electronAPI', {
   expandWindow:   () => ipcRenderer.send('window:expand'),
   collapseWindow: () => ipcRenderer.send('window:collapse'),
   openDashboard:  () => ipcRenderer.send('window:open-dashboard'),
-  openPalette:    () => ipcRenderer.send('window:palette-open'),
-  closePalette:   () => ipcRenderer.send('window:palette-close'),
+  openPalette:    () => ipcRenderer.send('palette:open'),
+  closePalette:   () => ipcRenderer.send('palette:close'),
+  paletteAction:  (action: { kind: string; payload?: unknown }) => ipcRenderer.send('palette:action', action),
+  paletteRefresh: () => ipcRenderer.send('palette:refresh'),
+  onPaletteAction:  (cb: (a: { kind: string; payload?: unknown }) => void) => {
+    const h = (_: unknown, a: { kind: string; payload?: unknown }) => cb(a)
+    ipcRenderer.on('palette:action', h)
+    return () => ipcRenderer.removeListener('palette:action', h)
+  },
+  onPaletteRefresh: (cb: () => void) => {
+    const h = () => cb()
+    ipcRenderer.on('palette:refresh', h)
+    return () => ipcRenderer.removeListener('palette:refresh', h)
+  },
   navigateToDate: (ts: number) => ipcRenderer.send('navigate-date', { ts }),
 
   onDisplayChanged:   (cb: () => void) => { const h = () => cb(); ipcRenderer.on('display:changed', h); return () => ipcRenderer.removeListener('display:changed', h) },
