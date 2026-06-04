@@ -5,20 +5,33 @@ contextBridge.exposeInMainWorld('electronAPI', {
   expandWindow:   () => ipcRenderer.send('window:expand'),
   collapseWindow: () => ipcRenderer.send('window:collapse'),
   openDashboard:  () => ipcRenderer.send('window:open-dashboard'),
+  navigateToDate: (ts: number) => ipcRenderer.send('navigate-date', { ts }),
 
   onDisplayChanged: (cb: () => void) => {
     const h = () => cb()
     ipcRenderer.on('display:changed', h)
     return () => ipcRenderer.removeListener('display:changed', h)
   },
+  onDisplaysUpdated: (cb: () => void) => {
+    const h = () => cb()
+    ipcRenderer.on('displays:updated', h)
+    return () => ipcRenderer.removeListener('displays:updated', h)
+  },
   onNavigateToDate: (cb: (ts: number) => void) => {
     const h = (_: unknown, { ts }: { ts: number }) => cb(ts)
     ipcRenderer.on('navigate-to-date', h)
     return () => ipcRenderer.removeListener('navigate-to-date', h)
   },
+  onSettingsChanged: (cb: (next: unknown) => void) => {
+    const h = (_: unknown, next: unknown) => cb(next)
+    ipcRenderer.on('settings:changed', h)
+    return () => ipcRenderer.removeListener('settings:changed', h)
+  },
 
-  // Dashboard → Sidebar date navigation
-  navigateToDate: (ts: number) => ipcRenderer.send('navigate-date', { ts }),
+  // ── Window settings + displays ──────────────────────────────────────────
+  getSettings: () => ipcRenderer.invoke('settings:get'),
+  setSettings: (patch: unknown) => ipcRenderer.invoke('settings:set', patch),
+  listDisplays: () => ipcRenderer.invoke('displays:list'),
 
   // ── Events ──────────────────────────────────────────────────────────────
   listEvents:            (p: { start: number; end: number }) => ipcRenderer.invoke('db:events:list', p),
@@ -30,12 +43,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   deleteEventInstance:   (data: unknown) => ipcRenderer.invoke('db:events:delete-instance', data),
 
   // ── Tasks ────────────────────────────────────────────────────────────────
-  listTasks:   (p: { end: number }) => ipcRenderer.invoke('db:tasks:list', p),
-  createTask:  (data: unknown) => ipcRenderer.invoke('db:tasks:create', data),
-  toggleTask:  (id: string) => ipcRenderer.invoke('db:tasks:toggle', { id }),
-  deleteTask:  (id: string) => ipcRenderer.invoke('db:tasks:delete', { id }),
+  listTasks:              (p: { end: number }) => ipcRenderer.invoke('db:tasks:list', p),
+  listAllIncompleteTasks: () => ipcRenderer.invoke('db:tasks:list-all-incomplete'),
+  createTask:             (data: unknown) => ipcRenderer.invoke('db:tasks:create', data),
+  toggleTask:             (id: string) => ipcRenderer.invoke('db:tasks:toggle', { id }),
+  deleteTask:             (id: string) => ipcRenderer.invoke('db:tasks:delete', { id }),
 
-  // ── Settings ─────────────────────────────────────────────────────────────
+  // ── App settings ─────────────────────────────────────────────────────────
   getAutoStart: () => ipcRenderer.invoke('app:get-login-item'),
   setAutoStart: (value: boolean) => ipcRenderer.invoke('app:set-login-item', { value })
 })

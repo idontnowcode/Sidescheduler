@@ -4,6 +4,7 @@ import Panel from './components/Panel'
 import { useDateStore } from './store/dateStore'
 import { useEventStore } from './store/eventStore'
 import { useTaskStore } from './store/taskStore'
+import { useSettingsStore } from './store/settingsStore'
 
 export default function App() {
   const [isExpanded, setIsExpanded] = useState(false)
@@ -11,17 +12,33 @@ export default function App() {
 
   const { selectedStart, selectedEnd } = useDateStore()
   const loadEvents = useEventStore((s) => s.load)
-  const loadTasks  = useTaskStore((s) => s.load)
+  const loadAll    = useTaskStore((s) => s.loadAll)
+  const settings   = useSettingsStore((s) => s.settings)
+  const loadSettings = useSettingsStore((s) => s.load)
+
+  // Initial load
+  useEffect(() => { loadSettings() }, [loadSettings])
+  useEffect(() => { loadAll() }, [loadAll])
 
   useEffect(() => {
     loadEvents(selectedStart, selectedEnd)
-    loadTasks(selectedEnd)
-  }, [selectedStart, selectedEnd, loadEvents, loadTasks])
+  }, [selectedStart, selectedEnd, loadEvents])
 
-  // Navigate sidebar to a date when dashboard sends it
+  // Re-fetch on settings change broadcast (from dashboard settings tab)
+  useEffect(() => {
+    const unsub = window.electronAPI.onSettingsChanged(() => {
+      loadSettings()
+    })
+    return unsub
+  }, [loadSettings])
+
+  // Navigate from dashboard
   useEffect(() => {
     const unsub = window.electronAPI.onNavigateToDate((ts) => {
       useDateStore.getState().goToDate(new Date(ts))
+      clearTimeout(collapseTimer.current)
+      window.electronAPI.expandWindow()
+      setIsExpanded(true)
     })
     return unsub
   }, [])
@@ -47,9 +64,21 @@ export default function App() {
     }, 150)
   }, [])
 
+  const sidebarW = settings.width
+  const panelW = 280
+  const totalW = sidebarW + panelW
+  const isLeft = settings.edge === 'left'
+
   return (
-    <div className="fixed inset-y-0 right-0 w-[332px]" onMouseLeave={collapse}>
-      <Panel isExpanded={isExpanded} />
+    <div
+      className="fixed inset-y-0"
+      style={{
+        width: totalW,
+        [isLeft ? 'left' : 'right']: 0
+      }}
+      onMouseLeave={collapse}
+    >
+      <Panel isExpanded={isExpanded} sidebarW={sidebarW} edge={settings.edge} />
       <Sidebar onHover={expand} />
     </div>
   )

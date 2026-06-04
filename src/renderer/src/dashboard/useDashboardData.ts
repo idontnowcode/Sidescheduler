@@ -3,21 +3,21 @@ import { CalEvent, Task, EventRow, TaskRow, rowToEvent, rowToTask } from '../typ
 
 export function useDashboardData(rangeStart: number, rangeEnd: number) {
   const [events, setEvents] = useState<CalEvent[]>([])
-  const [tasks, setTasks] = useState<Task[]>([])
+  const [allIncompleteTasks, setAllIncompleteTasks] = useState<Task[]>([])
   const [loading, setLoading] = useState(true)
 
   const reload = useCallback(async () => {
     setLoading(true)
     const [evRows, tkRows]: [EventRow[], TaskRow[]] = await Promise.all([
       window.electronAPI.listEvents({ start: rangeStart, end: rangeEnd }),
-      window.electronAPI.listTasks({ end: rangeEnd })
+      window.electronAPI.listAllIncompleteTasks()
     ])
     setEvents(evRows.map(rowToEvent))
-    setTasks(tkRows.map(rowToTask))
+    setAllIncompleteTasks(tkRows.map(rowToTask))
     setLoading(false)
   }, [rangeStart, rangeEnd])
 
   useEffect(() => { reload() }, [reload])
 
-  return { events, tasks, loading, reload }
+  return { events, allIncompleteTasks, loading, reload }
 }

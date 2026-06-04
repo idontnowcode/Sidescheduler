@@ -1,3 +1,22 @@
+// ── Window settings ───────────────────────────────────────────────────────
+export interface WindowSettings {
+  edge: 'left' | 'right'
+  verticalMode: 'full' | 'top' | 'bottom' | 'custom'
+  customY?: number
+  customHeight?: number
+  displayId?: number
+  width: 32 | 40 | 52
+}
+
+export interface DisplayInfo {
+  id: number
+  label: string
+  bounds: { x: number; y: number; width: number; height: number }
+  workArea: { x: number; y: number; width: number; height: number }
+  scaleFactor: number
+  isPrimary: boolean
+}
+
 // ── Recurrence ────────────────────────────────────────────────────────────
 export interface RecurrenceRule {
   type: 'daily' | 'weekly' | 'monthly' | 'yearly'
@@ -10,16 +29,16 @@ export interface RecurrenceRule {
 
 // ── Domain models ─────────────────────────────────────────────────────────
 export interface CalEvent {
-  id: string        // may be 'originalId__instanceTs' for recurring instances
+  id: string
   title: string
   startAt: number
   endAt: number
   color: string
   location?: string
   description?: string
-  recurrence?: RecurrenceRule  // present only on the base recurring event (not instances)
+  recurrence?: RecurrenceRule
   isRecurringInstance?: boolean
-  originalId?: string          // set when isRecurringInstance = true
+  originalId?: string
 }
 
 export interface Task {
@@ -31,13 +50,13 @@ export interface Task {
   project?: string
 }
 
-// ── DB row types ──────────────────────────────────────────────────────────
+// ── DB rows ───────────────────────────────────────────────────────────────
 export interface EventRow {
   id: string; title: string
   start_at: number; end_at: number; color: string
   location: string | null; description: string | null
   source: string; google_id: string | null
-  recurrence?: string   // JSON
+  recurrence?: string
   created_at: number; updated_at: number
 }
 
@@ -56,8 +75,7 @@ export function rowToEvent(row: EventRow): CalEvent {
     startAt: row.start_at, endAt: row.end_at, color: row.color,
     location: row.location ?? undefined, description: row.description ?? undefined,
     recurrence: (row.recurrence && !isInstance) ? JSON.parse(row.recurrence) : undefined,
-    isRecurringInstance: isInstance,
-    originalId
+    isRecurringInstance: isInstance, originalId
   }
 }
 
@@ -70,7 +88,6 @@ export function rowToTask(row: TaskRow): Task {
   }
 }
 
-// ── Virtual ID helpers ────────────────────────────────────────────────────
 export function parseVirtualId(id: string): { originalId: string; instanceDate: number } | null {
   const parts = id.split('__')
   if (parts.length !== 2) return null
@@ -84,9 +101,16 @@ declare global {
       expandWindow: () => void
       collapseWindow: () => void
       openDashboard: () => void
-      onDisplayChanged: (cb: () => void) => () => void
-      onNavigateToDate: (cb: (ts: number) => void) => () => void
       navigateToDate: (ts: number) => void
+
+      onDisplayChanged: (cb: () => void) => () => void
+      onDisplaysUpdated: (cb: () => void) => () => void
+      onNavigateToDate: (cb: (ts: number) => void) => () => void
+      onSettingsChanged: (cb: (s: WindowSettings) => void) => () => void
+
+      getSettings: () => Promise<WindowSettings>
+      setSettings: (patch: Partial<WindowSettings>) => Promise<WindowSettings>
+      listDisplays: () => Promise<DisplayInfo[]>
 
       listEvents: (p: { start: number; end: number }) => Promise<EventRow[]>
       createEvent: (data: {
@@ -106,6 +130,7 @@ declare global {
       }) => Promise<void>
 
       listTasks: (p: { end: number }) => Promise<TaskRow[]>
+      listAllIncompleteTasks: () => Promise<TaskRow[]>
       createTask: (data: { title: string; due_at?: number | null; priority?: string }) => Promise<TaskRow>
       toggleTask: (id: string) => Promise<TaskRow>
       deleteTask: (id: string) => Promise<void>

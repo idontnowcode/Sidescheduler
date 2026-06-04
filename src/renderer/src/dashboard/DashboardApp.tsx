@@ -1,9 +1,11 @@
 import { useState, useMemo } from 'react'
 import MonthView from './MonthView'
 import WeekView from './WeekView'
+import TodayView from './TodayView'
+import SettingsView from './SettingsView'
 import { useDashboardData } from './useDashboardData'
 
-type ViewMode = 'month' | 'week'
+type ViewMode = 'today' | 'month' | 'week' | 'settings'
 
 function sod(d: Date) { return new Date(d.getFullYear(), d.getMonth(), d.getDate()) }
 function monthStart(d: Date) { return sod(new Date(d.getFullYear(), d.getMonth(), 1)) }
@@ -12,73 +14,101 @@ function weekStart(d: Date)  { const s = sod(d); s.setDate(s.getDate() - s.getDa
 function weekEnd(d: Date)    { const s = weekStart(d); return new Date(s.getFullYear(), s.getMonth(), s.getDate() + 6, 23, 59, 59, 999) }
 
 export default function DashboardApp() {
-  const [view, setView] = useState<ViewMode>('month')
+  const [view, setView] = useState<ViewMode>('today')
   const [current, setCurrent] = useState(() => new Date())
 
+  const today = new Date()
+  const todayStart = sod(today).getTime()
+  const todayEnd   = todayStart + 86400000 - 1
+
   const rangeStart = useMemo(() =>
-    view === 'month' ? monthStart(current).getTime() : weekStart(current).getTime(),
-    [view, current])
+    view === 'today'    ? todayStart :
+    view === 'month'    ? monthStart(current).getTime() :
+    view === 'week'     ? weekStart(current).getTime() :
+    todayStart, // settings view: doesn't matter
+  [view, current, todayStart])
+
   const rangeEnd = useMemo(() =>
-    view === 'month' ? monthEnd(current).getTime() : weekEnd(current).getTime(),
-    [view, current])
+    view === 'today'    ? todayEnd :
+    view === 'month'    ? monthEnd(current).getTime() :
+    view === 'week'     ? weekEnd(current).getTime() :
+    todayEnd,
+  [view, current, todayEnd])
 
-  const { events, tasks, loading, reload } = useDashboardData(rangeStart, rangeEnd)
+  const { events, allIncompleteTasks, loading, reload } = useDashboardData(rangeStart, rangeEnd)
 
-  const goToPrev = () => setCurrent(c => {
+  const goToPrev = () => setCurrent((c) => {
     const d = new Date(c)
     if (view === 'month') d.setMonth(d.getMonth() - 1)
     else d.setDate(d.getDate() - 7)
     return d
   })
-  const goToNext = () => setCurrent(c => {
+  const goToNext = () => setCurrent((c) => {
     const d = new Date(c)
     if (view === 'month') d.setMonth(d.getMonth() + 1)
     else d.setDate(d.getDate() + 7)
     return d
   })
 
-  const headerLabel = view === 'month'
-    ? `${current.getFullYear()}년 ${current.getMonth() + 1}월`
-    : (() => {
-        const ws = weekStart(current), we = weekEnd(current)
-        return `${ws.getFullYear()}년 ${ws.getMonth() + 1}월 ${ws.getDate()}일 – ${we.getMonth() + 1}월 ${we.getDate()}일`
-      })()
+  const headerLabel =
+    view === 'today'    ? `${today.getFullYear()}년 ${today.getMonth() + 1}월 ${today.getDate()}일` :
+    view === 'month'    ? `${current.getFullYear()}년 ${current.getMonth() + 1}월` :
+    view === 'week'     ? (() => {
+      const ws = weekStart(current), we = weekEnd(current)
+      return `${ws.getFullYear()}년 ${ws.getMonth() + 1}월 ${ws.getDate()}일 – ${we.getMonth() + 1}월 ${we.getDate()}일`
+    })() :
+    '설정'
+
+  const showNav = view !== 'today' && view !== 'settings'
 
   return (
     <div className="h-screen flex flex-col bg-white select-none overflow-hidden">
-      {/* Header bar */}
-      <div className="flex items-center gap-3 px-5 py-2.5 border-b border-gray-200 flex-shrink-0 bg-white z-10">
-        {/* View toggle */}
+      {/* Header */}
+      <div className="flex items-center gap-3 px-5 py-2.5 border-b border-gray-200 flex-shrink-0">
         <div className="flex rounded-lg bg-gray-100 p-0.5">
-          {(['month', 'week'] as const).map(v => (
+          {([
+            ['today', '오늘'], ['month', '월간'], ['week', '주간'], ['settings', '설정']
+          ] as const).map(([v, label]) => (
             <button key={v} onClick={() => setView(v)}
               className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
                 view === v ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
-              {v === 'month' ? '월간' : '주간'}
+              {label}
             </button>
           ))}
         </div>
 
         <span className="text-sm font-semibold text-gray-700 flex-1">{headerLabel}</span>
 
-        <div className="flex items-center gap-1">
-          <button onClick={goToPrev} className="w-7 h-7 rounded-lg flex items-center justify-center text-gray-500 hover:bg-gray-100 text-lg leading-none">‹</button>
-          <button onClick={() => setCurrent(new Date())}
-            className="px-2.5 h-7 rounded-lg text-xs font-medium text-gray-600 hover:bg-gray-100 border border-gray-200">
-            오늘
+        {showNav && (
+          <div className="flex items-center gap-1">
+            <button onClick={goToPrev} className="w-7 h-7 rounded-lg flex items-center justify-center text-gray-500 hover:bg-gray-100 text-lg leading-none">‹</button>
+            <button onClick={() => setCurrent(new Date())}
+              className="px-2.5 h-7 rounded-lg text-xs font-medium text-gray-600 hover:bg-gray-100 border border-gray-200">
+              오늘
+            </button>
+            <button onClick={goToNext} className="w-7 h-7 rounded-lg flex items-center justify-center text-gray-500 hover:bg-gray-100 text-lg leading-none">›</button>
+          </div>
+        )}
+
+        {view !== 'settings' && (
+          <button onClick={reload}
+            className="w-7 h-7 rounded-lg flex items-center justify-center text-gray-400 hover:bg-gray-100 text-sm">
+            ↻
           </button>
-          <button onClick={goToNext} className="w-7 h-7 rounded-lg flex items-center justify-center text-gray-500 hover:bg-gray-100 text-lg leading-none">›</button>
-        </div>
+        )}
       </div>
 
-      {/* Content */}
       <div className="flex-1 overflow-hidden">
-        {loading ? (
+        {view === 'settings' ? (
+          <SettingsView />
+        ) : loading ? (
           <div className="h-full flex items-center justify-center text-gray-400 text-sm">불러오는 중...</div>
+        ) : view === 'today' ? (
+          <TodayView events={events} allIncompleteTasks={allIncompleteTasks} onReload={reload} />
         ) : view === 'month' ? (
-          <MonthView current={current} events={events} tasks={tasks} onReload={reload} onNavigate={setCurrent} />
+          <MonthView current={current} events={events} tasks={allIncompleteTasks} onReload={reload} onNavigate={setCurrent} />
         ) : (
-          <WeekView current={current} events={events} tasks={tasks} onReload={reload} onNavigate={setCurrent} />
+          <WeekView current={current} events={events} tasks={allIncompleteTasks} onReload={reload} onNavigate={setCurrent} />
         )}
       </div>
     </div>

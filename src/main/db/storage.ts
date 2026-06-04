@@ -259,6 +259,13 @@ export function listTasks(endAt: number): TaskRow[] {
     })
 }
 
+/** All incomplete tasks regardless of due date, sorted overdue → today → future → no-date */
+export function listAllIncompleteTasks(): TaskRow[] {
+  return load().tasks
+    .filter(t => t.done === 0)
+    .sort((a, b) => (a.due_at ?? Infinity) - (b.due_at ?? Infinity))
+}
+
 export function createTask(data: {
   title: string; due_at?: number | null; priority?: string; project?: string
 }): TaskRow {

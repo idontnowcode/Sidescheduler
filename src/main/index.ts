@@ -1,10 +1,11 @@
-import { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, screen } from 'electron'
+import { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, screen, Display } from 'electron'
 import { join } from 'path'
 import {
   initDb,
   listEvents, createEvent, updateEvent, updateEventMove, updateEventInstance, deleteEvent, deleteEventInstance,
-  listTasks, createTask, toggleTask, deleteTask
+  listTasks, listAllIncompleteTasks, createTask, toggleTask, deleteTask
 } from './db/storage'
+import { loadSettings, saveSettings, WindowSettings } from './settings'
 
 if (!app.requestSingleInstanceLock()) { app.quit(); process.exit(0) }
 
@@ -12,20 +13,52 @@ let mainWindow: BrowserWindow | null = null
 let dashboardWindow: BrowserWindow | null = null
 let tray: Tray | null = null
 let windowExpanded = false
+const PANEL_W = 280
 
-// ── Window helpers ────────────────────────────────────────────────────────
-function getWorkArea() { return screen.getPrimaryDisplay().workAreaSize }
+// ── Display / bounds ──────────────────────────────────────────────────────
+function getDisplayForSettings(s: WindowSettings): Display {
+  if (s.displayId != null) {
+    const d = screen.getAllDisplays().find(d => d.id === s.displayId)
+    if (d) return d
+  }
+  return screen.getPrimaryDisplay()
+}
 
-function calcBounds(expanded: boolean) {
-  const { width: w, height: h } = getWorkArea()
-  return expanded ? { x: w - 332, y: 0, width: 332, height: h }
-                  : { x: w - 52,  y: 0, width: 52,  height: h }
+function calcBounds(expanded: boolean): { x: number; y: number; width: number; height: number } {
+  const s = loadSettings()
+  const display = getDisplayForSettings(s)
+  const wa = display.workArea // { x, y, width, height } — accounts for taskbar
+  const sidebarW = s.width
+  const totalW = expanded ? sidebarW + PANEL_W : sidebarW
+
+  const x = s.edge === 'right'
+    ? wa.x + wa.width - totalW
+    : wa.x
+
+  let y = wa.y
+  let h = wa.height
+  if (s.verticalMode === 'top') {
+    h = Math.floor(wa.height / 2)
+  } else if (s.verticalMode === 'bottom') {
+    y = wa.y + Math.floor(wa.height / 2)
+    h = wa.height - Math.floor(wa.height / 2)
+  } else if (s.verticalMode === 'custom') {
+    y = wa.y + (s.customY ?? 0)
+    h = s.customHeight ?? wa.height
+  }
+  return { x, y, width: totalW, height: h }
+}
+
+function applyBounds() {
+  if (!mainWindow) return
+  mainWindow.setBounds(calcBounds(windowExpanded))
 }
 
 // ── Sidebar window ────────────────────────────────────────────────────────
 function createWindow(): void {
   mainWindow = new BrowserWindow({
-    ...calcBounds(false), frame: false, transparent: true, alwaysOnTop: true,
+    ...calcBounds(false),
+    frame: false, transparent: true, alwaysOnTop: true,
     skipTaskbar: true, resizable: false, hasShadow: false, focusable: true,
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
@@ -43,18 +76,28 @@ function createWindow(): void {
 
   mainWindow.on('blur', () => mainWindow?.setAlwaysOnTop(true, 'screen-saver'))
 
+  // Track user-initiated drag (when custom mode) → persist new Y
+  mainWindow.on('moved', () => {
+    if (!mainWindow) return
+    const s = loadSettings()
+    if (s.verticalMode !== 'custom') return
+    const b = mainWindow.getBounds()
+    const display = getDisplayForSettings(s)
+    saveSettings({ customY: Math.max(0, b.y - display.workArea.y) })
+  })
+
   screen.on('display-metrics-changed', () => {
     if (!mainWindow) return
-    mainWindow.setBounds(calcBounds(windowExpanded))
+    applyBounds()
     mainWindow.webContents.send('display:changed')
   })
+  screen.on('display-added',   () => mainWindow?.webContents.send('displays:updated'))
+  screen.on('display-removed', () => mainWindow?.webContents.send('displays:updated'))
 }
 
 // ── Dashboard window ──────────────────────────────────────────────────────
 function openDashboard(): void {
-  if (dashboardWindow && !dashboardWindow.isDestroyed()) {
-    dashboardWindow.focus(); return
-  }
+  if (dashboardWindow && !dashboardWindow.isDestroyed()) { dashboardWindow.focus(); return }
   dashboardWindow = new BrowserWindow({
     width: 960, height: 700, minWidth: 800, minHeight: 560,
     title: 'Daily Sidebar Planner — 달력',
@@ -114,17 +157,34 @@ function createTray(): void {
 // ── IPC: Window ───────────────────────────────────────────────────────────
 ipcMain.on('window:expand', () => {
   if (!mainWindow || windowExpanded) return
-  mainWindow.setBounds(calcBounds(true)); windowExpanded = true
+  windowExpanded = true; applyBounds()
 })
 ipcMain.on('window:collapse', () => {
   if (!mainWindow || !windowExpanded) return
-  mainWindow.setBounds(calcBounds(false)); windowExpanded = false
+  windowExpanded = false; applyBounds()
 })
 ipcMain.on('window:open-dashboard', openDashboard)
-
-/** Dashboard → navigate sidebar to a specific date */
 ipcMain.on('navigate-date', (_e, { ts }: { ts: number }) => {
   mainWindow?.webContents.send('navigate-to-date', { ts })
+})
+
+// ── IPC: Window settings + displays ───────────────────────────────────────
+ipcMain.handle('settings:get', () => loadSettings())
+ipcMain.handle('settings:set', (_e, patch: Partial<WindowSettings>) => {
+  const next = saveSettings(patch)
+  applyBounds()
+  mainWindow?.webContents.send('settings:changed', next)
+  return next
+})
+ipcMain.handle('displays:list', () => {
+  return screen.getAllDisplays().map(d => ({
+    id: d.id,
+    label: d.label || '',
+    bounds: d.bounds,
+    workArea: d.workArea,
+    scaleFactor: d.scaleFactor,
+    isPrimary: d.id === screen.getPrimaryDisplay().id
+  }))
 })
 
 // ── IPC: Events ───────────────────────────────────────────────────────────
@@ -137,10 +197,11 @@ ipcMain.handle('db:events:delete',          (_e, { id }: { id: string }) => dele
 ipcMain.handle('db:events:delete-instance', (_e, data) => { deleteEventInstance(data); return null })
 
 // ── IPC: Tasks ────────────────────────────────────────────────────────────
-ipcMain.handle('db:tasks:list',   (_e, { end }: { end: number }) => listTasks(end))
-ipcMain.handle('db:tasks:create', (_e, data) => createTask(data))
-ipcMain.handle('db:tasks:toggle', (_e, { id }: { id: string }) => toggleTask(id))
-ipcMain.handle('db:tasks:delete', (_e, { id }: { id: string }) => deleteTask(id))
+ipcMain.handle('db:tasks:list',                (_e, { end }: { end: number }) => listTasks(end))
+ipcMain.handle('db:tasks:list-all-incomplete', () => listAllIncompleteTasks())
+ipcMain.handle('db:tasks:create',              (_e, data) => createTask(data))
+ipcMain.handle('db:tasks:toggle',              (_e, { id }: { id: string }) => toggleTask(id))
+ipcMain.handle('db:tasks:delete',              (_e, { id }: { id: string }) => deleteTask(id))
 
 // ── IPC: App settings ─────────────────────────────────────────────────────
 ipcMain.handle('app:get-login-item', () => app.getLoginItemSettings().openAtLogin)
