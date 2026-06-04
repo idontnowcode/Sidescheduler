@@ -1,0 +1,21 @@
+node_modules/
+out/
+dist-app/
+*.log
+.DS_Store
+Thumbs.db
+
+# SQLite / JSON data (user data, not committed)
+planner.json
+planner.db
+
+# Electron build cache
+.vite/
+
+# IDE
+.vscode/
+.idea/
+
+# env
+.env
+.env.*

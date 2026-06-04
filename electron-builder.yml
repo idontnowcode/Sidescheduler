@@ -1,0 +1,23 @@
+appId: com.gcjang.daily-sidebar-planner
+productName: Daily Sidebar Planner
+directories:
+  buildResources: resources
+  output: dist-app
+files:
+  - out/**/*
+  - "!**/.vscode/*"
+  - "!src/*"
+  - "!electron.vite.config.*"
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+  icon: resources/icon.ico
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+publish:
+  provider: generic
+  url: ""
