@@ -21,5 +21,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   listTasks: (params: { end: number }) => ipcRenderer.invoke('db:tasks:list', params),
   createTask: (data: unknown) => ipcRenderer.invoke('db:tasks:create', data),
   toggleTask: (id: string) => ipcRenderer.invoke('db:tasks:toggle', { id }),
-  deleteTask: (id: string) => ipcRenderer.invoke('db:tasks:delete', { id })
+  deleteTask: (id: string) => ipcRenderer.invoke('db:tasks:delete', { id }),
+
+  // ── App settings ─────────────────────────────────────────────────────────
+  getAutoStart: () => ipcRenderer.invoke('app:get-login-item'),
+  setAutoStart: (value: boolean) => ipcRenderer.invoke('app:set-login-item', { value })
 })

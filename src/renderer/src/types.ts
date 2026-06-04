@@ -1,4 +1,3 @@
-// ── Domain models (camelCase) ─────────────────────────────────────────────
 export interface CalEvent {
   id: string
   title: string
@@ -18,7 +17,6 @@ export interface Task {
   project?: string
 }
 
-// ── DB row types (snake_case, from IPC) ───────────────────────────────────
 export interface EventRow {
   id: string
   title: string
@@ -44,23 +42,17 @@ export interface TaskRow {
   updated_at: number
 }
 
-// ── Mappers ───────────────────────────────────────────────────────────────
 export function rowToEvent(row: EventRow): CalEvent {
   return {
-    id: row.id,
-    title: row.title,
-    startAt: row.start_at,
-    endAt: row.end_at,
-    color: row.color,
-    location: row.location ?? undefined,
-    description: row.description ?? undefined
+    id: row.id, title: row.title,
+    startAt: row.start_at, endAt: row.end_at, color: row.color,
+    location: row.location ?? undefined, description: row.description ?? undefined
   }
 }
 
 export function rowToTask(row: TaskRow): Task {
   return {
-    id: row.id,
-    title: row.title,
+    id: row.id, title: row.title,
     dueAt: row.due_at ?? undefined,
     done: row.done === 1,
     priority: (row.priority as Task['priority']) || 'normal',
@@ -68,7 +60,6 @@ export function rowToTask(row: TaskRow): Task {
   }
 }
 
-// ── Global window.electronAPI ─────────────────────────────────────────────
 declare global {
   interface Window {
     electronAPI: {
@@ -90,6 +81,9 @@ declare global {
       }) => Promise<TaskRow>
       toggleTask: (id: string) => Promise<TaskRow>
       deleteTask: (id: string) => Promise<void>
+
+      getAutoStart: () => Promise<boolean>
+      setAutoStart: (value: boolean) => Promise<void>
     }
   }
 }

@@ -78,26 +78,7 @@ function createTray(): void {
 
   tray = new Tray(icon)
   tray.setToolTip('Daily Sidebar Planner')
-
-  const buildMenu = () =>
-    Menu.buildFromTemplate([
-      { label: 'Daily Sidebar Planner', enabled: false },
-      { type: 'separator' },
-      { label: '창 표시', click: () => mainWindow?.show() },
-      {
-        label: '자동 시작',
-        type: 'checkbox',
-        checked: app.getLoginItemSettings().openAtLogin,
-        click: (item) => {
-          app.setLoginItemSettings({ openAtLogin: item.checked })
-          tray?.setContextMenu(buildMenu())
-        }
-      },
-      { type: 'separator' },
-      { label: '종료', click: () => app.quit() }
-    ])
-
-  tray.setContextMenu(buildMenu())
+  tray.setContextMenu(buildTrayMenu())
   tray.on('click', () => mainWindow?.show())
 }
 
@@ -125,6 +106,32 @@ ipcMain.handle('db:tasks:list',   (_e, { end }: { end: number }) => listTasks(en
 ipcMain.handle('db:tasks:create', (_e, data) => createTask(data))
 ipcMain.handle('db:tasks:toggle', (_e, { id }: { id: string }) => toggleTask(id))
 ipcMain.handle('db:tasks:delete', (_e, { id }: { id: string }) => deleteTask(id))
+
+// ── IPC: App settings ─────────────────────────────────────────────────────
+ipcMain.handle('app:get-login-item', () => app.getLoginItemSettings().openAtLogin)
+ipcMain.handle('app:set-login-item', (_e, { value }: { value: boolean }) => {
+  app.setLoginItemSettings({ openAtLogin: value })
+  tray?.setContextMenu(buildTrayMenu())
+})
+
+function buildTrayMenu() {
+  return Menu.buildFromTemplate([
+    { label: 'Daily Sidebar Planner', enabled: false },
+    { type: 'separator' },
+    { label: '창 표시', click: () => mainWindow?.show() },
+    {
+      label: '자동 시작',
+      type: 'checkbox',
+      checked: app.getLoginItemSettings().openAtLogin,
+      click: (item) => {
+        app.setLoginItemSettings({ openAtLogin: item.checked })
+        tray?.setContextMenu(buildTrayMenu())
+      }
+    },
+    { type: 'separator' },
+    { label: '종료', click: () => app.quit() }
+  ])
+}
 
 // ── App lifecycle ─────────────────────────────────────────────────────────
 app.whenReady().then(() => {
