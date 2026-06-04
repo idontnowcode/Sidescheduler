@@ -14,11 +14,21 @@ interface Command {
 
 interface Props {
   onAction?: (action: string, payload?: unknown) => void
+  /** When true, ask main to resize the host window for the palette overlay.
+   *  Required for the narrow sidebar window; not needed for the dashboard. */
+  resizeWindow?: boolean
 }
 
-export default function CommandPalette({ onAction }: Props) {
+export default function CommandPalette({ onAction, resizeWindow }: Props) {
   const open = useCommandStore((s) => s.open)
   const hide = useCommandStore((s) => s.hide)
+
+  // Resize host window while palette is open (sidebar context)
+  useEffect(() => {
+    if (!resizeWindow) return
+    if (open) window.electronAPI.openPalette()
+    else window.electronAPI.closePalette()
+  }, [open, resizeWindow])
   const [query, setQuery] = useState('')
   const [searchRes, setSearchRes] = useState<SearchResult>({ events: [], tasks: [] })
   const [active, setActive] = useState(0)

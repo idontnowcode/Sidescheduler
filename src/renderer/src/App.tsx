@@ -100,7 +100,7 @@ export default function App() {
           onSaved={loadAll} />
       )}
 
-      <CommandPalette onAction={(a) => {
+      <CommandPalette resizeWindow onAction={(a) => {
         if (a === 'today') useDateStore.getState().goToToday()
         else if (a === 'new-event') setAddEvent(true)
         else if (a === 'new-task') setAddTask(true)

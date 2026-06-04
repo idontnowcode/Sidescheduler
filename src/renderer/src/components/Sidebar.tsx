@@ -23,12 +23,13 @@ export default function Sidebar({ onHover }: Props) {
 
   const iconSize = w === 32 ? 14 : w === 40 ? 16 : 19
   const btnSize  = w === 32 ? 24 : w === 40 ? 30 : 34
+  const sidebarH = w === 32 ? 168 : w === 52 ? 204 : 184  // matches main/index.ts
 
   return (
     <div
       className="fixed top-0 flex flex-col items-center z-20 bg-white dark:bg-ink-900 border border-ink-200 dark:border-ink-800 shadow-glass dark:shadow-glass-dark"
       style={{
-        width: w, height: 156,
+        width: w, height: sidebarH,
         [isLeft ? 'left' : 'right']: 0,
         [isLeft ? 'borderLeft' : 'borderRight']: 'none',
         [isLeft ? 'borderTopRightRadius' : 'borderTopLeftRadius']: '12px',

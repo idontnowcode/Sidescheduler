@@ -5,6 +5,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   expandWindow:   () => ipcRenderer.send('window:expand'),
   collapseWindow: () => ipcRenderer.send('window:collapse'),
   openDashboard:  () => ipcRenderer.send('window:open-dashboard'),
+  openPalette:    () => ipcRenderer.send('window:palette-open'),
+  closePalette:   () => ipcRenderer.send('window:palette-close'),
   navigateToDate: (ts: number) => ipcRenderer.send('navigate-date', { ts }),
 
   onDisplayChanged:   (cb: () => void) => { const h = () => cb(); ipcRenderer.on('display:changed', h); return () => ipcRenderer.removeListener('display:changed', h) },

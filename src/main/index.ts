@@ -14,11 +14,18 @@ let mainWindow: BrowserWindow | null = null
 let dashboardWindow: BrowserWindow | null = null
 let tray: Tray | null = null
 let windowExpanded = false
+let paletteMode = false   // when true, mainWindow is sized for command palette
 
 // ── Layout constants ──────────────────────────────────────────────────────
-const SIDEBAR_HEIGHT  = 156   // collapsed height
-const EXPANDED_HEIGHT = 560   // height when panel is open
-const PANEL_W         = 280
+const EXPANDED_HEIGHT = 580   // height when panel is open
+const PANEL_W         = 300
+
+/** Sidebar collapsed height scales with width to fit icons */
+function sidebarHeight(width: number): number {
+  if (width === 32) return 168
+  if (width === 52) return 204
+  return 184  // 40px default
+}
 
 // ── Display / bounds ──────────────────────────────────────────────────────
 function getDisplayForSettings(s: WindowSettings): Display {
@@ -163,16 +170,36 @@ function createTray(): void {
 
 // ── IPC: Window ───────────────────────────────────────────────────────────
 ipcMain.on('window:expand', () => {
-  if (!mainWindow || windowExpanded) return
+  if (!mainWindow || windowExpanded || paletteMode) return
   windowExpanded = true; applyBounds()
 })
 ipcMain.on('window:collapse', () => {
-  if (!mainWindow || !windowExpanded) return
+  if (!mainWindow || !windowExpanded || paletteMode) return
   windowExpanded = false; applyBounds()
 })
 ipcMain.on('window:open-dashboard', openDashboard)
 ipcMain.on('navigate-date', (_e, { ts }: { ts: number }) => {
   mainWindow?.webContents.send('navigate-to-date', { ts })
+})
+
+// Palette mode: temporarily resize the sidebar window to fit the command palette
+ipcMain.on('window:palette-open', () => {
+  if (!mainWindow) return
+  paletteMode = true
+  const display = getDisplayForSettings(loadSettings())
+  const wa = display.workArea
+  const W = 680, H = 480
+  mainWindow.setBounds({
+    x: wa.x + Math.max(0, Math.floor((wa.width  - W) / 2)),
+    y: wa.y + Math.max(0, Math.floor((wa.height - H) / 3)),
+    width: W, height: H
+  })
+  mainWindow.focus()
+})
+ipcMain.on('window:palette-close', () => {
+  if (!mainWindow) return
+  paletteMode = false
+  applyBounds()
 })
 
 // ── IPC: Window settings + displays ───────────────────────────────────────

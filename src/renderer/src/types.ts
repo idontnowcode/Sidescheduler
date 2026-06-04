@@ -109,6 +109,8 @@ declare global {
       expandWindow: () => void
       collapseWindow: () => void
       openDashboard: () => void
+      openPalette: () => void
+      closePalette: () => void
       navigateToDate: (ts: number) => void
 
       onDisplayChanged: (cb: () => void) => () => void
