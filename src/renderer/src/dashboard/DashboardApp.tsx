@@ -3,6 +3,8 @@ import MonthView from './MonthView'
 import WeekView from './WeekView'
 import TodayView from './TodayView'
 import SettingsView from './SettingsView'
+import AddEventModal from './AddEventModal'
+import AddTaskModal from './AddTaskModal'
 import { useDashboardData } from './useDashboardData'
 
 type ViewMode = 'today' | 'month' | 'week' | 'settings'
@@ -17,6 +19,10 @@ export default function DashboardApp() {
   const [view, setView] = useState<ViewMode>('today')
   const [current, setCurrent] = useState(() => new Date())
 
+  // Add modals
+  const [addEvent, setAddEvent] = useState<{ date: Date; startTime?: string; endTime?: string } | null>(null)
+  const [addTask, setAddTask]   = useState<{ date?: Date } | null>(null)
+
   const today = new Date()
   const todayStart = sod(today).getTime()
   const todayEnd   = todayStart + 86400000 - 1
@@ -25,7 +31,7 @@ export default function DashboardApp() {
     view === 'today'    ? todayStart :
     view === 'month'    ? monthStart(current).getTime() :
     view === 'week'     ? weekStart(current).getTime() :
-    todayStart, // settings view: doesn't matter
+    todayStart,
   [view, current, todayStart])
 
   const rangeEnd = useMemo(() =>
@@ -61,6 +67,16 @@ export default function DashboardApp() {
 
   const showNav = view !== 'today' && view !== 'settings'
 
+  // Open AddEvent with sensible defaults per current view
+  const openAddEvent = () => {
+    const base = view === 'today' ? today : current
+    setAddEvent({ date: base })
+  }
+  const openAddTask = () => {
+    const base = view === 'today' ? today : current
+    setAddTask({ date: base })
+  }
+
   return (
     <div className="h-screen flex flex-col bg-white select-none overflow-hidden">
       {/* Header */}
@@ -78,6 +94,26 @@ export default function DashboardApp() {
         </div>
 
         <span className="text-sm font-semibold text-gray-700 flex-1">{headerLabel}</span>
+
+        {/* Add buttons (hidden on settings) */}
+        {view !== 'settings' && (
+          <div className="flex items-center gap-1">
+            <button
+              onClick={openAddEvent}
+              className="px-2.5 h-7 rounded-lg text-xs font-medium text-white bg-blue-500 hover:bg-blue-600 flex items-center gap-1"
+              title="일정 추가"
+            >
+              <span className="text-sm leading-none">+</span> 일정
+            </button>
+            <button
+              onClick={openAddTask}
+              className="px-2.5 h-7 rounded-lg text-xs font-medium text-white bg-orange-500 hover:bg-orange-600 flex items-center gap-1"
+              title="태스크 추가"
+            >
+              <span className="text-sm leading-none">+</span> 태스크
+            </button>
+          </div>
+        )}
 
         {showNav && (
           <div className="flex items-center gap-1">
@@ -106,11 +142,38 @@ export default function DashboardApp() {
         ) : view === 'today' ? (
           <TodayView events={events} allIncompleteTasks={allIncompleteTasks} onReload={reload} />
         ) : view === 'month' ? (
-          <MonthView current={current} events={events} tasks={allIncompleteTasks} onReload={reload} onNavigate={setCurrent} />
+          <MonthView
+            current={current} events={events} tasks={allIncompleteTasks}
+            onReload={reload} onNavigate={setCurrent}
+            onAddEvent={(d) => setAddEvent({ date: d })}
+          />
         ) : (
-          <WeekView current={current} events={events} tasks={allIncompleteTasks} onReload={reload} onNavigate={setCurrent} />
+          <WeekView
+            current={current} events={events} tasks={allIncompleteTasks}
+            onReload={reload} onNavigate={setCurrent}
+            onAddEvent={(d, startTime, endTime) => setAddEvent({ date: d, startTime, endTime })}
+            onAddTask={(d) => setAddTask({ date: d })}
+          />
         )}
       </div>
+
+      {/* Modals */}
+      {addEvent && (
+        <AddEventModal
+          defaultDate={addEvent.date}
+          defaultStartTime={addEvent.startTime}
+          defaultEndTime={addEvent.endTime}
+          onClose={() => setAddEvent(null)}
+          onCreated={reload}
+        />
+      )}
+      {addTask && (
+        <AddTaskModal
+          defaultDueDate={addTask.date}
+          onClose={() => setAddTask(null)}
+          onCreated={reload}
+        />
+      )}
     </div>
   )
 }

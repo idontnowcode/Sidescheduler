@@ -11,6 +11,7 @@ interface Props {
   tasks: Task[]
   onReload: () => void
   onNavigate: (d: Date) => void
+  onAddEvent?: (date: Date) => void
 }
 
 // ── Grid helpers ──────────────────────────────────────────────────────────
@@ -47,7 +48,7 @@ function tasksForDay(tasks: Task[], day: Date) {
 }
 
 // ── Component ─────────────────────────────────────────────────────────────
-export default function MonthView({ current, events, tasks, onReload, onNavigate }: Props) {
+export default function MonthView({ current, events, tasks, onReload, onNavigate, onAddEvent }: Props) {
   const today = new Date()
   const grid = buildGrid(current)
 
@@ -145,16 +146,22 @@ export default function MonthView({ current, events, tasks, onReload, onNavigate
           return (
             <div
               key={key}
-              className={`min-h-[100px] border-b border-r border-gray-100 p-1 flex flex-col transition-colors ${
+              className={`min-h-[100px] border-b border-r border-gray-100 p-1 flex flex-col transition-colors cursor-pointer hover:bg-blue-50/40 ${
                 !inMonth ? 'bg-gray-50' : ''
               } ${isTarget ? 'bg-blue-50' : ''}`}
               onDragOver={(e) => { e.preventDefault(); setDropTarget(key) }}
               onDragLeave={() => setDropTarget(null)}
               onDrop={(e) => { e.preventDefault(); handleDrop(day) }}
+              onClick={(e) => {
+                // Only fire when clicking empty area, not on event chips / date button
+                if ((e.target as HTMLElement).closest('[data-no-add]')) return
+                onAddEvent?.(day)
+              }}
             >
               {/* Date number */}
               <button
-                onClick={() => handleDayClick(day)}
+                data-no-add
+                onClick={(e) => { e.stopPropagation(); handleDayClick(day) }}
                 className={`self-start w-6 h-6 rounded-full text-[11px] font-medium mb-0.5 flex items-center justify-center transition-colors hover:bg-blue-100 ${
                   isToday ? 'bg-blue-500 text-white hover:bg-blue-600' :
                   inMonth ? 'text-gray-700' : 'text-gray-300'
@@ -180,7 +187,9 @@ export default function MonthView({ current, events, tasks, onReload, onNavigate
               {dayEvents.slice(0, 3).map(ev => (
                 <div
                   key={ev.id}
+                  data-no-add
                   draggable
+                  onClick={(e) => e.stopPropagation()}
                   onDragStart={(e) => handleDragStart(e, ev, day)}
                   onDragEnd={() => setDragging(null)}
                   className="group flex items-center gap-0.5 rounded px-1 py-0.5 mb-0.5 cursor-grab active:cursor-grabbing text-white text-[10px] truncate"

@@ -18,6 +18,8 @@ interface Props {
   tasks: Task[]    // all incomplete tasks
   onReload: () => void
   onNavigate: (d: Date) => void
+  onAddEvent?: (date: Date, startTime?: string, endTime?: string) => void
+  onAddTask?: (date: Date) => void
 }
 
 function sod(d: Date) { return new Date(d.getFullYear(), d.getMonth(), d.getDate()) }
@@ -43,7 +45,7 @@ function fmtDue(ts: number) {
   const d = new Date(ts); return `${d.getMonth()+1}/${d.getDate()}`
 }
 
-export default function WeekView({ current, events, tasks, onReload, onNavigate }: Props) {
+export default function WeekView({ current, events, tasks, onReload, onNavigate, onAddEvent, onAddTask }: Props) {
   const days = weekDays(current)
   const today = new Date()
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -189,7 +191,21 @@ export default function WeekView({ current, events, tasks, onReload, onNavigate 
           {days.map((day, colIdx) => {
             const dayEvs = events.filter(ev => { const ds=dayStart(day); return ev.startAt>=ds && ev.startAt<=ds+86400000-1 })
             return (
-              <div key={colIdx} className="flex-1 border-l border-gray-100 relative" style={{height:TOTAL_H}}>
+              <div key={colIdx} className="flex-1 border-l border-gray-100 relative cursor-pointer" style={{height:TOTAL_H}}
+                onClick={(e) => {
+                  // Ignore clicks on event blocks (they have higher z elements with their own handlers)
+                  if ((e.target as HTMLElement).closest('[data-event-block]')) return
+                  const rect = e.currentTarget.getBoundingClientRect()
+                  const y = e.clientY - rect.top + (scrollRef.current?.scrollTop ?? 0)
+                  const startMin = Math.max(0, Math.min(60*24 - 60, Math.round((y/HOUR_H*60)/SNAP_MIN)*SNAP_MIN))
+                  const sh = String(Math.floor(startMin/60)).padStart(2,'0')
+                  const sm = String(startMin%60).padStart(2,'0')
+                  const endMin = Math.min(60*24, startMin + 60)
+                  const eh = String(Math.floor(endMin/60)).padStart(2,'0')
+                  const em = String(endMin%60).padStart(2,'0')
+                  onAddEvent?.(day, `${sh}:${sm}`, `${eh}:${em}`)
+                }}
+              >
                 {Array.from({length:24},(_,h)=>(
                   <div key={h} className="absolute left-0 right-0 border-t border-gray-100" style={{top:h*HOUR_H}} />
                 ))}
@@ -205,8 +221,10 @@ export default function WeekView({ current, events, tasks, onReload, onNavigate 
                   const dH   = isR ? resizePreview!.height : isP ? preview!.height : baseH
                   return (
                     <div key={ev.id}
+                      data-event-block
                       className="absolute left-0.5 right-0.5 rounded-md text-white overflow-hidden group cursor-grab active:cursor-grabbing select-none shadow-sm"
                       style={{ top:dTop, height:Math.max(dH,20), backgroundColor:ev.color, opacity:isP?0.8:1 }}
+                      onClick={e=>e.stopPropagation()}
                       onMouseDown={e=>{e.preventDefault();dragRef.current={ev,dayRef:day,startY:e.clientY,origStart:ev.startAt,origEnd:ev.endAt};setPreview({id:ev.id,top,height:baseH})}}>
                       <div className="px-1.5 pt-0.5 flex items-start justify-between">
                         <div className="flex-1 min-w-0">
@@ -251,12 +269,21 @@ export default function WeekView({ current, events, tasks, onReload, onNavigate 
               </span>
             )}
           </div>
-          <button
-            onClick={() => setTaskOpen(v => !v)}
-            className="text-[11px] text-gray-400 hover:text-gray-600 flex items-center gap-1"
-          >
-            {taskOpen ? '숨기기 ▼' : '태스크 ▲'}
-          </button>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => onAddTask?.(today)}
+              title="태스크 추가"
+              className="w-5 h-5 rounded-full bg-orange-100 hover:bg-orange-200 text-orange-500 flex items-center justify-center text-sm font-medium"
+            >
+              +
+            </button>
+            <button
+              onClick={() => setTaskOpen(v => !v)}
+              className="text-[11px] text-gray-400 hover:text-gray-600 flex items-center gap-1 ml-1"
+            >
+              {taskOpen ? '숨기기 ▼' : '태스크 ▲'}
+            </button>
+          </div>
         </div>
 
         {/* Task list */}
