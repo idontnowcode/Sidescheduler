@@ -172,6 +172,12 @@ function createTray(): void {
   tray.on('click', () => mainWindow?.show())
 }
 
+/** Notify both data-bearing windows that something changed. */
+function broadcastRefresh(): void {
+  mainWindow?.webContents.send('palette:refresh')
+  dashboardWindow?.webContents.send('palette:refresh')
+}
+
 // ── IPC: Window ───────────────────────────────────────────────────────────
 ipcMain.on('window:expand', () => {
   if (!mainWindow || windowExpanded) return
@@ -330,15 +336,12 @@ function closeEditorWindow(): void {
 
 ipcMain.on('editor:open', (_e, payload: unknown) => openEditorWindow(payload))
 ipcMain.on('editor:close', () => closeEditorWindow())
-ipcMain.handle('editor:get-pending', () => {
-  const p = pendingEditorPayload
-  pendingEditorPayload = null
-  return p
-})
-/** After editor saved/deleted, broadcast refresh to all data-bearing windows */
+/** Stays valid across multiple polls — React StrictMode invokes useEffect
+ *  twice in dev; we cleared the value too aggressively before. The value is
+ *  overwritten the next time openEditorWindow runs. */
+ipcMain.handle('editor:get-pending', () => pendingEditorPayload)
 ipcMain.on('editor:saved', () => {
-  mainWindow?.webContents.send('palette:refresh')
-  dashboardWindow?.webContents.send('palette:refresh')
+  broadcastRefresh()
   closeEditorWindow()
 })
 
@@ -362,21 +365,21 @@ ipcMain.handle('displays:list', () => {
 
 // ── IPC: Events ───────────────────────────────────────────────────────────
 ipcMain.handle('db:events:list',            (_e, p: { start: number; end: number }) => listEvents(p.start, p.end))
-ipcMain.handle('db:events:create',          (_e, data) => createEvent(data))
-ipcMain.handle('db:events:update',          (_e, data) => updateEvent(data))
-ipcMain.handle('db:events:move',            (_e, { id, start_at, end_at }: { id: string; start_at: number; end_at: number }) => updateEventMove(id, start_at, end_at))
-ipcMain.handle('db:events:update-instance', (_e, data) => { updateEventInstance(data); return null })
-ipcMain.handle('db:events:delete',          (_e, { id }: { id: string }) => deleteEvent(id))
-ipcMain.handle('db:events:delete-instance', (_e, data) => { deleteEventInstance(data); return null })
+ipcMain.handle('db:events:create',          (_e, data) => { const r = createEvent(data);     broadcastRefresh(); return r })
+ipcMain.handle('db:events:update',          (_e, data) => { const r = updateEvent(data);     broadcastRefresh(); return r })
+ipcMain.handle('db:events:move',            (_e, { id, start_at, end_at }: { id: string; start_at: number; end_at: number }) => { const r = updateEventMove(id, start_at, end_at); broadcastRefresh(); return r })
+ipcMain.handle('db:events:update-instance', (_e, data) => { updateEventInstance(data);       broadcastRefresh(); return null })
+ipcMain.handle('db:events:delete',          (_e, { id }: { id: string }) => { deleteEvent(id);            broadcastRefresh(); return null })
+ipcMain.handle('db:events:delete-instance', (_e, data) => { deleteEventInstance(data);       broadcastRefresh(); return null })
 
 // ── IPC: Tasks ────────────────────────────────────────────────────────────
 ipcMain.handle('db:tasks:list',                (_e, { end }: { end: number }) => listTasks(end))
 ipcMain.handle('db:tasks:list-all-incomplete', () => listAllIncompleteTasks())
-ipcMain.handle('db:tasks:create',              (_e, data) => createTask(data))
-ipcMain.handle('db:tasks:update',              (_e, data) => updateTask(data))
-ipcMain.handle('db:tasks:toggle',              (_e, { id }: { id: string }) => toggleTask(id))
-ipcMain.handle('db:tasks:snooze',              (_e, { id, due_at }: { id: string; due_at: number | null }) => snoozeTask(id, due_at))
-ipcMain.handle('db:tasks:delete',              (_e, { id }: { id: string }) => deleteTask(id))
+ipcMain.handle('db:tasks:create',              (_e, data) => { const r = createTask(data);              broadcastRefresh(); return r })
+ipcMain.handle('db:tasks:update',              (_e, data) => { const r = updateTask(data);              broadcastRefresh(); return r })
+ipcMain.handle('db:tasks:toggle',              (_e, { id }: { id: string }) => { const r = toggleTask(id);             broadcastRefresh(); return r })
+ipcMain.handle('db:tasks:snooze',              (_e, { id, due_at }: { id: string; due_at: number | null }) => { const r = snoozeTask(id, due_at); broadcastRefresh(); return r })
+ipcMain.handle('db:tasks:delete',              (_e, { id }: { id: string }) => { deleteTask(id);                       broadcastRefresh(); return null })
 
 // ── IPC: Search ───────────────────────────────────────────────────────────
 ipcMain.handle('db:search', (_e, { query }: { query: string }) => searchAll(query))
