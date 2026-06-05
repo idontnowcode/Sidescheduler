@@ -23,6 +23,12 @@ function snoozeTo(deltaDays: number | null): number | null {
   return d.getTime()
 }
 
+function fmtDuration(min: number): string {
+  if (min < 60) return `${min}m`
+  const h = Math.floor(min / 60), r = min % 60
+  return r ? `${h}h ${r}m` : `${h}h`
+}
+
 export default function TaskItem({ task, dueBadge, overdue }: Props) {
   const toggle = useTaskStore((s) => s.toggle)
   const remove = useTaskStore((s) => s.remove)
@@ -74,6 +80,12 @@ export default function TaskItem({ task, dueBadge, overdue }: Props) {
         {task.title}
         {task.recurrence && <span className="ml-1 text-2xs opacity-60">↻</span>}
       </button>
+
+      {task.estimatedMinutes != null && task.estimatedMinutes > 0 && !task.done && (
+        <span className="chip bg-ink-50 dark:bg-ink-800 text-ink-500 tabular-nums" title="Estimated time">
+          {fmtDuration(task.estimatedMinutes)}
+        </span>
+      )}
 
       {dueBadge && !task.done && (
         <span className={`chip ${overdue ? 'bg-red-50 dark:bg-red-500/15 text-red-500 dark:text-red-400' : 'bg-accent-50 dark:bg-accent-500/15 text-accent-600 dark:text-accent-400'}`}>

@@ -21,6 +21,11 @@ function fmtTime(ts: number) {
 function fmtDue(ts: number) {
   const d = new Date(ts); return `${d.getMonth() + 1}/${d.getDate()}`
 }
+function fmtDuration(min: number): string {
+  if (min < 60) return `${min}m`
+  const h = Math.floor(min / 60), r = min % 60
+  return r ? `${h}h ${r}m` : `${h}h`
+}
 
 async function handleToggle(id: string, onReload: () => void) {
   await window.electronAPI.toggleTask(id); onReload()
@@ -177,6 +182,11 @@ function TaskRow({ task, showDue, overdue, onToggle, onEdit }: {
       </button>
       {showDue && task.dueAt && (
         <span className="text-xs text-red-400 flex-shrink-0">Due {fmtDue(task.dueAt)}</span>
+      )}
+      {task.estimatedMinutes != null && task.estimatedMinutes > 0 && (
+        <span className="chip bg-ink-50 dark:bg-ink-800 text-ink-500 tabular-nums" title="Estimated time">
+          {fmtDuration(task.estimatedMinutes)}
+        </span>
       )}
       <span className={`chip ${BADGE[task.priority]}`}>{PRI[task.priority]}</span>
     </div>

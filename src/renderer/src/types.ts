@@ -48,6 +48,7 @@ export interface Task {
   priority: 'urgent' | 'normal' | 'low'
   project?: string
   recurrence?: RecurrenceRule
+  estimatedMinutes?: number
 }
 
 // ── DB rows ───────────────────────────────────────────────────────────────
@@ -64,6 +65,7 @@ export interface TaskRow {
   id: string; title: string; due_at: number | null
   done: number; priority: string; project: string | null
   recurrence?: string
+  estimated_minutes?: number
   created_at: number; updated_at: number
 }
 
@@ -86,7 +88,8 @@ export function rowToTask(row: TaskRow): Task {
     done: row.done === 1,
     priority: (row.priority as Task['priority']) || 'normal',
     project: row.project ?? undefined,
-    recurrence: row.recurrence ? JSON.parse(row.recurrence) : undefined
+    recurrence: row.recurrence ? JSON.parse(row.recurrence) : undefined,
+    estimatedMinutes: row.estimated_minutes
   }
 }
 
@@ -157,7 +160,8 @@ declare global {
       listTasks: (p: { end: number }) => Promise<TaskRow[]>
       listAllIncompleteTasks: () => Promise<TaskRow[]>
       createTask: (data: {
-        title: string; due_at?: number | null; priority?: string; project?: string; recurrence?: string
+        title: string; due_at?: number | null; priority?: string;
+        project?: string; recurrence?: string; estimated_minutes?: number
       }) => Promise<TaskRow>
       updateTask: (data: Partial<TaskRow> & { id: string }) => Promise<TaskRow>
       toggleTask: (id: string) => Promise<TaskRow>

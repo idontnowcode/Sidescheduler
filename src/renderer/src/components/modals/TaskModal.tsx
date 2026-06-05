@@ -33,6 +33,11 @@ export default function TaskModal({ mode, task, defaultDueDate, onClose, onSaved
   )
   const [priority, setPriority] = useState<Priority>(task?.priority ?? 'normal')
 
+  // Estimated duration (split into hours + minutes for UX, stored as minutes)
+  const initMin = task?.estimatedMinutes ?? 0
+  const [estHours, setEstHours] = useState(String(Math.floor(initMin / 60)))
+  const [estMins, setEstMins]   = useState(String(initMin % 60))
+
   const ir = task?.recurrence
   const [recurOn, setRecurOn]     = useState(!!ir)
   const [recurType, setRecurType] = useState<RecurrenceRule['type']>(ir?.type ?? 'daily')
@@ -56,6 +61,13 @@ export default function TaskModal({ mode, task, defaultDueDate, onClose, onSaved
     return JSON.stringify(rule)
   }
 
+  function computeEstimatedMinutes(): number | undefined {
+    const h = parseInt(estHours) || 0
+    const m = parseInt(estMins) || 0
+    const total = h * 60 + m
+    return total > 0 ? total : undefined
+  }
+
   async function submit(e: React.FormEvent) {
     e.preventDefault()
     if (!title.trim()) return
@@ -66,15 +78,19 @@ export default function TaskModal({ mode, task, defaultDueDate, onClose, onSaved
       due_at = new Date(y, m - 1, d, 23, 59, 59, 999).getTime()
     }
 
+    const estimated_minutes = computeEstimatedMinutes()
+
     if (isEdit) {
       await window.electronAPI.updateTask({
         id: task!.id, title: title.trim(), due_at, priority,
-        recurrence: buildRecurrence()
+        recurrence: buildRecurrence(),
+        estimated_minutes
       })
     } else {
       await window.electronAPI.createTask({
         title: title.trim(), due_at, priority,
-        recurrence: buildRecurrence()
+        recurrence: buildRecurrence(),
+        estimated_minutes
       })
     }
     setSaving(false)
@@ -131,6 +147,27 @@ export default function TaskModal({ mode, task, defaultDueDate, onClose, onSaved
                   {label}
                 </button>
               ))}
+            </div>
+          </div>
+
+          {/* Estimated duration */}
+          <div>
+            <label className="block text-2xs font-medium text-ink-500 mb-1.5 uppercase tracking-wider">
+              Estimated time <span className="normal-case text-ink-400 font-normal">(optional)</span>
+            </label>
+            <div className="flex items-center gap-2">
+              <input type="number" min="0" max="99" value={estHours}
+                onChange={(e) => setEstHours(e.target.value)}
+                placeholder="0" className="input w-20 text-center tabular-nums" />
+              <span className="text-xs text-ink-500">h</span>
+              <input type="number" min="0" max="59" step="5" value={estMins}
+                onChange={(e) => setEstMins(e.target.value)}
+                placeholder="0" className="input w-20 text-center tabular-nums" />
+              <span className="text-xs text-ink-500">min</span>
+              {(parseInt(estHours) > 0 || parseInt(estMins) > 0) && (
+                <button type="button" onClick={() => { setEstHours('0'); setEstMins('0') }}
+                  className="ml-auto text-2xs text-ink-400 hover:text-red-500">Clear</button>
+              )}
             </div>
           </div>
 

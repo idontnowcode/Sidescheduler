@@ -35,7 +35,8 @@ export interface TaskRow {
   done: number
   priority: string
   project: string | null
-  recurrence?: string         // JSON RecurrenceRule (for repeating tasks)
+  recurrence?: string             // JSON RecurrenceRule (for repeating tasks)
+  estimated_minutes?: number      // user-provided estimate
   created_at: number
   updated_at: number
 }
@@ -244,13 +245,15 @@ export function listAllIncompleteTasks(): TaskRow[] {
 }
 
 export function createTask(data: {
-  title: string; due_at?: number | null; priority?: string; project?: string; recurrence?: string
+  title: string; due_at?: number | null; priority?: string; project?: string;
+  recurrence?: string; estimated_minutes?: number
 }): TaskRow {
   const now = Date.now()
   const row: TaskRow = {
     id: randomUUID(), title: data.title, due_at: data.due_at ?? null,
     done: 0, priority: data.priority ?? 'normal', project: data.project ?? null,
     recurrence: data.recurrence,
+    estimated_minutes: data.estimated_minutes,
     created_at: now, updated_at: now
   }
   const db = load(); db.tasks.push(row); persist(db); return row

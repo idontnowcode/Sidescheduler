@@ -28,6 +28,11 @@ function weekDays(ref: Date): Date[] {
 const tsToY = (ts: number, day: Date) => ((ts - dayStart(day)) / 3600000) * HOUR_H
 const fmtTime = (ts: number) => { const d = new Date(ts); return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}` }
 const fmtDue = (ts: number) => { const d = new Date(ts); return `${d.getMonth()+1}/${d.getDate()}` }
+function fmtDuration(min: number): string {
+  if (min < 60) return `${min}m`
+  const h = Math.floor(min / 60), r = min % 60
+  return r ? `${h}h ${r}m` : `${h}h`
+}
 
 export default function WeekView({ current, events, tasks, onReload, onNavigate, onAddEvent, onAddTask }: Props) {
   const days = weekDays(current)
@@ -282,6 +287,11 @@ function PanelTaskRow({ task, overdue, today, onReload, onEdit }: {
         <span className={`text-2xs flex-shrink-0 tabular-nums ${
           overdue ? 'text-red-400' : today ? 'text-orange-400' : 'text-ink-400'}`}>
           {fmtDue(task.dueAt)}
+        </span>
+      )}
+      {task.estimatedMinutes != null && task.estimatedMinutes > 0 && (
+        <span className="chip bg-ink-50 dark:bg-ink-800 text-ink-500 tabular-nums" title="Estimated time">
+          {fmtDuration(task.estimatedMinutes)}
         </span>
       )}
       <span className={`chip ${
