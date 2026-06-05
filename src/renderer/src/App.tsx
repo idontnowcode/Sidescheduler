@@ -1,8 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
 import Sidebar from './components/Sidebar'
 import Panel from './components/Panel'
-import EventModal from './components/modals/EventModal'
-import TaskModal from './components/modals/TaskModal'
 import { useDateStore } from './store/dateStore'
 import { useEventStore } from './store/eventStore'
 import { useTaskStore } from './store/taskStore'
@@ -13,15 +11,12 @@ export default function App() {
   const [isExpanded, setIsExpanded] = useState(false)
   const collapseTimer = useRef<ReturnType<typeof setTimeout>>()
 
-  const { selectedStart, selectedEnd, selected } = useDateStore()
+  const { selectedStart, selectedEnd } = useDateStore()
   const loadEvents = useEventStore((s) => s.load)
   const loadAll    = useTaskStore((s) => s.loadAll)
   const settings   = useSettingsStore((s) => s.settings)
   const loadSettings = useSettingsStore((s) => s.load)
   const initTheme  = useThemeStore((s) => s.init)
-
-  const [addEvent, setAddEvent] = useState(false)
-  const [addTask, setAddTask] = useState(false)
 
   useEffect(() => { initTheme(); loadSettings(); loadAll() }, [initTheme, loadSettings, loadAll])
   useEffect(() => { loadEvents(selectedStart, selectedEnd) }, [selectedStart, selectedEnd, loadEvents])
@@ -46,12 +41,22 @@ export default function App() {
     return unsub
   }, [selectedStart, selectedEnd, loadEvents])
 
-  // ── Palette action / refresh listeners ────────────────────────────────
+  // Palette action / refresh listeners
   useEffect(() => {
     const unsubA = window.electronAPI.onPaletteAction((a) => {
       if (a.kind === 'today') useDateStore.getState().goToToday()
-      else if (a.kind === 'new-event') setAddEvent(true)
-      else if (a.kind === 'new-task') setAddTask(true)
+      else if (a.kind === 'new-event') {
+        window.electronAPI.openEditor({
+          kind: 'event', mode: 'create',
+          defaultDate: useDateStore.getState().selected.getTime()
+        })
+      }
+      else if (a.kind === 'new-task') {
+        window.electronAPI.openEditor({
+          kind: 'task', mode: 'create',
+          defaultDueDate: useDateStore.getState().selected.getTime()
+        })
+      }
     })
     const unsubR = window.electronAPI.onPaletteRefresh(() => {
       loadEvents(selectedStart, selectedEnd); loadAll()
@@ -68,8 +73,20 @@ export default function App() {
       if (inField) return
       if (e.key === 'd' && !e.metaKey && !e.ctrlKey) { e.preventDefault(); window.electronAPI.openDashboard() }
       else if (e.key === 't' && !e.metaKey) useDateStore.getState().goToToday()
-      else if (e.key === 'n' && !e.shiftKey && !e.metaKey && !e.ctrlKey) { e.preventDefault(); setAddEvent(true) }
-      else if (e.key === 'N' && e.shiftKey) { e.preventDefault(); setAddTask(true) }
+      else if (e.key === 'n' && !e.shiftKey && !e.metaKey && !e.ctrlKey) {
+        e.preventDefault()
+        window.electronAPI.openEditor({
+          kind: 'event', mode: 'create',
+          defaultDate: useDateStore.getState().selected.getTime()
+        })
+      }
+      else if (e.key === 'N' && e.shiftKey) {
+        e.preventDefault()
+        window.electronAPI.openEditor({
+          kind: 'task', mode: 'create',
+          defaultDueDate: useDateStore.getState().selected.getTime()
+        })
+      }
       else if (e.key === 'Escape') { setIsExpanded(false); window.electronAPI.collapseWindow() }
     }
     window.addEventListener('keydown', onKey)
@@ -99,17 +116,6 @@ export default function App() {
       onMouseLeave={collapse}>
       <Panel isExpanded={isExpanded} sidebarW={settings.width} edge={settings.edge} />
       <Sidebar onHover={expand} />
-
-      {addEvent && (
-        <EventModal mode="create" defaultDate={selected}
-          onClose={() => setAddEvent(false)}
-          onSaved={() => loadEvents(selectedStart, selectedEnd)} />
-      )}
-      {addTask && (
-        <TaskModal mode="create" defaultDueDate={selected}
-          onClose={() => setAddTask(false)}
-          onSaved={loadAll} />
-      )}
     </div>
   )
 }

@@ -2,7 +2,6 @@ import { useState } from 'react'
 import { useTaskStore } from '../../store/taskStore'
 import { useDateStore } from '../../store/dateStore'
 import TaskItem from '../TaskItem'
-import TaskModal from '../modals/TaskModal'
 
 function sod(d: Date) { return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime() }
 
@@ -14,7 +13,6 @@ function fmtDue(ts: number): string {
 export default function TaskBoard() {
   const allTasks = useTaskStore((s) => s.tasks)
   const { selected } = useDateStore()
-  const [adding, setAdding] = useState(false)
   const [showAll, setShowAll] = useState(false)
 
   const todayStart = sod(selected)
@@ -29,6 +27,10 @@ export default function TaskBoard() {
   const noDueTasks    = allTasks.filter((t) => t.dueAt == null)
   const totalCount    = allTasks.length
 
+  const handleAdd = () => window.electronAPI.openEditor({
+    kind: 'task', mode: 'create', defaultDueDate: selected.getTime()
+  })
+
   return (
     <div className="px-5 py-4 border-t border-ink-100 dark:border-ink-800">
       <div className="flex items-center justify-between mb-3">
@@ -38,8 +40,7 @@ export default function TaskBoard() {
             <span className="chip bg-orange-50 dark:bg-orange-500/15 text-orange-600 dark:text-orange-400">{selectedDayTasks.length}</span>
           )}
         </div>
-        <button onClick={() => setAdding(true)}
-          title="Add task"
+        <button onClick={handleAdd} title="Add task"
           className="w-6 h-6 rounded-lg bg-ink-100 dark:bg-ink-800 hover:bg-orange-100 dark:hover:bg-orange-500/20 hover:text-orange-600 dark:hover:text-orange-400 text-ink-500 flex items-center justify-center text-base font-medium transition-colors">
           +
         </button>
@@ -93,12 +94,6 @@ export default function TaskBoard() {
             </div>
           )}
         </div>
-      )}
-
-      {adding && (
-        <TaskModal mode="create" defaultDueDate={selected}
-          onClose={() => setAdding(false)}
-          onSaved={() => useTaskStore.getState().loadAll()} />
       )}
     </div>
   )

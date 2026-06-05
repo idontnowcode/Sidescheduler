@@ -13,7 +13,9 @@ if (!app.requestSingleInstanceLock()) { app.quit(); process.exit(0) }
 let mainWindow: BrowserWindow | null = null
 let dashboardWindow: BrowserWindow | null = null
 let paletteWindow: BrowserWindow | null = null
+let editorWindow: BrowserWindow | null = null
 let paletteRequester: 'sidebar' | 'dashboard' = 'sidebar'
+let pendingEditorPayload: unknown = null
 let tray: Tray | null = null
 let windowExpanded = false
 
@@ -265,6 +267,79 @@ ipcMain.on('palette:action', (_e, action: { kind: string; payload?: unknown }) =
 ipcMain.on('palette:refresh', () => {
   mainWindow?.webContents.send('palette:refresh')
   dashboardWindow?.webContents.send('palette:refresh')
+})
+
+// ── Editor window (event/task add/edit overlay) ───────────────────────────
+const EDITOR_W = 460
+const EDITOR_H = 680
+
+function calcEditorBounds() {
+  const display = getDisplayForSettings(loadSettings())
+  const wa = display.workArea
+  return {
+    x: wa.x + Math.max(0, Math.floor((wa.width  - EDITOR_W) / 2)),
+    y: wa.y + Math.max(0, Math.floor((wa.height - EDITOR_H) / 4)),
+    width: EDITOR_W, height: EDITOR_H
+  }
+}
+
+function openEditorWindow(payload: unknown): void {
+  pendingEditorPayload = payload
+
+  if (editorWindow && !editorWindow.isDestroyed()) {
+    editorWindow.setBounds(calcEditorBounds())
+    editorWindow.webContents.send('editor:payload', payload)
+    editorWindow.show()
+    editorWindow.focus()
+    return
+  }
+
+  editorWindow = new BrowserWindow({
+    ...calcEditorBounds(),
+    frame: false, transparent: true,
+    alwaysOnTop: true, skipTaskbar: true,
+    resizable: false, hasShadow: false, focusable: true,
+    show: false,
+    webPreferences: {
+      preload: join(__dirname, '../preload/index.js'),
+      contextIsolation: true, nodeIntegration: false, sandbox: false
+    }
+  })
+  editorWindow.setAlwaysOnTop(true, 'screen-saver')
+
+  if (process.env.NODE_ENV === 'development' && process.env['ELECTRON_RENDERER_URL']) {
+    editorWindow.loadURL(process.env['ELECTRON_RENDERER_URL'] + '#editor')
+  } else {
+    editorWindow.loadFile(join(__dirname, '../renderer/index.html'), { hash: 'editor' })
+  }
+
+  editorWindow.once('ready-to-show', () => {
+    if (!editorWindow || editorWindow.isDestroyed()) return
+    editorWindow.setBounds(calcEditorBounds())
+    editorWindow.show()
+    editorWindow.focus()
+  })
+  editorWindow.on('blur', () => closeEditorWindow())
+  editorWindow.on('closed', () => { editorWindow = null })
+}
+
+function closeEditorWindow(): void {
+  if (editorWindow && !editorWindow.isDestroyed()) editorWindow.close()
+  editorWindow = null
+}
+
+ipcMain.on('editor:open', (_e, payload: unknown) => openEditorWindow(payload))
+ipcMain.on('editor:close', () => closeEditorWindow())
+ipcMain.handle('editor:get-pending', () => {
+  const p = pendingEditorPayload
+  pendingEditorPayload = null
+  return p
+})
+/** After editor saved/deleted, broadcast refresh to all data-bearing windows */
+ipcMain.on('editor:saved', () => {
+  mainWindow?.webContents.send('palette:refresh')
+  dashboardWindow?.webContents.send('palette:refresh')
+  closeEditorWindow()
 })
 
 // ── IPC: Window settings + displays ───────────────────────────────────────

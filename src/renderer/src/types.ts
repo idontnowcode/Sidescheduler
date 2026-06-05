@@ -102,6 +102,13 @@ export interface SearchResult {
   tasks: TaskRow[]
 }
 
+// ── Editor window payload ─────────────────────────────────────────────────
+export type EditorPayload =
+  | { kind: 'event'; mode: 'create'; defaultDate?: number; defaultStartTime?: string; defaultEndTime?: string }
+  | { kind: 'event'; mode: 'edit'; event: CalEvent }
+  | { kind: 'task';  mode: 'create'; defaultDueDate?: number }
+  | { kind: 'task';  mode: 'edit'; task: Task }
+
 // ── Window API ────────────────────────────────────────────────────────────
 declare global {
   interface Window {
@@ -111,6 +118,10 @@ declare global {
       openDashboard: () => void
       openPalette: () => void
       closePalette: () => void
+      openEditor: (payload: EditorPayload) => void
+      closeEditor: () => void
+      getEditorPayload: () => Promise<EditorPayload | null>
+      notifyEditorSaved: () => void
       paletteAction: (action: { kind: string; payload?: unknown }) => void
       paletteRefresh: () => void
       onPaletteAction: (cb: (a: { kind: string; payload?: unknown }) => void) => () => void

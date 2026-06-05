@@ -7,6 +7,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   openDashboard:  () => ipcRenderer.send('window:open-dashboard'),
   openPalette:    () => ipcRenderer.send('palette:open'),
   closePalette:   () => ipcRenderer.send('palette:close'),
+  openEditor:     (payload: unknown) => ipcRenderer.send('editor:open', payload),
+  closeEditor:    () => ipcRenderer.send('editor:close'),
+  getEditorPayload: () => ipcRenderer.invoke('editor:get-pending'),
+  notifyEditorSaved: () => ipcRenderer.send('editor:saved'),
   paletteAction:  (action: { kind: string; payload?: unknown }) => ipcRenderer.send('palette:action', action),
   paletteRefresh: () => ipcRenderer.send('palette:refresh'),
   onPaletteAction:  (cb: (a: { kind: string; payload?: unknown }) => void) => {

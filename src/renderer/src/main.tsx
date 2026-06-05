@@ -13,6 +13,10 @@ if (hash === '#dashboard') {
   import('./palette/PaletteApp').then(({ default: PaletteApp }) => {
     ReactDOM.createRoot(root).render(<React.StrictMode><PaletteApp /></React.StrictMode>)
   })
+} else if (hash === '#editor') {
+  import('./editor/EditorApp').then(({ default: EditorApp }) => {
+    ReactDOM.createRoot(root).render(<React.StrictMode><EditorApp /></React.StrictMode>)
+  })
 } else {
   import('./App').then(({ default: App }) => {
     ReactDOM.createRoot(root).render(<React.StrictMode><App /></React.StrictMode>)
