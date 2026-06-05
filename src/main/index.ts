@@ -185,21 +185,33 @@ ipcMain.on('navigate-date', (_e, { ts }: { ts: number }) => {
 })
 
 // ── Palette window (separate floating overlay) ────────────────────────────
-function openPaletteWindow(requester: 'sidebar' | 'dashboard'): void {
-  if (paletteWindow && !paletteWindow.isDestroyed()) {
-    paletteRequester = requester
-    paletteWindow.show(); paletteWindow.focus(); return
-  }
-  paletteRequester = requester
+const PALETTE_W = 640
+const PALETTE_H = 460
 
+function calcPaletteBounds() {
   const display = getDisplayForSettings(loadSettings())
   const wa = display.workArea
-  const W = 640, H = 460
-  const x = wa.x + Math.max(0, Math.floor((wa.width  - W) / 2))
-  const y = wa.y + Math.max(0, Math.floor((wa.height - H) / 3))
+  return {
+    x: wa.x + Math.max(0, Math.floor((wa.width  - PALETTE_W) / 2)),
+    y: wa.y + Math.max(0, Math.floor((wa.height - PALETTE_H) / 3)),
+    width: PALETTE_W,
+    height: PALETTE_H
+  }
+}
+
+function openPaletteWindow(requester: 'sidebar' | 'dashboard'): void {
+  paletteRequester = requester
+
+  // If an existing palette window is stale or stuck at wrong size, force-close it
+  if (paletteWindow && !paletteWindow.isDestroyed()) {
+    paletteWindow.setBounds(calcPaletteBounds())
+    paletteWindow.show()
+    paletteWindow.focus()
+    return
+  }
 
   paletteWindow = new BrowserWindow({
-    x, y, width: W, height: H,
+    ...calcPaletteBounds(),
     frame: false, transparent: true,
     alwaysOnTop: true, skipTaskbar: true,
     resizable: false, hasShadow: false, focusable: true,
@@ -217,7 +229,13 @@ function openPaletteWindow(requester: 'sidebar' | 'dashboard'): void {
     paletteWindow.loadFile(join(__dirname, '../renderer/index.html'), { hash: 'palette' })
   }
 
-  paletteWindow.once('ready-to-show', () => paletteWindow?.show())
+  paletteWindow.once('ready-to-show', () => {
+    if (!paletteWindow || paletteWindow.isDestroyed()) return
+    // Re-enforce bounds after layout — defends against any race conditions
+    paletteWindow.setBounds(calcPaletteBounds())
+    paletteWindow.show()
+    paletteWindow.focus()
+  })
   paletteWindow.on('blur', () => closePaletteWindow())
   paletteWindow.on('closed', () => { paletteWindow = null })
 }
