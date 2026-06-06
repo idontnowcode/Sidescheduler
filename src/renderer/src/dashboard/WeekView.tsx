@@ -154,6 +154,11 @@ export default function WeekView({ current, events, tasks, onReload, onNavigate,
       color: PRIORITY_COLOR[t.priority] ?? '#6366F1',
       description: 'Time block'
     })
+    // Auto-complete the task. For recurring tasks, toggle advances due_at to
+    // the next occurrence (storage handles this), so the routine carries on.
+    if (!t.done) {
+      await window.electronAPI.toggleTask(taskId)
+    }
     onReload()
   }, [tasks, onReload])
 
