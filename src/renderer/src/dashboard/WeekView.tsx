@@ -304,41 +304,59 @@ export default function WeekView({ current, events, tasks, onReload, onNavigate,
 function PanelTaskRow({ task, overdue, today, onReload, onEdit }: {
   task: Task; overdue?: boolean; today?: boolean; onReload: () => void; onEdit: () => void
 }) {
-  const handleToggle = async () => { await window.electronAPI.toggleTask(task.id); onReload() }
+  const handleToggle = async (e: React.MouseEvent) => {
+    e.stopPropagation()
+    await window.electronAPI.toggleTask(task.id)
+    onReload()
+  }
   return (
     <div
-      draggable
+      draggable={!task.done}
       onDragStart={(e) => {
         e.dataTransfer.setData('application/task-id', task.id)
         e.dataTransfer.effectAllowed = 'copy'
       }}
       title="Drag onto the calendar to time-block"
-      className="flex items-center gap-3 py-1.5 border-b border-ink-50 dark:border-ink-800/40 last:border-0 group hover:bg-ink-50 dark:hover:bg-ink-800/30 -mx-2 px-2 rounded-md cursor-grab active:cursor-grabbing">
+      className={`flex items-center gap-3 py-1.5 border-b border-ink-50 dark:border-ink-800/40 last:border-0 group hover:bg-ink-50 dark:hover:bg-ink-800/30 -mx-2 px-2 rounded-md ${
+        task.done ? 'opacity-50' : 'cursor-grab active:cursor-grabbing'}`}>
       <button onClick={handleToggle}
-        className={`w-4 h-4 rounded-full border-2 flex-shrink-0 transition-colors ${
-          overdue ? 'border-red-400 hover:border-red-500' :
-          today   ? 'border-orange-400 hover:border-orange-500' :
-                    'border-ink-300 dark:border-ink-600 hover:border-accent-500'}`} />
+        className={`w-4 h-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center transition-colors ${
+          task.done ? 'bg-green-500 border-green-500' :
+          overdue   ? 'border-red-400 hover:border-red-500' :
+          today     ? 'border-orange-400 hover:border-orange-500' :
+                      'border-ink-300 dark:border-ink-600 hover:border-accent-500'}`}>
+        {task.done && (
+          <svg width="8" height="6" viewBox="0 0 8 6" fill="none">
+            <polyline points="1,3 3,5 7,1" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        )}
+      </button>
       <button onClick={onEdit}
-        className={`flex-1 text-left text-sm truncate ${overdue ? 'text-red-600 dark:text-red-400 font-medium' : today ? 'text-orange-600 dark:text-orange-400' : ''}`}>
+        className={`flex-1 text-left text-sm truncate ${
+          task.done ? 'line-through text-ink-400' :
+          overdue   ? 'text-red-600 dark:text-red-400 font-medium' :
+          today     ? 'text-orange-600 dark:text-orange-400' : ''}`}>
         {task.title}
         {task.recurrence && <span className="ml-1 text-2xs opacity-60">↻</span>}
       </button>
       {task.dueAt && (
         <span className={`text-2xs flex-shrink-0 tabular-nums ${
-          overdue ? 'text-red-400' : today ? 'text-orange-400' : 'text-ink-400'}`}>
+          task.done ? 'text-ink-400' :
+          overdue   ? 'text-red-400' : today ? 'text-orange-400' : 'text-ink-400'}`}>
           {fmtDue(task.dueAt)}
         </span>
       )}
-      {task.estimatedMinutes != null && task.estimatedMinutes > 0 && (
+      {task.estimatedMinutes != null && task.estimatedMinutes > 0 && !task.done && (
         <span className="chip bg-ink-50 dark:bg-ink-800 text-ink-500 tabular-nums" title="Estimated time">
           {fmtDuration(task.estimatedMinutes)}
         </span>
       )}
       <span className={`chip ${
+        task.done ? 'bg-green-50 dark:bg-green-500/15 text-green-600 dark:text-green-400' :
         task.priority==='urgent' ? 'bg-red-50 dark:bg-red-500/15 text-red-500' :
         task.priority==='low'    ? 'bg-ink-50 dark:bg-ink-900 text-ink-400' : 'bg-ink-100 dark:bg-ink-800 text-ink-500'}`}>
-        {task.priority==='urgent'?'Urgent':task.priority==='low'?'Low':'Normal'}
+        {task.done ? 'Done' :
+         task.priority==='urgent'?'Urgent':task.priority==='low'?'Low':'Normal'}
       </span>
     </div>
   )
