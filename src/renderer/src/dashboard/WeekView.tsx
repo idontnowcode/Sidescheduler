@@ -68,6 +68,32 @@ export default function WeekView({ current, events, tasks, onReload, onNavigate,
   const [editEvent, setEditEvent] = useState<CalEvent | null>(null)
   const [editTask, setEditTask] = useState<Task | null>(null)
 
+  // ── Task → calendar time-blocking (HTML5 drag) ──────────────────────────
+  const PRIORITY_COLOR: Record<string, string> = { urgent: '#EF4444', normal: '#6366F1', low: '#94A3B8' }
+  const [dropCol, setDropCol] = useState<number | null>(null)
+
+  const handleTaskDrop = useCallback(async (e: React.DragEvent, day: Date) => {
+    e.preventDefault()
+    setDropCol(null)
+    const taskId = e.dataTransfer.getData('application/task-id')
+    if (!taskId) return
+    const t = tasks.find((x) => x.id === taskId)
+    if (!t) return
+    const rect = e.currentTarget.getBoundingClientRect()
+    const y = e.clientY - rect.top + (scrollRef.current?.scrollTop ?? 0)
+    const dur = t.estimatedMinutes && t.estimatedMinutes > 0 ? t.estimatedMinutes : 60
+    const startMin = clamp(Math.round((y / HOUR_H * 60) / SNAP_MIN) * SNAP_MIN, 0, 24 * 60 - dur)
+    const start = dayStart(day) + startMin * 60000
+    await window.electronAPI.createEvent({
+      title: t.title,
+      start_at: start,
+      end_at: start + dur * 60000,
+      color: PRIORITY_COLOR[t.priority] ?? '#6366F1',
+      description: 'Time block'
+    })
+    onReload()
+  }, [tasks, onReload])
+
   const commitDrop = useCallback(async (ev: CalEvent, newStart: number, newEnd: number) => {
     if (ev.isRecurringInstance && ev.originalId) {
       setRecurModal({ type: 'move', originalId: ev.originalId, instanceDate: ev.startAt, newStart, newEnd })
@@ -166,7 +192,10 @@ export default function WeekView({ current, events, tasks, onReload, onNavigate,
           {days.map((day, colIdx) => {
             const dayEvs = events.filter(ev => ev.startAt >= dayStart(day) && ev.startAt <= dayStart(day) + 86400000 - 1)
             return (
-              <div key={colIdx} className="flex-1 border-l border-ink-100 dark:border-ink-800/50 relative cursor-pointer" style={{height:TOTAL_H}}
+              <div key={colIdx} className={`flex-1 border-l border-ink-100 dark:border-ink-800/50 relative cursor-pointer transition-colors ${dropCol === colIdx ? 'bg-accent-50 dark:bg-accent-500/10' : ''}`} style={{height:TOTAL_H}}
+                onDragOver={(e) => { if (e.dataTransfer.types.includes('application/task-id')) { e.preventDefault(); setDropCol(colIdx) } }}
+                onDragLeave={() => setDropCol((c) => c === colIdx ? null : c)}
+                onDrop={(e) => handleTaskDrop(e, day)}
                 onClick={(e) => {
                   if ((e.target as HTMLElement).closest('[data-event-block]')) return
                   const rect = e.currentTarget.getBoundingClientRect()
@@ -224,6 +253,7 @@ export default function WeekView({ current, events, tasks, onReload, onNavigate,
             {tasks.length > 0 && (
               <span className="chip bg-ink-100 dark:bg-ink-800 text-ink-500">{tasks.length} incomplete</span>
             )}
+            <span className="text-2xs text-ink-400 hidden sm:inline">— drag onto the calendar to time-block</span>
           </div>
           <div className="flex items-center gap-1">
             <button onClick={() => onAddTask?.(today)} title="Add task"
@@ -272,7 +302,14 @@ function PanelTaskRow({ task, overdue, today, onReload, onEdit }: {
 }) {
   const handleToggle = async () => { await window.electronAPI.toggleTask(task.id); onReload() }
   return (
-    <div className="flex items-center gap-3 py-1.5 border-b border-ink-50 dark:border-ink-800/40 last:border-0 group hover:bg-ink-50 dark:hover:bg-ink-800/30 -mx-2 px-2 rounded-md">
+    <div
+      draggable
+      onDragStart={(e) => {
+        e.dataTransfer.setData('application/task-id', task.id)
+        e.dataTransfer.effectAllowed = 'copy'
+      }}
+      title="Drag onto the calendar to time-block"
+      className="flex items-center gap-3 py-1.5 border-b border-ink-50 dark:border-ink-800/40 last:border-0 group hover:bg-ink-50 dark:hover:bg-ink-800/30 -mx-2 px-2 rounded-md cursor-grab active:cursor-grabbing">
       <button onClick={handleToggle}
         className={`w-4 h-4 rounded-full border-2 flex-shrink-0 transition-colors ${
           overdue ? 'border-red-400 hover:border-red-500' :
