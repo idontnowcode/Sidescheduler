@@ -103,6 +103,44 @@ export default function SettingsView() {
         </div>
       </Section>
 
+      <Section title="Work Hours" desc="Used to compute your daily workload">
+        <div className="flex items-center gap-3">
+          <div>
+            <p className="text-xs text-ink-500 mb-1">Start</p>
+            <select value={settings.workStartHour}
+              onChange={(e) => update({ workStartHour: parseInt(e.target.value) })}
+              className="input w-28">
+              {Array.from({ length: 24 }, (_, h) => (
+                <option key={h} value={h}>{String(h).padStart(2, '0')}:00</option>
+              ))}
+            </select>
+          </div>
+          <span className="text-ink-400 pt-5">–</span>
+          <div>
+            <p className="text-xs text-ink-500 mb-1">End</p>
+            <select value={settings.workEndHour}
+              onChange={(e) => update({ workEndHour: parseInt(e.target.value) })}
+              className="input w-28">
+              {Array.from({ length: 24 }, (_, h) => (
+                <option key={h} value={h}>{String(h).padStart(2, '0')}:00</option>
+              ))}
+            </select>
+          </div>
+        </div>
+      </Section>
+
+      <Section title="Reminders" desc="Native notifications at 9:00 AM and 1:00 PM">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm font-medium">Daily briefings</p>
+            <p className="text-xs text-ink-400 mt-0.5">
+              Remaining events/tasks + workload vs free time
+            </p>
+          </div>
+          <Toggle checked={settings.reminderEnabled} onChange={() => update({ reminderEnabled: !settings.reminderEnabled })} />
+        </div>
+      </Section>
+
       <Section title="App" desc="">
         <div className="flex items-center justify-between">
           <div>

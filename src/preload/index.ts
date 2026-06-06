@@ -56,6 +56,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Search
   search: (query: string) => ipcRenderer.invoke('db:search', { query }),
 
+  // Workload
+  getWorkload: () => ipcRenderer.invoke('workload:get'),
+
   // App settings
   getAutoStart: () => ipcRenderer.invoke('app:get-login-item'),
   setAutoStart: (value: boolean) => ipcRenderer.invoke('app:set-login-item', { value })

@@ -1,5 +1,6 @@
-import { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, screen, Display } from 'electron'
+import { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, screen, Display, Notification } from 'electron'
 import { join } from 'path'
+import { computeWorkload, buildReminderBody } from './workload'
 import {
   initDb,
   listEvents, createEvent, updateEvent, updateEventMove, updateEventInstance, deleteEvent, deleteEventInstance,
@@ -352,6 +353,10 @@ ipcMain.handle('settings:set', (_e, patch: Partial<WindowSettings>) => {
   applyBounds()
   applyMovable()
   mainWindow?.webContents.send('settings:changed', next)
+  // Reschedule reminders if work hours / toggle changed
+  if ('reminderEnabled' in patch || 'workStartHour' in patch || 'workEndHour' in patch) {
+    scheduleNextReminder()
+  }
   return next
 })
 ipcMain.handle('displays:list', () => {
@@ -384,6 +389,48 @@ ipcMain.handle('db:tasks:delete',              (_e, { id }: { id: string }) => {
 // ── IPC: Search ───────────────────────────────────────────────────────────
 ipcMain.handle('db:search', (_e, { query }: { query: string }) => searchAll(query))
 
+// ── IPC: Workload ─────────────────────────────────────────────────────────
+ipcMain.handle('workload:get', () => computeWorkload(Date.now()))
+
+// ── Reminder scheduler ────────────────────────────────────────────────────
+const REMINDER_HOURS = [9, 13]
+let reminderTimer: ReturnType<typeof setTimeout> | null = null
+
+function showReminder(): void {
+  if (!Notification.isSupported()) return
+  const w = computeWorkload(Date.now())
+  const hour = new Date().getHours()
+  const title = hour < 12 ? 'Morning Briefing' : 'Midday Check-in'
+
+  const n = new Notification({ title, body: buildReminderBody(w) })
+  n.on('click', () => { openDashboard() })
+  n.show()
+}
+
+function scheduleNextReminder(): void {
+  if (reminderTimer) { clearTimeout(reminderTimer); reminderTimer = null }
+  if (!loadSettings().reminderEnabled) return
+
+  const now = new Date()
+  let next: Date | null = null
+  for (const h of REMINDER_HOURS) {
+    const t = new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, 0, 0, 0)
+    if (t.getTime() > now.getTime()) { next = t; break }
+  }
+  if (!next) {
+    // all of today's reminders passed → first one tomorrow
+    next = new Date(now)
+    next.setDate(next.getDate() + 1)
+    next.setHours(REMINDER_HOURS[0], 0, 0, 0)
+  }
+
+  const delay = next.getTime() - now.getTime()
+  reminderTimer = setTimeout(() => {
+    showReminder()
+    scheduleNextReminder()
+  }, delay)
+}
+
 // ── IPC: App settings ─────────────────────────────────────────────────────
 ipcMain.handle('app:get-login-item', () => app.getLoginItemSettings().openAtLogin)
 ipcMain.handle('app:set-login-item', (_e, { value }: { value: boolean }) => {
@@ -392,7 +439,17 @@ ipcMain.handle('app:set-login-item', (_e, { value }: { value: boolean }) => {
 })
 
 // ── App lifecycle ─────────────────────────────────────────────────────────
-app.whenReady().then(() => { initDb(); createWindow(); createTray() })
+app.whenReady().then(() => {
+  // Windows: required for Notification title/grouping to show app name
+  app.setAppUserModelId('com.gcjang.daily-sidebar-planner')
+  initDb()
+  createWindow()
+  createTray()
+  scheduleNextReminder()
+})
 app.on('window-all-closed', () => { /* keep alive in tray */ })
 app.on('second-instance',   () => mainWindow?.show())
-app.on('before-quit',       () => { tray?.destroy(); tray = null })
+app.on('before-quit',       () => {
+  if (reminderTimer) { clearTimeout(reminderTimer); reminderTimer = null }
+  tray?.destroy(); tray = null
+})

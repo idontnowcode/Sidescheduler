@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { CalEvent, Task } from '../types'
+import { useState, useEffect } from 'react'
+import { CalEvent, Task, Workload } from '../types'
 import EventModal from '../components/modals/EventModal'
 import TaskModal from '../components/modals/TaskModal'
 
@@ -43,6 +43,12 @@ export default function TodayView({ events, allIncompleteTasks, onReload }: Prop
   const [editEvent, setEditEvent] = useState<CalEvent | null>(null)
   const [editTask, setEditTask]   = useState<Task | null>(null)
 
+  // Workload (recomputed whenever data reloads)
+  const [workload, setWorkload] = useState<Workload | null>(null)
+  useEffect(() => {
+    window.electronAPI.getWorkload().then(setWorkload)
+  }, [events, allIncompleteTasks])
+
   return (
     <div className="h-full overflow-y-auto px-8 py-6 max-w-5xl mx-auto">
       <div className="flex items-end gap-4 mb-8 pb-6 border-b border-ink-100 dark:border-ink-800">
@@ -52,6 +58,8 @@ export default function TodayView({ events, allIncompleteTasks, onReload }: Prop
           <p className="text-sm text-ink-500">{MONTHS[today.getMonth()]} {today.getFullYear()}</p>
         </div>
       </div>
+
+      {workload && <WorkloadCard w={workload} />}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
         <Card>
@@ -119,6 +127,52 @@ export default function TodayView({ events, allIncompleteTasks, onReload }: Prop
           onClose={() => setEditTask(null)} onSaved={onReload} />
       )}
     </div>
+  )
+}
+
+function WorkloadCard({ w }: { w: Workload }) {
+  const pct = w.remainingWorkMin > 0 ? Math.round(w.ratio * 100) : (w.neededMin > 0 ? 999 : 0)
+  const barPct = Math.min(100, pct)
+  const over = w.overbooked
+  const barColor = over ? 'bg-red-500' : pct >= 80 ? 'bg-orange-500' : 'bg-green-500'
+
+  return (
+    <section className={`rounded-2xl p-5 mb-5 border ${
+      over ? 'border-red-200 dark:border-red-500/40 bg-red-50/50 dark:bg-red-500/10'
+           : 'border-ink-200 dark:border-ink-800 bg-white dark:bg-ink-900'
+    }`}>
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <h2 className="section-label">Today's Workload</h2>
+          {over && <span className="chip bg-red-500 text-white">Overbooked</span>}
+        </div>
+        <span className={`text-2xl font-bold tabular-nums ${over ? 'text-red-500' : 'text-ink-800 dark:text-ink-100'}`}>
+          {pct >= 999 ? '∞' : `${pct}%`}
+        </span>
+      </div>
+
+      {/* Progress bar */}
+      <div className="h-2.5 rounded-full bg-ink-100 dark:bg-ink-800 overflow-hidden mb-3">
+        <div className={`h-full rounded-full transition-all ${barColor}`} style={{ width: `${barPct}%` }} />
+      </div>
+
+      <div className="flex items-center justify-between text-sm">
+        <span className="text-ink-500">
+          Needed <strong className="text-ink-800 dark:text-ink-100">{fmtDuration(w.neededMin)}</strong>
+          {' '}/ {w.remainingWorkMin > 0 ? `${fmtDuration(w.remainingWorkMin)} free` : 'work day over'}
+        </span>
+        <span className="text-xs text-ink-400">
+          {w.eventCount} event{w.eventCount !== 1 ? 's' : ''} · {w.taskCount} task{w.taskCount !== 1 ? 's' : ''}
+          {w.untimedTaskCount > 0 && ` (+${w.untimedTaskCount} no est.)`}
+        </span>
+      </div>
+
+      {over && (
+        <p className="mt-3 text-sm text-red-600 dark:text-red-400 font-medium">
+          ⚠ Need {fmtDuration(w.neededMin - w.remainingWorkMin)} more than you have. Reschedule or trim some items.
+        </p>
+      )}
+    </section>
   )
 }
 

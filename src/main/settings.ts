@@ -11,12 +11,19 @@ export interface WindowSettings {
   displayId?: number        // electron screen.Display.id
   width: 32 | 40 | 52       // collapsed sidebar width
   locked: boolean           // when true, sidebar cannot be dragged
+  // ── Work hours + reminders ──
+  workStartHour: number     // 0-23, start of the work day
+  workEndHour: number       // 0-23, end of the work day
+  reminderEnabled: boolean  // fire 9am / 1pm briefings
 }
 
 const DEFAULT: WindowSettings = {
   edge: 'right',
   width: 40,
-  locked: false
+  locked: false,
+  workStartHour: 9,
+  workEndHour: 18,
+  reminderEnabled: true
 }
 
 let cache: WindowSettings | null = null

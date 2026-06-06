@@ -8,7 +8,10 @@ interface SettingsState {
   patch: (p: Partial<WindowSettings>) => Promise<void>
 }
 
-const DEFAULT: WindowSettings = { edge: 'right', verticalMode: 'full', width: 40 }
+const DEFAULT: WindowSettings = {
+  edge: 'right', width: 40, locked: false,
+  workStartHour: 9, workEndHour: 18, reminderEnabled: true
+}
 
 export const useSettingsStore = create<SettingsState>((set, get) => ({
   settings: DEFAULT,

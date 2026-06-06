@@ -5,6 +5,23 @@ export interface WindowSettings {
   displayId?: number
   width: 32 | 40 | 52
   locked: boolean
+  workStartHour: number
+  workEndHour: number
+  reminderEnabled: boolean
+}
+
+export interface Workload {
+  nowMs: number
+  workEndHour: number
+  remainingWorkMin: number
+  eventMin: number
+  eventCount: number
+  taskMin: number
+  taskCount: number
+  untimedTaskCount: number
+  neededMin: number
+  ratio: number
+  overbooked: boolean
 }
 
 export interface DisplayInfo {
@@ -169,6 +186,8 @@ declare global {
       deleteTask: (id: string) => Promise<void>
 
       search: (query: string) => Promise<SearchResult>
+
+      getWorkload: () => Promise<Workload>
 
       getAutoStart: () => Promise<boolean>
       setAutoStart: (value: boolean) => Promise<void>
