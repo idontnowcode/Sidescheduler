@@ -34,6 +34,61 @@ function fmtDuration(min: number): string {
   return r ? `${h}h ${r}m` : `${h}h`
 }
 
+/**
+ * Lay out events that may overlap in the same day, Outlook / Google Calendar
+ * style. Returns a map of event id -> { col, cols } where col is the column
+ * index (0-based) and cols is the total column count of that event's
+ * overlap cluster.
+ *
+ * Algorithm:
+ *   1. Sort events by startAt (then by endAt desc so longer ones lock the
+ *      cluster width first).
+ *   2. Walk events in order. Build clusters of events that overlap any
+ *      previous event in the current cluster (transitively).
+ *   3. Inside a cluster, greedily assign each event to the lowest column
+ *      that ended before the event starts. Otherwise open a new column.
+ *   4. All events in a cluster share the same `cols` = max(column index)+1.
+ */
+function layoutDayEvents(evs: CalEvent[]): Map<string, { col: number; cols: number }> {
+  const out = new Map<string, { col: number; cols: number }>()
+  if (evs.length === 0) return out
+
+  const sorted = [...evs].sort(
+    (a, b) => a.startAt - b.startAt || b.endAt - a.endAt
+  )
+
+  // Flush a cluster: assign columns to its members.
+  const flush = (cluster: CalEvent[]) => {
+    const columnEnd: number[] = [] // end timestamp of each column
+    const cols = new Map<string, number>()
+    for (const ev of cluster) {
+      let col = columnEnd.findIndex((end) => end <= ev.startAt)
+      if (col === -1) col = columnEnd.length
+      columnEnd[col] = ev.endAt
+      cols.set(ev.id, col)
+    }
+    const total = columnEnd.length
+    for (const ev of cluster) {
+      out.set(ev.id, { col: cols.get(ev.id)!, cols: total })
+    }
+  }
+
+  let cluster: CalEvent[] = []
+  let clusterEnd = 0
+  for (const ev of sorted) {
+    if (cluster.length === 0 || ev.startAt < clusterEnd) {
+      cluster.push(ev)
+      clusterEnd = Math.max(clusterEnd, ev.endAt)
+    } else {
+      flush(cluster)
+      cluster = [ev]
+      clusterEnd = ev.endAt
+    }
+  }
+  flush(cluster)
+  return out
+}
+
 export default function WeekView({ current, events, tasks, onReload, onNavigate, onAddEvent, onAddTask }: Props) {
   const days = weekDays(current)
   const today = new Date()
@@ -199,6 +254,7 @@ export default function WeekView({ current, events, tasks, onReload, onNavigate,
           </div>
           {days.map((day, colIdx) => {
             const dayEvs = events.filter(ev => ev.startAt >= dayStart(day) && ev.startAt <= dayStart(day) + 86400000 - 1)
+            const layouts = layoutDayEvents(dayEvs)
             return (
               <div key={colIdx} className={`flex-1 border-l border-ink-100 dark:border-ink-800/50 relative cursor-pointer transition-colors ${dropCol === colIdx ? 'bg-accent-50 dark:bg-accent-500/10' : ''}`} style={{height:TOTAL_H}}
                 onDragEnter={(e) => { e.preventDefault(); setDropCol(colIdx) }}
@@ -230,10 +286,20 @@ export default function WeekView({ current, events, tasks, onReload, onNavigate,
                   const isP = preview?.id===ev.id, isR = resizePreview?.id===ev.id
                   const dTop = isP ? preview!.top : top
                   const dH = isR ? resizePreview!.height : isP ? preview!.height : baseH
+                  // Outlook-style side-by-side layout for overlapping events
+                  const lyt = layouts.get(ev.id) ?? { col: 0, cols: 1 }
+                  const leftPct = (lyt.col / lyt.cols) * 100
+                  const widthPct = 100 / lyt.cols
                   return (
                     <div key={ev.id} data-event-block
-                      className="absolute left-1 right-1 rounded-lg text-white overflow-hidden group cursor-grab active:cursor-grabbing select-none shadow-sm hover:shadow-md transition-shadow"
-                      style={{ top:dTop, height:Math.max(dH,22), backgroundColor:ev.color, opacity:isP?0.85:1 }}
+                      className="absolute rounded-lg text-white overflow-hidden group cursor-grab active:cursor-grabbing select-none shadow-sm hover:shadow-md transition-shadow"
+                      style={{
+                        top: dTop, height: Math.max(dH, 22),
+                        left: `calc(${leftPct}% + 2px)`,
+                        width: `calc(${widthPct}% - 4px)`,
+                        backgroundColor: ev.color,
+                        opacity: isP ? 0.85 : 1
+                      }}
                       onClick={e => { e.stopPropagation(); setEditEvent(ev) }}
                       onMouseDown={e => { if (e.button !== 0) return; e.preventDefault(); dragRef.current = { ev, day, startY: e.clientY, origStart: ev.startAt, origEnd: ev.endAt }; setPreview({ id: ev.id, top, height: baseH }) }}>
                       <div className="px-2 pt-1">
