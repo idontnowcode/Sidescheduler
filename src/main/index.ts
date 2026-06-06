@@ -177,6 +177,7 @@ function createTray(): void {
 function broadcastRefresh(): void {
   mainWindow?.webContents.send('palette:refresh')
   dashboardWindow?.webContents.send('palette:refresh')
+  scheduleEventReminders()   // event data may have changed → rebuild reminders
 }
 
 // ── IPC: Window ───────────────────────────────────────────────────────────
@@ -407,6 +408,47 @@ function showReminder(): void {
   n.show()
 }
 
+// ── Per-event "starting soon" reminders ───────────────────────────────────
+// Map of fire-time key -> timer. Rebuilt whenever data changes.
+const eventReminderTimers = new Map<string, ReturnType<typeof setTimeout>>()
+
+function clearEventReminders(): void {
+  for (const t of eventReminderTimers.values()) clearTimeout(t)
+  eventReminderTimers.clear()
+}
+
+function fmtClock(ms: number): string {
+  const d = new Date(ms)
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+}
+
+function scheduleEventReminders(): void {
+  clearEventReminders()
+  const now = Date.now()
+  const horizon = now + 24 * 60 * 60 * 1000   // look ahead 24h (covers recurring instances)
+
+  // listEvents expands recurring instances; instance ids look like "orig__ts"
+  for (const ev of listEvents(now, horizon)) {
+    if (ev.reminder_minutes == null || ev.reminder_minutes < 0) continue
+    const fireAt = ev.start_at - ev.reminder_minutes * 60000
+    if (fireAt <= now || fireAt > horizon) continue
+
+    const key = `${ev.id}@${fireAt}`
+    const delay = fireAt - now
+    const timer = setTimeout(() => {
+      if (!Notification.isSupported()) return
+      const mins = ev.reminder_minutes!
+      const when = mins === 0 ? 'now' : `in ${mins} min`
+      const body = `${fmtClock(ev.start_at)}–${fmtClock(ev.end_at)}${ev.location ? ` · ${ev.location}` : ''}`
+      const n = new Notification({ title: `${ev.title} starts ${when}`, body })
+      n.on('click', () => { mainWindow?.show(); mainWindow?.webContents.send('navigate-to-date', { ts: ev.start_at }) })
+      n.show()
+      eventReminderTimers.delete(key)
+    }, delay)
+    eventReminderTimers.set(key, timer)
+  }
+}
+
 function scheduleNextReminder(): void {
   if (reminderTimer) { clearTimeout(reminderTimer); reminderTimer = null }
   if (!loadSettings().reminderEnabled) return
@@ -446,10 +488,15 @@ app.whenReady().then(() => {
   createWindow()
   createTray()
   scheduleNextReminder()
+  scheduleEventReminders()
+  // Re-scan event reminders every 15 min so instances beyond the 24h horizon
+  // (and the next day's recurring ones) get picked up.
+  setInterval(scheduleEventReminders, 15 * 60 * 1000)
 })
 app.on('window-all-closed', () => { /* keep alive in tray */ })
 app.on('second-instance',   () => mainWindow?.show())
 app.on('before-quit',       () => {
   if (reminderTimer) { clearTimeout(reminderTimer); reminderTimer = null }
+  clearEventReminders()
   tray?.destroy(); tray = null
 })

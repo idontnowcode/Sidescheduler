@@ -40,6 +40,7 @@ export default function EventModal({ mode, event, defaultDate, defaultStartTime,
   const [color, setColor]   = useState(event?.color ?? COLORS[0])
   const [location, setLoc]  = useState(event?.location ?? '')
   const [description, setDescription] = useState(event?.description ?? '')
+  const [reminder, setReminder] = useState<number | null>(event?.reminderMinutes ?? null)
 
   const initialRecur = event?.recurrence
   const [recurOn, setRecurOn]     = useState(!!initialRecur)
@@ -75,7 +76,8 @@ export default function EventModal({ mode, event, defaultDate, defaultStartTime,
       color,
       location: location || undefined,
       description: description || undefined,
-      recurrence: buildRecurrence()
+      recurrence: buildRecurrence(),
+      reminder_minutes: reminder ?? undefined
     }
 
     if (!isEdit) {
@@ -160,6 +162,18 @@ export default function EventModal({ mode, event, defaultDate, defaultStartTime,
           <Field label="Location (optional)">
             <input type="text" value={location} onChange={(e) => setLoc(e.target.value)}
               placeholder="Room, cafe, etc." className="input" />
+          </Field>
+
+          <Field label="Reminder">
+            <div className="flex gap-1 flex-wrap">
+              {([[null, 'Off'], [0, 'At start'], [5, '5m'], [10, '10m'], [15, '15m'], [30, '30m'], [60, '1h']] as const).map(([val, lbl]) => (
+                <button key={String(val)} type="button" onClick={() => setReminder(val)}
+                  className={`text-xs px-2.5 py-1.5 rounded-lg font-medium transition-colors ${
+                    reminder === val ? 'bg-accent-500 text-white' : 'bg-ink-100 dark:bg-ink-800 text-ink-500 hover:bg-ink-200 dark:hover:bg-ink-700'}`}>
+                  {lbl}
+                </button>
+              ))}
+            </div>
           </Field>
 
           <Field label="Notes (optional)">

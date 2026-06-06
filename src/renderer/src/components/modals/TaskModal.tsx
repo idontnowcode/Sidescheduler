@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Task, RecurrenceRule } from '../../types'
+import { Task, RecurrenceRule, Subtask } from '../../types'
 
 type Priority = 'urgent' | 'normal' | 'low'
 
@@ -32,11 +32,29 @@ export default function TaskModal({ mode, task, defaultDueDate, onClose, onSaved
     task?.dueAt ? toDateInput(new Date(task.dueAt)) : toDateInput(defaultDueDate ?? new Date())
   )
   const [priority, setPriority] = useState<Priority>(task?.priority ?? 'normal')
+  const [project, setProject]   = useState(task?.project ?? '')
 
   // Estimated duration (split into hours + minutes for UX, stored as minutes)
   const initMin = task?.estimatedMinutes ?? 0
   const [estHours, setEstHours] = useState(String(Math.floor(initMin / 60)))
   const [estMins, setEstMins]   = useState(String(initMin % 60))
+
+  // Subtasks (checklist)
+  const [subtasks, setSubtasks] = useState<Subtask[]>(task?.subtasks ?? [])
+  const [newSub, setNewSub]     = useState('')
+
+  function addSubtask() {
+    const t = newSub.trim()
+    if (!t) return
+    setSubtasks((arr) => [...arr, { id: crypto.randomUUID(), title: t, done: false }])
+    setNewSub('')
+  }
+  function toggleSub(id: string) {
+    setSubtasks((arr) => arr.map((s) => s.id === id ? { ...s, done: !s.done } : s))
+  }
+  function removeSub(id: string) {
+    setSubtasks((arr) => arr.filter((s) => s.id !== id))
+  }
 
   const ir = task?.recurrence
   const [recurOn, setRecurOn]     = useState(!!ir)
@@ -80,17 +98,24 @@ export default function TaskModal({ mode, task, defaultDueDate, onClose, onSaved
 
     const estimated_minutes = computeEstimatedMinutes()
 
+    const proj = project.trim() || undefined
+    const subs = subtasks.length ? subtasks : undefined
+
     if (isEdit) {
       await window.electronAPI.updateTask({
         id: task!.id, title: title.trim(), due_at, priority,
+        project: proj ?? null,
         recurrence: buildRecurrence(),
-        estimated_minutes
+        estimated_minutes,
+        subtasks: subs
       })
     } else {
       await window.electronAPI.createTask({
         title: title.trim(), due_at, priority,
+        project: proj,
         recurrence: buildRecurrence(),
-        estimated_minutes
+        estimated_minutes,
+        subtasks: subs
       })
     }
     setSaving(false)
@@ -147,6 +172,50 @@ export default function TaskModal({ mode, task, defaultDueDate, onClose, onSaved
                   {label}
                 </button>
               ))}
+            </div>
+          </div>
+
+          {/* Project */}
+          <div>
+            <label className="block text-2xs font-medium text-ink-500 mb-1.5 uppercase tracking-wider">
+              Project <span className="normal-case text-ink-400 font-normal">(optional)</span>
+            </label>
+            <input type="text" value={project} onChange={(e) => setProject(e.target.value)}
+              placeholder="e.g. Q2 close, Side project" className="input" />
+          </div>
+
+          {/* Subtasks */}
+          <div>
+            <label className="block text-2xs font-medium text-ink-500 mb-1.5 uppercase tracking-wider">
+              Checklist <span className="normal-case text-ink-400 font-normal">(optional)</span>
+            </label>
+            {subtasks.length > 0 && (
+              <div className="space-y-1 mb-2">
+                {subtasks.map((s) => (
+                  <div key={s.id} className="flex items-center gap-2 group">
+                    <button type="button" onClick={() => toggleSub(s.id)}
+                      className={`w-4 h-4 rounded border-2 flex-shrink-0 flex items-center justify-center transition-colors ${
+                        s.done ? 'bg-green-500 border-green-500' : 'border-ink-300 dark:border-ink-600 hover:border-accent-500'}`}>
+                      {s.done && (
+                        <svg width="8" height="6" viewBox="0 0 8 6" fill="none">
+                          <polyline points="1,3 3,5 7,1" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      )}
+                    </button>
+                    <span className={`flex-1 text-sm ${s.done ? 'line-through text-ink-400' : ''}`}>{s.title}</span>
+                    <button type="button" onClick={() => removeSub(s.id)}
+                      className="opacity-0 group-hover:opacity-100 text-ink-300 hover:text-red-400 text-base leading-none">×</button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="flex gap-2">
+              <input type="text" value={newSub}
+                onChange={(e) => setNewSub(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addSubtask() } }}
+                placeholder="Add a checklist item" className="input flex-1 text-sm" />
+              <button type="button" onClick={addSubtask}
+                className="btn btn-secondary text-sm px-3">Add</button>
             </div>
           </div>
 

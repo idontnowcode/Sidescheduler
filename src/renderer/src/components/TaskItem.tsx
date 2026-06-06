@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { Task } from '../types'
 import { useTaskStore } from '../store/taskStore'
+import { projectColor } from '../lib/projectColor'
 
 interface Props {
   task: Task
@@ -56,10 +57,10 @@ export default function TaskItem({ task, dueBadge, overdue }: Props) {
   })
 
   return (
-    <div className={`flex items-center gap-2 group py-1 pr-1 rounded-lg hover:bg-ink-50 dark:hover:bg-ink-800/50 -mx-1 px-1 ${task.done ? 'opacity-50' : ''}`}>
+    <div className={`flex items-start gap-2 group py-1.5 pr-1 rounded-lg hover:bg-ink-50 dark:hover:bg-ink-800/50 -mx-1 px-1 ${task.done ? 'opacity-50' : ''}`}>
       <button
         onClick={(e) => { e.stopPropagation(); toggle(task.id) }}
-        className={`w-4 h-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center transition-colors ${
+        className={`w-4 h-4 mt-0.5 rounded-full border-2 flex-shrink-0 flex items-center justify-center transition-colors ${
           task.done
             ? 'bg-green-500 border-green-500'
             : overdue
@@ -73,12 +74,33 @@ export default function TaskItem({ task, dueBadge, overdue }: Props) {
         )}
       </button>
 
-      <button onClick={openEditor}
-        className={`flex-1 text-left text-sm truncate ${
+      <button onClick={openEditor} className="flex-1 min-w-0 text-left">
+        <span className={`block text-sm truncate ${
           task.done ? 'line-through text-ink-400' : overdue ? 'text-red-600 dark:text-red-400 font-medium' : 'text-ink-800 dark:text-ink-100'
         }`}>
-        {task.title}
-        {task.recurrence && <span className="ml-1 text-2xs opacity-60">↻</span>}
+          {task.title}
+          {task.recurrence && <span className="ml-1 text-2xs opacity-60">↻</span>}
+        </span>
+        {(task.project || (task.subtasks && task.subtasks.length > 0)) && !task.done && (
+          <span className="flex items-center gap-1.5 mt-0.5">
+            {task.project && (() => {
+              const c = projectColor(task.project)
+              return <span className={`chip ${c.bg} ${c.text} max-w-[100px] truncate`}>{task.project}</span>
+            })()}
+            {task.subtasks && task.subtasks.length > 0 && (() => {
+              const done = task.subtasks.filter((s) => s.done).length
+              const total = task.subtasks.length
+              return (
+                <span className="inline-flex items-center gap-1 text-2xs text-ink-400">
+                  <span className="w-8 h-1 rounded-full bg-ink-200 dark:bg-ink-700 overflow-hidden inline-block align-middle">
+                    <span className="block h-full bg-accent-500 rounded-full" style={{ width: `${(done / total) * 100}%` }} />
+                  </span>
+                  {done}/{total}
+                </span>
+              )
+            })()}
+          </span>
+        )}
       </button>
 
       {task.estimatedMinutes != null && task.estimatedMinutes > 0 && !task.done && (

@@ -53,8 +53,15 @@ export interface CalEvent {
   location?: string
   description?: string
   recurrence?: RecurrenceRule
+  reminderMinutes?: number
   isRecurringInstance?: boolean
   originalId?: string
+}
+
+export interface Subtask {
+  id: string
+  title: string
+  done: boolean
 }
 
 export interface Task {
@@ -66,6 +73,7 @@ export interface Task {
   project?: string
   recurrence?: RecurrenceRule
   estimatedMinutes?: number
+  subtasks?: Subtask[]
 }
 
 // ── DB rows ───────────────────────────────────────────────────────────────
@@ -75,6 +83,7 @@ export interface EventRow {
   location: string | null; description: string | null
   source: string; google_id: string | null
   recurrence?: string
+  reminder_minutes?: number
   created_at: number; updated_at: number
 }
 
@@ -83,6 +92,7 @@ export interface TaskRow {
   done: number; priority: string; project: string | null
   recurrence?: string
   estimated_minutes?: number
+  subtasks?: Subtask[]
   created_at: number; updated_at: number
 }
 
@@ -95,6 +105,7 @@ export function rowToEvent(row: EventRow): CalEvent {
     startAt: row.start_at, endAt: row.end_at, color: row.color,
     location: row.location ?? undefined, description: row.description ?? undefined,
     recurrence: (row.recurrence && !isInstance) ? JSON.parse(row.recurrence) : undefined,
+    reminderMinutes: row.reminder_minutes,
     isRecurringInstance: isInstance, originalId
   }
 }
@@ -106,7 +117,8 @@ export function rowToTask(row: TaskRow): Task {
     priority: (row.priority as Task['priority']) || 'normal',
     project: row.project ?? undefined,
     recurrence: row.recurrence ? JSON.parse(row.recurrence) : undefined,
-    estimatedMinutes: row.estimated_minutes
+    estimatedMinutes: row.estimated_minutes,
+    subtasks: row.subtasks
   }
 }
 
@@ -160,7 +172,8 @@ declare global {
       listEvents: (p: { start: number; end: number }) => Promise<EventRow[]>
       createEvent: (data: {
         title: string; start_at: number; end_at: number;
-        color?: string; location?: string; description?: string; recurrence?: string
+        color?: string; location?: string; description?: string; recurrence?: string;
+        reminder_minutes?: number
       }) => Promise<EventRow>
       updateEvent: (data: Partial<EventRow> & { id: string }) => Promise<EventRow>
       moveEvent: (id: string, start_at: number, end_at: number) => Promise<EventRow>
@@ -178,7 +191,7 @@ declare global {
       listAllIncompleteTasks: () => Promise<TaskRow[]>
       createTask: (data: {
         title: string; due_at?: number | null; priority?: string;
-        project?: string; recurrence?: string; estimated_minutes?: number
+        project?: string; recurrence?: string; estimated_minutes?: number; subtasks?: Subtask[]
       }) => Promise<TaskRow>
       updateTask: (data: Partial<TaskRow> & { id: string }) => Promise<TaskRow>
       toggleTask: (id: string) => Promise<TaskRow>

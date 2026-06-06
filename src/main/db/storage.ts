@@ -24,8 +24,15 @@ export interface EventRow {
   source: string
   google_id: string | null
   recurrence?: string
+  reminder_minutes?: number   // notify this many minutes before start (undefined = off)
   created_at: number
   updated_at: number
+}
+
+export interface Subtask {
+  id: string
+  title: string
+  done: boolean
 }
 
 export interface TaskRow {
@@ -37,6 +44,7 @@ export interface TaskRow {
   project: string | null
   recurrence?: string             // JSON RecurrenceRule (for repeating tasks)
   estimated_minutes?: number      // user-provided estimate
+  subtasks?: Subtask[]            // checklist items
   created_at: number
   updated_at: number
 }
@@ -136,6 +144,7 @@ export function listEvents(start: number, end: number): EventRow[] {
 export function createEvent(data: {
   title: string; start_at: number; end_at: number
   color?: string; location?: string; description?: string; recurrence?: string
+  reminder_minutes?: number
 }): EventRow {
   const now = Date.now()
   const row: EventRow = {
@@ -144,6 +153,7 @@ export function createEvent(data: {
     color: data.color ?? '#6366F1',
     location: data.location ?? null, description: data.description ?? null,
     source: 'local', google_id: null, recurrence: data.recurrence,
+    reminder_minutes: data.reminder_minutes,
     created_at: now, updated_at: now
   }
   const db = load(); db.events.push(row); persist(db); return row
@@ -246,7 +256,7 @@ export function listAllIncompleteTasks(): TaskRow[] {
 
 export function createTask(data: {
   title: string; due_at?: number | null; priority?: string; project?: string;
-  recurrence?: string; estimated_minutes?: number
+  recurrence?: string; estimated_minutes?: number; subtasks?: Subtask[]
 }): TaskRow {
   const now = Date.now()
   const row: TaskRow = {
@@ -254,6 +264,7 @@ export function createTask(data: {
     done: 0, priority: data.priority ?? 'normal', project: data.project ?? null,
     recurrence: data.recurrence,
     estimated_minutes: data.estimated_minutes,
+    subtasks: data.subtasks,
     created_at: now, updated_at: now
   }
   const db = load(); db.tasks.push(row); persist(db); return row
