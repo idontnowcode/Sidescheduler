@@ -10,7 +10,7 @@ export function useDashboardData(rangeStart: number, rangeEnd: number) {
     setLoading(true)
     const [evRows, tkRows]: [EventRow[], TaskRow[]] = await Promise.all([
       window.electronAPI.listEvents({ start: rangeStart, end: rangeEnd }),
-      window.electronAPI.listAllIncompleteTasks()
+      window.electronAPI.listAllTasks()
     ])
     setEvents(evRows.map(rowToEvent))
     setAllIncompleteTasks(tkRows.map(rowToTask))

@@ -189,6 +189,7 @@ declare global {
 
       listTasks: (p: { end: number }) => Promise<TaskRow[]>
       listAllIncompleteTasks: () => Promise<TaskRow[]>
+      listAllTasks: () => Promise<TaskRow[]>
       createTask: (data: {
         title: string; due_at?: number | null; priority?: string;
         project?: string; recurrence?: string; estimated_minutes?: number; subtasks?: Subtask[]

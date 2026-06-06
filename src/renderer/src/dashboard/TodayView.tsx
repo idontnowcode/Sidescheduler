@@ -37,7 +37,9 @@ export default function TodayView({ events, allIncompleteTasks, onReload }: Prop
   const todayEnd   = todayStart + 86400000 - 1
 
   const todayEvents   = events.sort((a, b) => a.startAt - b.startAt)
-  const overdueTasks  = allIncompleteTasks.filter((t) => t.dueAt != null && t.dueAt < todayStart)
+  // overdue / today's incomplete: exclude recurring (live in their day) + done
+  const overdueTasks  = allIncompleteTasks.filter((t) => !t.done && !t.recurrence && t.dueAt != null && t.dueAt < todayStart)
+  // today's tasks: keep done so completed-today are visible
   const todayTasks    = allIncompleteTasks.filter((t) => t.dueAt != null && t.dueAt >= todayStart && t.dueAt <= todayEnd)
 
   const [editEvent, setEditEvent] = useState<CalEvent | null>(null)

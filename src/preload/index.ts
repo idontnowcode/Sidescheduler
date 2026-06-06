@@ -47,6 +47,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Tasks
   listTasks:              (p: { end: number }) => ipcRenderer.invoke('db:tasks:list', p),
   listAllIncompleteTasks: () => ipcRenderer.invoke('db:tasks:list-all-incomplete'),
+  listAllTasks:           () => ipcRenderer.invoke('db:tasks:list-all'),
   createTask:             (data: unknown) => ipcRenderer.invoke('db:tasks:create', data),
   updateTask:             (data: unknown) => ipcRenderer.invoke('db:tasks:update', data),
   toggleTask:             (id: string) => ipcRenderer.invoke('db:tasks:toggle', { id }),

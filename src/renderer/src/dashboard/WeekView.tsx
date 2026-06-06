@@ -155,10 +155,14 @@ export default function WeekView({ current, events, tasks, onReload, onNavigate,
   }, [recurModal, onReload])
 
   const todayS = dayStart(today), todayE = todayS + 86400000 - 1
-  const overdueTasks = tasks.filter(t => t.dueAt != null && t.dueAt < todayS)
+  // Exclude done + recurring from non-day-specific buckets so routines don't
+  // accumulate and finished work doesn't crowd the panel.
+  const incompleteNonRecur = tasks.filter(t => !t.done && !t.recurrence)
+  const overdueTasks = incompleteNonRecur.filter(t => t.dueAt != null && t.dueAt < todayS)
+  // todayTasks: keep done so completed-today are visible
   const todayTasks   = tasks.filter(t => t.dueAt != null && t.dueAt >= todayS && t.dueAt <= todayE)
-  const futureTasks  = tasks.filter(t => t.dueAt != null && t.dueAt > todayE)
-  const noDueTasks   = tasks.filter(t => t.dueAt == null)
+  const futureTasks  = incompleteNonRecur.filter(t => t.dueAt != null && t.dueAt > todayE)
+  const noDueTasks   = incompleteNonRecur.filter(t => t.dueAt == null)
 
   return (
     <div className="flex flex-col h-full">

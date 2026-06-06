@@ -254,6 +254,12 @@ export function listAllIncompleteTasks(): TaskRow[] {
     .sort((a, b) => (a.due_at ?? Infinity) - (b.due_at ?? Infinity))
 }
 
+/** All tasks (done + incomplete) — used by views that also need to show
+ *  recently completed items or the done state for the selected day. */
+export function listAllTasks(): TaskRow[] {
+  return [...load().tasks].sort((a, b) => (a.due_at ?? Infinity) - (b.due_at ?? Infinity))
+}
+
 export function createTask(data: {
   title: string; due_at?: number | null; priority?: string; project?: string;
   recurrence?: string; estimated_minutes?: number; subtasks?: Subtask[]

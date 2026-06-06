@@ -4,7 +4,7 @@ import { computeWorkload, buildReminderBody } from './workload'
 import {
   initDb,
   listEvents, createEvent, updateEvent, updateEventMove, updateEventInstance, deleteEvent, deleteEventInstance,
-  listTasks, listAllIncompleteTasks, createTask, updateTask, toggleTask, snoozeTask, deleteTask,
+  listTasks, listAllIncompleteTasks, listAllTasks, createTask, updateTask, toggleTask, snoozeTask, deleteTask,
   searchAll
 } from './db/storage'
 import { loadSettings, saveSettings, WindowSettings } from './settings'
@@ -381,6 +381,7 @@ ipcMain.handle('db:events:delete-instance', (_e, data) => { deleteEventInstance(
 // ── IPC: Tasks ────────────────────────────────────────────────────────────
 ipcMain.handle('db:tasks:list',                (_e, { end }: { end: number }) => listTasks(end))
 ipcMain.handle('db:tasks:list-all-incomplete', () => listAllIncompleteTasks())
+ipcMain.handle('db:tasks:list-all',            () => listAllTasks())
 ipcMain.handle('db:tasks:create',              (_e, data) => { const r = createTask(data);              broadcastRefresh(); return r })
 ipcMain.handle('db:tasks:update',              (_e, data) => { const r = updateTask(data);              broadcastRefresh(); return r })
 ipcMain.handle('db:tasks:toggle',              (_e, { id }: { id: string }) => { const r = toggleTask(id);             broadcastRefresh(); return r })
