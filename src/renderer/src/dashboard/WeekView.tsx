@@ -74,8 +74,11 @@ export default function WeekView({ current, events, tasks, onReload, onNavigate,
 
   const handleTaskDrop = useCallback(async (e: React.DragEvent, day: Date) => {
     e.preventDefault()
+    e.stopPropagation()
     setDropCol(null)
-    const taskId = e.dataTransfer.getData('application/task-id')
+    const taskId =
+      e.dataTransfer.getData('application/task-id') ||
+      e.dataTransfer.getData('text/plain')
     if (!taskId) return
     const t = tasks.find((x) => x.id === taskId)
     if (!t) return
@@ -197,8 +200,13 @@ export default function WeekView({ current, events, tasks, onReload, onNavigate,
             const dayEvs = events.filter(ev => ev.startAt >= dayStart(day) && ev.startAt <= dayStart(day) + 86400000 - 1)
             return (
               <div key={colIdx} className={`flex-1 border-l border-ink-100 dark:border-ink-800/50 relative cursor-pointer transition-colors ${dropCol === colIdx ? 'bg-accent-50 dark:bg-accent-500/10' : ''}`} style={{height:TOTAL_H}}
-                onDragOver={(e) => { if (e.dataTransfer.types.includes('application/task-id')) { e.preventDefault(); setDropCol(colIdx) } }}
-                onDragLeave={() => setDropCol((c) => c === colIdx ? null : c)}
+                onDragEnter={(e) => { e.preventDefault(); setDropCol(colIdx) }}
+                onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; setDropCol(colIdx) }}
+                onDragLeave={(e) => {
+                  // Only clear if leaving the column itself, not entering a child
+                  if (e.currentTarget.contains(e.relatedTarget as Node)) return
+                  setDropCol((c) => c === colIdx ? null : c)
+                }}
                 onDrop={(e) => handleTaskDrop(e, day)}
                 onClick={(e) => {
                   if ((e.target as HTMLElement).closest('[data-event-block]')) return
@@ -313,7 +321,9 @@ function PanelTaskRow({ task, overdue, today, onReload, onEdit }: {
     <div
       draggable={!task.done}
       onDragStart={(e) => {
+        // Set both MIME types so the drop target can read either reliably
         e.dataTransfer.setData('application/task-id', task.id)
+        e.dataTransfer.setData('text/plain', task.id)
         e.dataTransfer.effectAllowed = 'copy'
       }}
       title="Drag onto the calendar to time-block"
