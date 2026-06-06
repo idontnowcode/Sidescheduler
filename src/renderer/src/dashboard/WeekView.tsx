@@ -123,6 +123,10 @@ export default function WeekView({ current, events, tasks, onReload, onNavigate,
   const [editEvent, setEditEvent] = useState<CalEvent | null>(null)
   const [editTask, setEditTask] = useState<Task | null>(null)
 
+  // When true, the next click event on an event block is swallowed because
+  // it followed a drag-move or resize, not an intentional click-to-edit.
+  const ignoreClickRef = useRef(false)
+
   // ── Task → calendar time-blocking (HTML5 drag) ──────────────────────────
   const PRIORITY_COLOR: Record<string, string> = { urgent: '#EF4444', normal: '#6366F1', low: '#94A3B8' }
   const [dropCol, setDropCol] = useState<number | null>(null)
@@ -187,7 +191,11 @@ export default function WeekView({ current, events, tasks, onReload, onNavigate,
         const dur = origEnd - origStart
         const cStart = clamp(origStart + dMin * 60000, dayStart(day), dayStart(day) + 86400000 - dur)
         dragRef.current = null; setPreview(null)
-        if (cStart !== origStart) await commitDrop(ev, cStart, cStart + dur)
+        if (cStart !== origStart) {
+          // Real move happened — swallow the synthetic click that follows
+          ignoreClickRef.current = true
+          await commitDrop(ev, cStart, cStart + dur)
+        }
       }
       if (resizeRef.current) {
         const { ev, day, startY, origEnd } = resizeRef.current
@@ -195,7 +203,10 @@ export default function WeekView({ current, events, tasks, onReload, onNavigate,
         const dMin = Math.round((dy / HOUR_H * 60) / SNAP_MIN) * SNAP_MIN
         const newEnd = clamp(origEnd + dMin * 60000, ev.startAt + 15 * 60000, dayStart(day) + 86400000)
         resizeRef.current = null; setResizePreview(null)
-        if (newEnd !== origEnd) await commitDrop(ev, ev.startAt, newEnd)
+        if (newEnd !== origEnd) {
+          ignoreClickRef.current = true
+          await commitDrop(ev, ev.startAt, newEnd)
+        }
       }
     }
     document.addEventListener('mousemove', onMove); document.addEventListener('mouseup', onUp)
@@ -300,7 +311,11 @@ export default function WeekView({ current, events, tasks, onReload, onNavigate,
                         backgroundColor: ev.color,
                         opacity: isP ? 0.85 : 1
                       }}
-                      onClick={e => { e.stopPropagation(); setEditEvent(ev) }}
+                      onClick={e => {
+                        e.stopPropagation()
+                        if (ignoreClickRef.current) { ignoreClickRef.current = false; return }
+                        setEditEvent(ev)
+                      }}
                       onMouseDown={e => { if (e.button !== 0) return; e.preventDefault(); dragRef.current = { ev, day, startY: e.clientY, origStart: ev.startAt, origEnd: ev.endAt }; setPreview({ id: ev.id, top, height: baseH }) }}>
                       <div className="px-2 pt-1">
                         <p className="text-xs font-semibold truncate">{ev.title}</p>
