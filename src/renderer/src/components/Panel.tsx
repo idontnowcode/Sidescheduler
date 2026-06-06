@@ -16,9 +16,7 @@ export default function Panel({ isExpanded, sidebarW, edge }: Props) {
         isExpanded ? 'opacity-100' : 'opacity-0 pointer-events-none'
       }`}
       style={{
-        [innerSide]: sidebarW,
-        borderRadius: edge === 'right' ? '14px 0 0 14px' : '0 14px 14px 0',
-        [edge === 'right' ? 'borderRight' : 'borderLeft']: 'none'
+        [innerSide]: sidebarW
       }}
     >
       <DateCard />

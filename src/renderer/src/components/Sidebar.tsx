@@ -30,9 +30,6 @@ export default function Sidebar({ onHover }: Props) {
       style={{
         width: w, height: sidebarH,
         [isLeft ? 'left' : 'right']: 0,
-        [isLeft ? 'borderLeft' : 'borderRight']: 'none',
-        [isLeft ? 'borderTopRightRadius' : 'borderTopLeftRadius']: '12px',
-        [isLeft ? 'borderBottomRightRadius' : 'borderBottomLeftRadius']: '12px',
         paddingTop: 0, paddingBottom: 6, gap: 5
       }}
       onMouseEnter={onHover}
