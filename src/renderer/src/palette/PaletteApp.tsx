@@ -131,7 +131,7 @@ export default function PaletteApp() {
   }, [items, active])
 
   return (
-    <div className="glass-panel w-screen h-screen rounded-2xl border border-ink-200 dark:border-ink-800 overflow-hidden flex flex-col">
+    <div className="glass-panel w-screen h-screen border border-ink-200 dark:border-ink-800 overflow-hidden flex flex-col">
         {/* Search input */}
         <div className="flex items-center gap-3 px-4 py-3.5 border-b border-ink-100 dark:border-ink-800 flex-shrink-0">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"

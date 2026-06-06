@@ -133,7 +133,7 @@ export default function EventModal({ mode, event, defaultDate, defaultStartTime,
       onClick={fullWindow ? undefined : onClose}>
       <form onSubmit={submit} onClick={(e) => e.stopPropagation()}
         className={fullWindow
-          ? 'glass-panel w-screen h-screen overflow-y-auto flex flex-col'
+          ? 'glass-panel w-screen h-screen border border-ink-200 dark:border-ink-800 overflow-y-auto flex flex-col'
           : 'glass-panel rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto border border-ink-200 dark:border-ink-800'}>
         <div className="px-5 py-4 border-b border-ink-100 dark:border-ink-800 flex items-center justify-between">
           <h2 className="text-base font-semibold">{isEdit ? 'Edit Event' : 'Add Event'}</h2>
