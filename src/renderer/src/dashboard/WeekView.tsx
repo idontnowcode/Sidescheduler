@@ -83,7 +83,8 @@ export default function WeekView({ current, events, tasks, onReload, onNavigate,
     const t = tasks.find((x) => x.id === taskId)
     if (!t) return
     const rect = e.currentTarget.getBoundingClientRect()
-    const y = e.clientY - rect.top + (scrollRef.current?.scrollTop ?? 0)
+    // rect.top already reflects scroll position; do NOT add scrollTop again
+    const y = e.clientY - rect.top
     const dur = t.estimatedMinutes && t.estimatedMinutes > 0 ? t.estimatedMinutes : 60
     const startMin = clamp(Math.round((y / HOUR_H * 60) / SNAP_MIN) * SNAP_MIN, 0, 24 * 60 - dur)
     const start = dayStart(day) + startMin * 60000
@@ -211,7 +212,8 @@ export default function WeekView({ current, events, tasks, onReload, onNavigate,
                 onClick={(e) => {
                   if ((e.target as HTMLElement).closest('[data-event-block]')) return
                   const rect = e.currentTarget.getBoundingClientRect()
-                  const y = e.clientY - rect.top + (scrollRef.current?.scrollTop ?? 0)
+                  // rect.top already reflects scroll position; do NOT add scrollTop again
+                  const y = e.clientY - rect.top
                   const startMin = Math.max(0, Math.min(60*24 - 60, Math.round((y/HOUR_H*60)/SNAP_MIN)*SNAP_MIN))
                   const sh = String(Math.floor(startMin/60)).padStart(2,'0'), sm = String(startMin%60).padStart(2,'0')
                   const endMin = Math.min(60*24, startMin + 60)

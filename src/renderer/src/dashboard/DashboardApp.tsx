@@ -158,9 +158,8 @@ export default function DashboardApp() {
         )}
       </div>
 
-      <div className="flex-1 overflow-hidden">
+      <div className="flex-1 overflow-hidden relative">
         {view === 'settings' ? <SettingsView />
-         : loading ? <div className="h-full flex items-center justify-center text-ink-400 text-sm">Loading...</div>
          : view === 'today' ? <TodayView events={events} allIncompleteTasks={allIncompleteTasks} onReload={reload} />
          : view === 'month' ? (
             <MonthView current={current} events={events} tasks={allIncompleteTasks}
@@ -173,6 +172,12 @@ export default function DashboardApp() {
               onAddEvent={(d, st, et) => setAddEvent({ date: d, startTime: st, endTime: et })}
               onAddTask={(d) => setAddTask({ date: d })} />
           )}
+        {/* Loading overlay — keeps the view mounted so scroll position is preserved */}
+        {loading && view !== 'settings' && (
+          <div className="absolute top-3 right-6 text-xs text-ink-400 bg-white/80 dark:bg-ink-900/80 px-2.5 py-1 rounded-lg backdrop-blur-sm">
+            Loading...
+          </div>
+        )}
       </div>
 
       {addEvent && (
