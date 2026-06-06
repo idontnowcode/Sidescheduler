@@ -13,6 +13,8 @@ interface Props {
   defaultEndTime?: string
   onClose: () => void
   onSaved: () => void
+  /** When true, the modal fills the entire window (used in the editor window). */
+  fullWindow?: boolean
 }
 
 function toDateInput(d: Date) {
@@ -29,7 +31,7 @@ function combine(dateStr: string, timeStr: string): number {
   return new Date(y, mo - 1, d, h, mi).getTime()
 }
 
-export default function EventModal({ mode, event, defaultDate, defaultStartTime, defaultEndTime, onClose, onSaved }: Props) {
+export default function EventModal({ mode, event, defaultDate, defaultStartTime, defaultEndTime, onClose, onSaved, fullWindow }: Props) {
   const isEdit = mode === 'edit' && event != null
   const baseDate = event ? new Date(event.startAt) : (defaultDate ?? new Date())
 
@@ -126,9 +128,13 @@ export default function EventModal({ mode, event, defaultDate, defaultStartTime,
     setRecurDows((arr) => arr.includes(d) ? arr.filter((x) => x !== d) : [...arr, d])
 
   return (
-    <div className="fixed inset-0 bg-black/40 dark:bg-black/60 flex items-center justify-center z-50 p-4" onClick={onClose}>
+    <div
+      className={fullWindow ? 'fixed inset-0 z-50' : 'fixed inset-0 flex items-center justify-center z-50 p-4'}
+      onClick={fullWindow ? undefined : onClose}>
       <form onSubmit={submit} onClick={(e) => e.stopPropagation()}
-        className="glass-panel rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto border border-ink-200 dark:border-ink-800">
+        className={fullWindow
+          ? 'glass-panel w-screen h-screen overflow-y-auto flex flex-col'
+          : 'glass-panel rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto border border-ink-200 dark:border-ink-800'}>
         <div className="px-5 py-4 border-b border-ink-100 dark:border-ink-800 flex items-center justify-between">
           <h2 className="text-base font-semibold">{isEdit ? 'Edit Event' : 'Add Event'}</h2>
           <button type="button" onClick={onClose} className="btn-ghost btn -mr-2">✕</button>

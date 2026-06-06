@@ -8,7 +8,7 @@ export default function RecurrenceConfirm({ actionType, onSelect, onCancel }: Pr
   const verb = actionType === 'move' ? 'Edit' : 'Delete'
 
   return (
-    <div className="fixed inset-0 bg-black/40 dark:bg-black/60 flex items-center justify-center z-[60]" onClick={onCancel}>
+    <div className="fixed inset-0 flex items-center justify-center z-[60]" onClick={onCancel}>
       <div className="glass-panel rounded-2xl w-80 p-5 border border-ink-200 dark:border-ink-800"
         onClick={(e) => e.stopPropagation()}>
         <h3 className="text-base font-semibold mb-1">{verb} repeating event</h3>
