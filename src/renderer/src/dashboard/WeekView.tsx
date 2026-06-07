@@ -9,6 +9,8 @@ const TOTAL_H  = 24 * HOUR_H
 const SNAP_MIN = 15
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
+export type TaskFilterId = 'today' | 'selected' | 'incomplete' | 'overdue' | 'completed' | 'inbox'
+
 interface Props {
   current: Date; events: CalEvent[]; tasks: Task[]
   onReload: () => void; onNavigate: (d: Date) => void
@@ -16,6 +18,9 @@ interface Props {
   onAddTask?: (date: Date) => void
   /** When true, render a single-day timeline instead of a week. */
   dayMode?: boolean
+  /** Day the user explicitly picked (Week header click). Enables the Selected filter. */
+  selectedDay?: Date | null
+  onSelectDay?: (d: Date | null) => void
 }
 
 const sod = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate())
@@ -91,8 +96,17 @@ function layoutDayEvents(evs: CalEvent[]): Map<string, { col: number; cols: numb
   return out
 }
 
-export default function WeekView({ current, events, tasks, onReload, onNavigate, onAddEvent, onAddTask, dayMode }: Props) {
+export default function WeekView({ current, events, tasks, onReload, onNavigate, onAddTask, dayMode, selectedDay, onSelectDay }: Props) {
   const days = dayMode ? [sod(current)] : weekDays(current)
+  // Task filter chips (multi-select OR). Defaults: Today + Incomplete.
+  const [filters, setFilters] = useState<Set<TaskFilterId>>(() => new Set<TaskFilterId>(['today', 'incomplete']))
+  const toggleFilter = (id: TaskFilterId) => {
+    setFilters((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id); else next.add(id)
+      return next
+    })
+  }
   const today = new Date()
   const scrollRef = useRef<HTMLDivElement>(null)
   useEffect(() => { if (scrollRef.current) scrollRef.current.scrollTop = 8 * HOUR_H }, [])
@@ -239,14 +253,26 @@ export default function WeekView({ current, events, tasks, onReload, onNavigate,
   }, [recurModal, onReload])
 
   const todayS = dayStart(today), todayE = todayS + 86400000 - 1
-  // Exclude done + recurring from non-day-specific buckets so routines don't
-  // accumulate and finished work doesn't crowd the panel.
-  const incompleteNonRecur = tasks.filter(t => !t.done && !t.recurrence)
-  const overdueTasks = incompleteNonRecur.filter(t => t.dueAt != null && t.dueAt < todayS)
-  // todayTasks: keep done so completed-today are visible
-  const todayTasks   = tasks.filter(t => t.dueAt != null && t.dueAt >= todayS && t.dueAt <= todayE)
-  const futureTasks  = incompleteNonRecur.filter(t => t.dueAt != null && t.dueAt > todayE)
-  const noDueTasks   = incompleteNonRecur.filter(t => t.dueAt == null)
+  const selS = selectedDay ? dayStart(selectedDay) : 0
+  const selE = selectedDay ? selS + 86400000 - 1 : 0
+
+  // Apply the multi-select filter chips (OR union).
+  const filteredTasks = (() => {
+    if (filters.size === 0) return []
+    return tasks.filter((t) => {
+      if (filters.has('today')      && t.dueAt != null && t.dueAt >= todayS && t.dueAt <= todayE) return true
+      if (filters.has('selected')   && selectedDay && t.dueAt != null && t.dueAt >= selS && t.dueAt <= selE) return true
+      if (filters.has('incomplete') && !t.done && !t.recurrence) return true
+      if (filters.has('overdue')    && !t.done && !t.recurrence && t.dueAt != null && t.dueAt < todayS) return true
+      if (filters.has('completed')  && t.done) return true
+      if (filters.has('inbox')      && !t.done && t.dueAt == null && !t.recurrence) return true
+      return false
+    }).sort((a, b) => {
+      if (a.done !== b.done) return a.done ? 1 : -1
+      return (a.dueAt ?? Infinity) - (b.dueAt ?? Infinity)
+    })
+  })()
+  const totalIncomplete = tasks.filter(t => !t.done).length
 
   return (
     <div className="flex flex-col h-full">
@@ -255,11 +281,21 @@ export default function WeekView({ current, events, tasks, onReload, onNavigate,
         <div className="w-14 flex-shrink-0" />
         {days.map((day, i) => {
           const isToday = sameDay(day, today)
+          const dow = day.getDay()
           return (
             <div key={i} className="flex-1 border-l border-ink-100 dark:border-ink-800/50 py-2.5 text-center">
-              <p className={`text-2xs font-medium ${i===0?'text-red-400':i===6?'text-accent-500':'text-ink-400'}`}>{DAY_NAMES[i]}</p>
-              <button onClick={() => { onNavigate(day); window.electronAPI.navigateToDate(day.getTime()) }}
-                className={`mx-auto mt-1 w-8 h-8 rounded-full text-base font-semibold flex items-center justify-center hover:bg-accent-50 dark:hover:bg-accent-500/15 transition-colors ${isToday ? 'bg-accent-500 text-white hover:bg-accent-600' : ''}`}>
+              <p className={`text-2xs font-medium ${dow===0?'text-red-400':dow===6?'text-accent-500':'text-ink-400'}`}>{DAY_NAMES[dow]}</p>
+              <button onClick={() => {
+                  onNavigate(day)
+                  window.electronAPI.navigateToDate(day.getTime())
+                  // Toggle Selected filter target
+                  if (selectedDay && sameDay(selectedDay, day)) onSelectDay?.(null)
+                  else onSelectDay?.(day)
+                }}
+                className={`mx-auto mt-1 w-8 h-8 rounded-full text-base font-semibold flex items-center justify-center hover:bg-accent-50 dark:hover:bg-accent-500/15 transition-colors ${
+                  isToday ? 'bg-accent-500 text-white hover:bg-accent-600' :
+                  selectedDay && sameDay(selectedDay, day) ? 'ring-2 ring-accent-500 ring-offset-1 dark:ring-offset-ink-900' : ''
+                }`}>
                 {day.getDate()}
               </button>
             </div>
@@ -281,7 +317,7 @@ export default function WeekView({ current, events, tasks, onReload, onNavigate,
             const dayEvs = events.filter(ev => ev.startAt >= dayStart(day) && ev.startAt <= dayStart(day) + 86400000 - 1)
             const layouts = layoutDayEvents(dayEvs)
             return (
-              <div key={colIdx} className={`flex-1 border-l border-ink-100 dark:border-ink-800/50 relative cursor-pointer transition-colors ${dropCol === colIdx ? 'bg-accent-50 dark:bg-accent-500/10' : ''}`} style={{height:TOTAL_H}}
+              <div key={colIdx} className={`flex-1 border-l border-ink-100 dark:border-ink-800/50 relative transition-colors ${dropCol === colIdx ? 'bg-accent-50 dark:bg-accent-500/10' : ''}`} style={{height:TOTAL_H}}
                 onDragEnter={(e) => { e.preventDefault(); setDropCol(colIdx) }}
                 onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; setDropCol(colIdx) }}
                 onDragLeave={(e) => {
@@ -289,18 +325,7 @@ export default function WeekView({ current, events, tasks, onReload, onNavigate,
                   if (e.currentTarget.contains(e.relatedTarget as Node)) return
                   setDropCol((c) => c === colIdx ? null : c)
                 }}
-                onDrop={(e) => handleTaskDrop(e, day)}
-                onClick={(e) => {
-                  if ((e.target as HTMLElement).closest('[data-event-block]')) return
-                  const rect = e.currentTarget.getBoundingClientRect()
-                  // rect.top already reflects scroll position; do NOT add scrollTop again
-                  const y = e.clientY - rect.top
-                  const startMin = Math.max(0, Math.min(60*24 - 60, Math.round((y/HOUR_H*60)/SNAP_MIN)*SNAP_MIN))
-                  const sh = String(Math.floor(startMin/60)).padStart(2,'0'), sm = String(startMin%60).padStart(2,'0')
-                  const endMin = Math.min(60*24, startMin + 60)
-                  const eh = String(Math.floor(endMin/60)).padStart(2,'0'), em = String(endMin%60).padStart(2,'0')
-                  onAddEvent?.(day, `${sh}:${sm}`, `${eh}:${em}`)
-                }}>
+                onDrop={(e) => handleTaskDrop(e, day)}>
                 {Array.from({length:24},(_,h)=>(
                   <div key={h} className="absolute left-0 right-0 border-t border-ink-100 dark:border-ink-800/40" style={{top:h*HOUR_H}} />
                 ))}
@@ -370,7 +395,7 @@ export default function WeekView({ current, events, tasks, onReload, onNavigate,
           <div className="flex items-center gap-2">
             <span className="section-label">Tasks</span>
             {tasks.length > 0 && (
-              <span className="chip bg-ink-100 dark:bg-ink-800 text-ink-500">{tasks.length} incomplete</span>
+              <span className="chip bg-ink-100 dark:bg-ink-800 text-ink-500">{totalIncomplete} incomplete</span>
             )}
             <span className="text-2xs text-ink-400 hidden sm:inline">— drag onto the calendar to time-block</span>
           </div>
@@ -386,14 +411,48 @@ export default function WeekView({ current, events, tasks, onReload, onNavigate,
 
         {taskOpen && (
           <div className="flex-1 overflow-y-auto">
-            {tasks.length === 0 ? (
-              <p className="text-sm text-ink-400 text-center py-5">No incomplete tasks ✓</p>
+            {/* Filter chips (multi-select OR). Defaults: Today + Incomplete. Selected unlocks when a day in the header is clicked. */}
+            <div className="flex flex-wrap items-center gap-1.5 px-5 py-2 border-b border-ink-100 dark:border-ink-800 sticky top-0 bg-white dark:bg-ink-900 z-10">
+              {([
+                ['today',      'Today',
+                  tasks.filter(t => t.dueAt != null && t.dueAt >= todayS && t.dueAt <= todayE).length],
+                ['selected',   selectedDay ? `Selected (${selectedDay.getMonth()+1}/${selectedDay.getDate()})` : 'Selected',
+                  selectedDay ? tasks.filter(t => t.dueAt != null && t.dueAt >= selS && t.dueAt <= selE).length : 0],
+                ['incomplete', 'Incomplete',
+                  tasks.filter(t => !t.done && !t.recurrence).length],
+                ['overdue',    'Overdue',
+                  tasks.filter(t => !t.done && !t.recurrence && t.dueAt != null && t.dueAt < todayS).length],
+                ['completed',  'Completed',
+                  tasks.filter(t => t.done).length],
+                ['inbox',      'Inbox',
+                  tasks.filter(t => !t.done && t.dueAt == null && !t.recurrence).length],
+              ] as const).map(([id, label, count]) => {
+                const disabled = id === 'selected' && !selectedDay
+                const on = filters.has(id as TaskFilterId)
+                return (
+                  <button key={id} type="button" disabled={disabled}
+                    onClick={() => toggleFilter(id as TaskFilterId)}
+                    title={disabled ? 'Click a date in the week header to enable Selected' : undefined}
+                    className={`chip transition-colors ${
+                      disabled ? 'bg-ink-50 dark:bg-ink-800/40 text-ink-300 cursor-not-allowed' :
+                      on ? 'bg-accent-500 text-white' :
+                      'bg-ink-100 dark:bg-ink-800 text-ink-600 dark:text-ink-300 hover:bg-ink-200 dark:hover:bg-ink-700'
+                    }`}>
+                    {label}<span className={`ml-1 text-2xs ${on ? 'opacity-80' : 'opacity-60'}`}>{count}</span>
+                  </button>
+                )
+              })}
+            </div>
+
+            {filteredTasks.length === 0 ? (
+              <p className="text-sm text-ink-400 text-center py-5">No matching tasks ✓</p>
             ) : (
               <div className="px-5 py-2 space-y-0">
-                {overdueTasks.map(t => <PanelTaskRow key={t.id} task={t} overdue onReload={onReload} onEdit={() => setEditTask(t)} />)}
-                {todayTasks.map(t => <PanelTaskRow key={t.id} task={t} today onReload={onReload} onEdit={() => setEditTask(t)} />)}
-                {futureTasks.map(t => <PanelTaskRow key={t.id} task={t} onReload={onReload} onEdit={() => setEditTask(t)} />)}
-                {noDueTasks.map(t => <PanelTaskRow key={t.id} task={t} onReload={onReload} onEdit={() => setEditTask(t)} />)}
+                {filteredTasks.map(t => {
+                  const overdue = !t.done && t.dueAt != null && t.dueAt < todayS
+                  const isToday = t.dueAt != null && t.dueAt >= todayS && t.dueAt <= todayE
+                  return <PanelTaskRow key={t.id} task={t} overdue={overdue} today={isToday} onReload={onReload} onEdit={() => setEditTask(t)} />
+                })}
               </div>
             )}
           </div>

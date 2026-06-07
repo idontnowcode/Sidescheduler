@@ -6,6 +6,7 @@ import { useEventStore } from './store/eventStore'
 import { useTaskStore } from './store/taskStore'
 import { useSettingsStore } from './store/settingsStore'
 import { useThemeStore } from './store/themeStore'
+import { useLangStore } from './store/langStore'
 
 export default function App() {
   const [isExpanded, setIsExpanded] = useState(false)
@@ -17,8 +18,9 @@ export default function App() {
   const settings   = useSettingsStore((s) => s.settings)
   const loadSettings = useSettingsStore((s) => s.load)
   const initTheme  = useThemeStore((s) => s.init)
+  const initLang   = useLangStore((s) => s.init)
 
-  useEffect(() => { initTheme(); loadSettings(); loadAll() }, [initTheme, loadSettings, loadAll])
+  useEffect(() => { initTheme(); initLang(); loadSettings(); loadAll() }, [initTheme, initLang, loadSettings, loadAll])
   useEffect(() => { loadEvents(selectedStart, selectedEnd) }, [selectedStart, selectedEnd, loadEvents])
 
   useEffect(() => {

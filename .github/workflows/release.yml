@@ -1,0 +1,55 @@
+# Build the Windows installer and publish it to a GitHub Release.
+#
+# Trigger options:
+#   - Push a tag like v0.2.0 (recommended). The semantic-version part becomes the
+#     release name. electron-builder publishes the installer + latest.yml so
+#     auto-update clients can pick it up.
+#   - Manually via the "Run workflow" button on the Actions tab.
+#
+# Token: GITHUB_TOKEN is supplied automatically by Actions; electron-builder uses
+# it as GH_TOKEN to create / upload to the release.
+
+name: Release Windows EXE
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write   # required to create/update GitHub Releases
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: daily-sidebar-planner/package-lock.json
+
+      - name: Install dependencies
+        working-directory: daily-sidebar-planner
+        run: npm ci
+
+      - name: Build and publish installer
+        working-directory: daily-sidebar-planner
+        env:
+          # electron-builder reads GH_TOKEN to push artefacts to GitHub Releases.
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npm run release:win
+
+      - name: Upload installer as workflow artefact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Daily-Sidebar-Planner-Setup
+          path: daily-sidebar-planner/dist-app/*.exe
+          if-no-files-found: warn

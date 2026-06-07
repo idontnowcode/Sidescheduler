@@ -12,6 +12,8 @@ interface Props {
   onReload: () => void
   onNavigate: (d: Date) => void
   onAddEvent?: (date: Date) => void
+  /** When provided, clicking a date number switches the dashboard to Day view. */
+  onPickDay?: (d: Date) => void
 }
 
 function buildGrid(month: Date): Date[] {
@@ -38,7 +40,7 @@ function tasksForDay(tasks: Task[], day: Date) {
   return tasks.filter(t => t.dueAt != null && t.dueAt >= dayStart(day) && t.dueAt <= dayEnd(day))
 }
 
-export default function MonthView({ current, events, tasks, onReload, onNavigate, onAddEvent }: Props) {
+export default function MonthView({ current, events, tasks, onReload, onNavigate, onPickDay }: Props) {
   const today = new Date()
   const grid = buildGrid(current)
   const [dragging, setDragging] = useState<{ id: string; timeOffset: number } | null>(null)
@@ -112,10 +114,11 @@ export default function MonthView({ current, events, tasks, onReload, onNavigate
               onDrop={(e) => { e.preventDefault(); handleDrop(day) }}
               onClick={(e) => {
                 if ((e.target as HTMLElement).closest('[data-no-add]')) return
-                onAddEvent?.(day)
+                // Click empty area of a date cell -> switch to Day view for that day
+                onPickDay?.(day)
               }}>
               <button data-no-add
-                onClick={(e) => { e.stopPropagation(); window.electronAPI.navigateToDate(day.getTime()); onNavigate(day) }}
+                onClick={(e) => { e.stopPropagation(); onPickDay?.(day) }}
                 className={`self-start w-7 h-7 rounded-full text-sm font-semibold mb-1 flex items-center justify-center transition-colors hover:bg-accent-100 dark:hover:bg-accent-500/20 ${
                   isToday ? 'bg-accent-500 text-white hover:bg-accent-600' :
                   inMonth ? 'text-ink-800 dark:text-ink-200' : 'text-ink-300 dark:text-ink-600'

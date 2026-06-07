@@ -106,12 +106,12 @@ export default function TaskItem({ task, dueBadge, overdue }: Props) {
           {task.title}
           {task.recurrence && <span className="ml-1 text-2xs opacity-60">↻</span>}
         </span>
-        {(task.project || (task.subtasks && task.subtasks.length > 0)) && !task.done && (
-          <span className="flex items-center gap-1.5 mt-0.5">
-            {task.project && (() => {
-              const c = projectColor(task.project)
-              return <span className={`chip ${c.bg} ${c.text} max-w-[100px] truncate`}>{task.project}</span>
-            })()}
+        {((task.projects && task.projects.length > 0) || (task.subtasks && task.subtasks.length > 0)) && !task.done && (
+          <span className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+            {task.projects?.map((p) => {
+              const c = projectColor(p)
+              return <span key={p} className={`chip ${c.bg} ${c.text} max-w-[100px] truncate`}>{p}</span>
+            })}
             {task.subtasks && task.subtasks.length > 0 && (() => {
               const done = task.subtasks.filter((s) => s.done).length
               const total = task.subtasks.length

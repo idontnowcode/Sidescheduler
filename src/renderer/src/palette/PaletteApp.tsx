@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { parseNaturalLanguage } from '../lib/nlParser'
 import { useThemeStore } from '../store/themeStore'
+import { useLangStore } from '../store/langStore'
 import { SearchResult, EventRow, TaskRow } from '../types'
 
 interface Command {
@@ -25,8 +26,9 @@ export default function PaletteApp() {
   const [active, setActive] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
   const initTheme = useThemeStore((s) => s.init)
+  const initLang  = useLangStore((s) => s.init)
 
-  useEffect(() => { initTheme() }, [initTheme])
+  useEffect(() => { initTheme(); initLang() }, [initTheme, initLang])
   useEffect(() => { requestAnimationFrame(() => inputRef.current?.focus()) }, [])
 
   // Debounced search

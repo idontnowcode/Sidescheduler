@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Task, RecurrenceRule, Subtask } from '../../types'
 import ProjectPicker from '../ProjectPicker'
+import { useT } from '../../lib/i18n'
 
 type Priority = 'urgent' | 'normal' | 'low'
 
@@ -27,6 +28,7 @@ function toDateInput(d: Date) {
 }
 
 export default function TaskModal({ mode, task, defaultDueDate, onClose, onSaved, fullWindow }: Props) {
+  const t = useT()
   const isEdit = mode === 'edit' && task != null
 
   const [title, setTitle]       = useState(task?.title ?? '')
@@ -35,7 +37,7 @@ export default function TaskModal({ mode, task, defaultDueDate, onClose, onSaved
     task?.dueAt ? toDateInput(new Date(task.dueAt)) : toDateInput(defaultDueDate ?? new Date())
   )
   const [priority, setPriority] = useState<Priority>(task?.priority ?? 'normal')
-  const [project, setProject]   = useState(task?.project ?? '')
+  const [projectsSel, setProjectsSel] = useState<string[]>(task?.projects ?? [])
 
   // Known project names for the picker suggestions
   const [projects, setProjects] = useState<string[]>([])
@@ -107,13 +109,14 @@ export default function TaskModal({ mode, task, defaultDueDate, onClose, onSaved
 
     const estimated_minutes = computeEstimatedMinutes()
 
-    const proj = project.trim() || undefined
     const subs = subtasks.length ? subtasks : undefined
 
     if (isEdit) {
       await window.electronAPI.updateTask({
         id: task!.id, title: title.trim(), due_at, priority,
-        project: proj ?? null,
+        projects: projectsSel,
+        // Keep legacy single field in sync with the first selected project.
+        project: projectsSel[0] ?? null,
         recurrence: buildRecurrence(),
         estimated_minutes,
         subtasks: subs
@@ -121,7 +124,7 @@ export default function TaskModal({ mode, task, defaultDueDate, onClose, onSaved
     } else {
       await window.electronAPI.createTask({
         title: title.trim(), due_at, priority,
-        project: proj,
+        projects: projectsSel,
         recurrence: buildRecurrence(),
         estimated_minutes,
         subtasks: subs
@@ -151,23 +154,23 @@ export default function TaskModal({ mode, task, defaultDueDate, onClose, onSaved
           ? 'glass-panel w-screen h-screen border border-ink-200 dark:border-ink-800 overflow-y-auto flex flex-col'
           : 'glass-panel rounded-2xl w-full max-w-md border border-ink-200 dark:border-ink-800'}>
         <div className="px-5 py-4 border-b border-ink-100 dark:border-ink-800 flex items-center justify-between">
-          <h2 className="text-base font-semibold">{isEdit ? 'Edit Task' : 'Add Task'}</h2>
+          <h2 className="text-base font-semibold">{isEdit ? t('modal.editTask') : t('modal.addTask')}</h2>
           <button type="button" onClick={onClose} className="btn btn-ghost -mr-2">✕</button>
         </div>
 
         <div className="p-5 space-y-4">
           <div>
-            <label className="block text-2xs font-medium text-ink-500 mb-1.5 uppercase tracking-wider">Title</label>
+            <label className="block text-2xs font-medium text-ink-500 mb-1.5 uppercase tracking-wider">{t('field.title')}</label>
             <input autoFocus type="text" value={title} onChange={(e) => setTitle(e.target.value)}
-              placeholder="Task title" className="input text-base" />
+              placeholder={t('ph.taskTitle')} className="input text-base" />
           </div>
 
           <div>
             <label className="flex items-center justify-between mb-1.5">
-              <span className="text-2xs font-medium text-ink-500 uppercase tracking-wider">Due Date</span>
+              <span className="text-2xs font-medium text-ink-500 uppercase tracking-wider">{t('field.dueDate')}</span>
               <button type="button" onClick={() => setHasDue((v) => !v)}
                 className={`text-xs px-2.5 py-1 rounded-lg font-medium ${hasDue ? 'bg-orange-100 text-orange-600 dark:bg-orange-500/20 dark:text-orange-400' : 'bg-ink-100 text-ink-400 dark:bg-ink-800'}`}>
-                {hasDue ? 'Set' : 'None'}
+                {hasDue ? t('verb.set') : t('verb.none')}
               </button>
             </label>
             {hasDue && (
@@ -176,7 +179,7 @@ export default function TaskModal({ mode, task, defaultDueDate, onClose, onSaved
           </div>
 
           <div>
-            <label className="block text-2xs font-medium text-ink-500 mb-1.5 uppercase tracking-wider">Priority</label>
+            <label className="block text-2xs font-medium text-ink-500 mb-1.5 uppercase tracking-wider">{t('field.priority')}</label>
             <div className="flex gap-2">
               {PRIORITY_BTNS.map(({ key, label, cls }) => (
                 <button key={key} type="button" onClick={() => setPriority(key)}
@@ -191,15 +194,15 @@ export default function TaskModal({ mode, task, defaultDueDate, onClose, onSaved
           {/* Project */}
           <div>
             <label className="block text-2xs font-medium text-ink-500 mb-1.5 uppercase tracking-wider">
-              Project <span className="normal-case text-ink-400 font-normal">(optional)</span>
+              {t('field.project')} <span className="normal-case text-ink-400 font-normal">{t('field.optional')}</span>
             </label>
-            <ProjectPicker value={project} suggestions={projects} onChange={setProject} />
+            <ProjectPicker value={projectsSel} suggestions={projects} onChange={setProjectsSel} placeholder={t('ph.addProject')} />
           </div>
 
           {/* Subtasks */}
           <div>
             <label className="block text-2xs font-medium text-ink-500 mb-1.5 uppercase tracking-wider">
-              Checklist <span className="normal-case text-ink-400 font-normal">(optional)</span>
+              {t('field.checklist')} <span className="normal-case text-ink-400 font-normal">{t('field.optional')}</span>
             </label>
             {subtasks.length > 0 && (
               <div className="space-y-1 mb-2">
@@ -225,16 +228,16 @@ export default function TaskModal({ mode, task, defaultDueDate, onClose, onSaved
               <input type="text" value={newSub}
                 onChange={(e) => setNewSub(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addSubtask() } }}
-                placeholder="Add a checklist item" className="input flex-1 text-sm" />
+                placeholder={t('ph.addChk')} className="input flex-1 text-sm" />
               <button type="button" onClick={addSubtask}
-                className="btn btn-secondary text-sm px-3">Add</button>
+                className="btn btn-secondary text-sm px-3">{t('verb.add')}</button>
             </div>
           </div>
 
           {/* Estimated duration */}
           <div>
             <label className="block text-2xs font-medium text-ink-500 mb-1.5 uppercase tracking-wider">
-              Estimated time <span className="normal-case text-ink-400 font-normal">(optional)</span>
+              {t('field.estimated')} <span className="normal-case text-ink-400 font-normal">{t('field.optional')}</span>
             </label>
             <div className="flex items-center gap-2">
               <input type="number" min="0" max="99" value={estHours}
@@ -247,14 +250,14 @@ export default function TaskModal({ mode, task, defaultDueDate, onClose, onSaved
               <span className="text-xs text-ink-500">min</span>
               {(parseInt(estHours) > 0 || parseInt(estMins) > 0) && (
                 <button type="button" onClick={() => { setEstHours('0'); setEstMins('0') }}
-                  className="ml-auto text-2xs text-ink-400 hover:text-red-500">Clear</button>
+                  className="ml-auto text-2xs text-ink-400 hover:text-red-500">{t('verb.clear')}</button>
               )}
             </div>
           </div>
 
           <div className="pt-2 border-t border-ink-100 dark:border-ink-800">
             <label className="flex items-center justify-between cursor-pointer">
-              <span className="text-sm font-medium">Repeat</span>
+              <span className="text-sm font-medium">{t('field.repeat')}</span>
               <button type="button" onClick={() => setRecurOn((v) => !v)}
                 className={`relative w-10 h-6 rounded-full transition-colors ${recurOn ? 'bg-orange-500' : 'bg-ink-300 dark:bg-ink-700'}`}>
                 <span className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow-sm transition-transform ${recurOn ? 'translate-x-5 left-0.5' : 'left-0.5'}`} />
@@ -310,13 +313,13 @@ export default function TaskModal({ mode, task, defaultDueDate, onClose, onSaved
         <div className="px-5 py-3 border-t border-ink-100 dark:border-ink-800 flex gap-2 justify-between">
           {isEdit ? (
             <button type="button" onClick={handleDelete}
-              className="btn text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10">Delete</button>
+              className="btn text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10">{t('verb.delete')}</button>
           ) : <span />}
           <div className="flex gap-2">
-            <button type="button" onClick={onClose} className="btn btn-ghost">Cancel</button>
+            <button type="button" onClick={onClose} className="btn btn-ghost">{t('verb.cancel')}</button>
             <button type="submit" disabled={saving || !title.trim()}
               className="btn bg-orange-500 text-white hover:bg-orange-600 disabled:opacity-50">
-              {saving ? 'Saving...' : isEdit ? 'Save' : 'Add'}
+              {saving ? t('verb.saving') : isEdit ? t('verb.save') : t('verb.add')}
             </button>
           </div>
         </div>

@@ -54,7 +54,8 @@ export interface CalEvent {
   description?: string
   recurrence?: RecurrenceRule
   reminderMinutes?: number
-  project?: string
+  /** Multi-select project tags. Always an array in domain layer (empty when none). */
+  projects: string[]
   isRecurringInstance?: boolean
   originalId?: string
 }
@@ -71,7 +72,8 @@ export interface Task {
   dueAt?: number
   done: boolean
   priority: 'urgent' | 'normal' | 'low'
-  project?: string
+  /** Multi-select project tags. */
+  projects: string[]
   recurrence?: RecurrenceRule
   estimatedMinutes?: number
   subtasks?: Subtask[]
@@ -85,17 +87,29 @@ export interface EventRow {
   source: string; google_id: string | null
   recurrence?: string
   reminder_minutes?: number
+  /** @deprecated use `projects` */
   project?: string | null
+  projects?: string[]
   created_at: number; updated_at: number
 }
 
 export interface TaskRow {
   id: string; title: string; due_at: number | null
-  done: number; priority: string; project: string | null
+  done: number; priority: string
+  /** @deprecated use `projects` */
+  project: string | null
+  projects?: string[]
   recurrence?: string
   estimated_minutes?: number
   subtasks?: Subtask[]
   created_at: number; updated_at: number
+}
+
+/** Reads either the new `projects` array or the legacy single `project` string. */
+function readProjects(row: { projects?: string[] | null; project?: string | null }): string[] {
+  if (row.projects && row.projects.length) return row.projects.filter(Boolean)
+  if (row.project) return [row.project]
+  return []
 }
 
 // ── Mappers ───────────────────────────────────────────────────────────────
@@ -108,7 +122,7 @@ export function rowToEvent(row: EventRow): CalEvent {
     location: row.location ?? undefined, description: row.description ?? undefined,
     recurrence: (row.recurrence && !isInstance) ? JSON.parse(row.recurrence) : undefined,
     reminderMinutes: row.reminder_minutes,
-    project: row.project ?? undefined,
+    projects: readProjects(row),
     isRecurringInstance: isInstance, originalId
   }
 }
@@ -118,7 +132,7 @@ export function rowToTask(row: TaskRow): Task {
     id: row.id, title: row.title, dueAt: row.due_at ?? undefined,
     done: row.done === 1,
     priority: (row.priority as Task['priority']) || 'normal',
-    project: row.project ?? undefined,
+    projects: readProjects(row),
     recurrence: row.recurrence ? JSON.parse(row.recurrence) : undefined,
     estimatedMinutes: row.estimated_minutes,
     subtasks: row.subtasks
@@ -176,7 +190,7 @@ declare global {
       createEvent: (data: {
         title: string; start_at: number; end_at: number;
         color?: string; location?: string; description?: string; recurrence?: string;
-        reminder_minutes?: number; project?: string
+        reminder_minutes?: number; projects?: string[]
       }) => Promise<EventRow>
       updateEvent: (data: Partial<EventRow> & { id: string }) => Promise<EventRow>
       moveEvent: (id: string, start_at: number, end_at: number) => Promise<EventRow>
@@ -195,7 +209,7 @@ declare global {
       listAllTasks: () => Promise<TaskRow[]>
       createTask: (data: {
         title: string; due_at?: number | null; priority?: string;
-        project?: string; recurrence?: string; estimated_minutes?: number; subtasks?: Subtask[]
+        projects?: string[]; recurrence?: string; estimated_minutes?: number; subtasks?: Subtask[]
       }) => Promise<TaskRow>
       updateTask: (data: Partial<TaskRow> & { id: string }) => Promise<TaskRow>
       toggleTask: (id: string) => Promise<TaskRow>

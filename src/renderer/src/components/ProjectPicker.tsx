@@ -2,26 +2,26 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { projectColor } from '../lib/projectColor'
 
 interface Props {
-  value: string
-  /** Names already used elsewhere in the app. Pulled from db:projects:list. */
+  /** Currently selected project names. */
+  value: string[]
+  /** Known names from listProjects(). */
   suggestions?: string[]
-  onChange: (next: string) => void
+  onChange: (next: string[]) => void
   placeholder?: string
 }
 
 /**
- * Notion-style project tag picker.
+ * Notion-style multi-select project tag picker.
  *
- * Behaviour:
- *   - Empty value renders a faint "+ Add project" chip.
- *   - Filled value renders the project as a colored chip with an × to clear.
- *   - Clicking either opens an inline dropdown with an input box that
- *     filters previous projects as you type and shows a "Create" row when
- *     no exact match exists.
- *   - Arrow keys move the highlight, Enter picks, Esc closes.
+ * UX:
+ *   - Closed state shows every selected project as a chip with x to remove,
+ *     plus a "+" pill that opens the editor when more can be added.
+ *   - Open state shows a text input + dropdown of filtered suggestions. Click
+ *     or Enter to add. When the typed text is new, the dropdown shows a
+ *     "Create N" row that adds it inline.
+ *   - Backspace on an empty input removes the most recently added project.
  *
- * Suggestions are typically supplied by listProjects() so the picker
- * surfaces any name previously used on an event or a task.
+ * Selected array is order-preserving and case-insensitively deduped.
  */
 export default function ProjectPicker({ value, suggestions = [], onChange, placeholder = 'Add project' }: Props) {
   const [open, setOpen] = useState(false)
@@ -31,37 +31,45 @@ export default function ProjectPicker({ value, suggestions = [], onChange, place
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
+    const selectedLower = new Set(value.map((v) => v.toLowerCase()))
     return suggestions
-      .filter((s) => s !== value && (!q || s.toLowerCase().includes(q)))
+      .filter((s) => !selectedLower.has(s.toLowerCase()) && (!q || s.toLowerCase().includes(q)))
       .slice(0, 8)
   }, [query, suggestions, value])
 
   const trimmed = query.trim()
-  const hasExact = !!trimmed && suggestions.some((s) => s.toLowerCase() === trimmed.toLowerCase())
-  const canCreate = !!trimmed && !hasExact && trimmed.toLowerCase() !== value.toLowerCase()
-
+  const hasExact =
+    !!trimmed && [...suggestions, ...value].some((s) => s.toLowerCase() === trimmed.toLowerCase())
+  const canCreate = !!trimmed && !hasExact
   const optionsCount = filtered.length + (canCreate ? 1 : 0)
 
-  // Close on outside click
   useEffect(() => {
     if (!open) return
     const onDown = (e: MouseEvent) => {
       if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) {
-        setOpen(false)
-        setQuery('')
+        setOpen(false); setQuery('')
       }
     }
     document.addEventListener('mousedown', onDown)
     return () => document.removeEventListener('mousedown', onDown)
   }, [open])
 
-  // Reset highlight when filter changes
   useEffect(() => { setActive(0) }, [query])
 
-  const pick = (name: string) => {
-    onChange(name.trim())
-    setOpen(false)
+  const add = (name: string) => {
+    const k = name.trim()
+    if (!k) return
+    if (value.some((v) => v.toLowerCase() === k.toLowerCase())) {
+      setQuery('')
+      return
+    }
+    onChange([...value, k])
     setQuery('')
+    // Keep the editor open so multiple projects can be added in one go.
+  }
+
+  const remove = (name: string) => {
+    onChange(value.filter((v) => v !== name))
   }
 
   const onKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -70,43 +78,40 @@ export default function ProjectPicker({ value, suggestions = [], onChange, place
     else if (e.key === 'ArrowUp')   { e.preventDefault(); setActive((a) => Math.max(a - 1, 0)) }
     else if (e.key === 'Enter') {
       e.preventDefault()
-      if (active < filtered.length) pick(filtered[active])
-      else if (canCreate) pick(trimmed)
+      if (active < filtered.length) add(filtered[active])
+      else if (canCreate) add(trimmed)
     }
-    else if (e.key === 'Backspace' && !query && value) {
-      // empty input + selected chip already cleared by × button; nothing to do
+    else if (e.key === 'Backspace' && !query && value.length) {
+      onChange(value.slice(0, -1))
+    }
+    else if (e.key === ',' || e.key === 'Tab') {
+      if (canCreate) { e.preventDefault(); add(trimmed) }
     }
   }
 
   return (
-    <div ref={wrapRef} className="relative inline-block">
-      {/* Resting display: chip or "+ Add project" */}
-      {!open && (
-        value ? (
-          <span
-            onClick={() => setOpen(true)}
-            className={(() => {
-              const c = projectColor(value)
-              return `chip ${c.bg} ${c.text} cursor-pointer inline-flex items-center gap-1 group`
-            })()}
-          >
-            {value}
+    <div ref={wrapRef} className="relative inline-flex items-center flex-wrap gap-1">
+      {/* Selected chips */}
+      {value.map((v) => {
+        const c = projectColor(v)
+        return (
+          <span key={v} className={`chip ${c.bg} ${c.text} inline-flex items-center gap-1`}>
+            {v}
             <button type="button"
-              onClick={(e) => { e.stopPropagation(); onChange('') }}
-              title="Clear"
-              className="opacity-60 hover:opacity-100 leading-none text-base"
-            >×</button>
+              onClick={() => remove(v)}
+              title="Remove"
+              className="opacity-60 hover:opacity-100 leading-none text-base">×</button>
           </span>
-        ) : (
-          <button type="button" onClick={() => setOpen(true)}
-            className="chip bg-ink-100 dark:bg-ink-800 text-ink-500 hover:bg-ink-200 dark:hover:bg-ink-700 cursor-pointer">
-            + {placeholder}
-          </button>
         )
-      )}
+      })}
 
-      {/* Open editor */}
-      {open && (
+      {/* Add button or active input */}
+      {!open ? (
+        <button type="button" onClick={() => setOpen(true)}
+          className="chip bg-ink-100 dark:bg-ink-800 text-ink-500 hover:bg-ink-200 dark:hover:bg-ink-700 cursor-pointer">
+          + {value.length ? 'Add' : placeholder}
+        </button>
+      ) : (
         <div className="relative">
           <input autoFocus
             type="text"
@@ -114,8 +119,7 @@ export default function ProjectPicker({ value, suggestions = [], onChange, place
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={onKey}
             placeholder={placeholder}
-            className="input text-sm w-48"
-          />
+            className="input text-sm w-44" />
           {(filtered.length > 0 || canCreate) && (
             <div className="absolute left-0 right-0 top-full mt-1 z-50 bg-white dark:bg-ink-900 border border-ink-200 dark:border-ink-800 rounded-xl shadow-glass-lg py-1 max-h-56 overflow-y-auto">
               {filtered.map((s, i) => {
@@ -123,7 +127,7 @@ export default function ProjectPicker({ value, suggestions = [], onChange, place
                 return (
                   <button key={s} type="button"
                     onMouseDown={(e) => e.preventDefault()}
-                    onClick={() => pick(s)}
+                    onClick={() => add(s)}
                     onMouseEnter={() => setActive(i)}
                     className={`w-full text-left px-2.5 py-1.5 flex items-center transition-colors ${
                       active === i ? 'bg-ink-50 dark:bg-ink-800' : ''
@@ -135,7 +139,7 @@ export default function ProjectPicker({ value, suggestions = [], onChange, place
               {canCreate && (
                 <button type="button"
                   onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => pick(trimmed)}
+                  onClick={() => add(trimmed)}
                   onMouseEnter={() => setActive(filtered.length)}
                   className={`w-full text-left px-3 py-1.5 text-sm flex items-center gap-2 transition-colors ${
                     active === filtered.length ? 'bg-accent-50 dark:bg-accent-500/10' : ''

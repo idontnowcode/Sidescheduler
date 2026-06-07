@@ -25,7 +25,10 @@ export interface EventRow {
   google_id: string | null
   recurrence?: string
   reminder_minutes?: number   // notify this many minutes before start (undefined = off)
-  project?: string | null     // user-defined project tag (shared vocabulary with tasks)
+  /** @deprecated Use `projects` (kept for older rows; readers should merge into projects). */
+  project?: string | null
+  /** Multi-select project tags. Empty array == no projects. */
+  projects?: string[]
   created_at: number
   updated_at: number
 }
@@ -42,7 +45,10 @@ export interface TaskRow {
   due_at: number | null
   done: number
   priority: string
+  /** @deprecated Single-project legacy. Migrate readers to `projects`. */
   project: string | null
+  /** Multi-select project tags. Preferred; readers should fall back to `[project]`. */
+  projects?: string[]
   recurrence?: string             // JSON RecurrenceRule (for repeating tasks)
   estimated_minutes?: number      // user-provided estimate
   subtasks?: Subtask[]            // checklist items
@@ -145,9 +151,10 @@ export function listEvents(start: number, end: number): EventRow[] {
 export function createEvent(data: {
   title: string; start_at: number; end_at: number
   color?: string; location?: string; description?: string; recurrence?: string
-  reminder_minutes?: number; project?: string
+  reminder_minutes?: number; projects?: string[]
 }): EventRow {
   const now = Date.now()
+  const projects = (data.projects ?? []).map(s => s.trim()).filter(Boolean)
   const row: EventRow = {
     id: randomUUID(), title: data.title,
     start_at: data.start_at, end_at: data.end_at,
@@ -155,7 +162,9 @@ export function createEvent(data: {
     location: data.location ?? null, description: data.description ?? null,
     source: 'local', google_id: null, recurrence: data.recurrence,
     reminder_minutes: data.reminder_minutes,
-    project: data.project ?? null,
+    projects,
+    // Keep legacy single field in sync with first project so older readers stay happy.
+    project: projects[0] ?? null,
     created_at: now, updated_at: now
   }
   const db = load(); db.events.push(row); persist(db); return row
@@ -263,13 +272,16 @@ export function listAllTasks(): TaskRow[] {
 }
 
 export function createTask(data: {
-  title: string; due_at?: number | null; priority?: string; project?: string;
+  title: string; due_at?: number | null; priority?: string; projects?: string[];
   recurrence?: string; estimated_minutes?: number; subtasks?: Subtask[]
 }): TaskRow {
   const now = Date.now()
+  const projects = (data.projects ?? []).map(s => s.trim()).filter(Boolean)
   const row: TaskRow = {
     id: randomUUID(), title: data.title, due_at: data.due_at ?? null,
-    done: 0, priority: data.priority ?? 'normal', project: data.project ?? null,
+    done: 0, priority: data.priority ?? 'normal',
+    projects,
+    project: projects[0] ?? null,   // legacy mirror
     recurrence: data.recurrence,
     estimated_minutes: data.estimated_minutes,
     subtasks: data.subtasks,
@@ -338,8 +350,15 @@ export function listProjects(): string[] {
     if (!k) return
     counts.set(k, (counts.get(k) ?? 0) + 1)
   }
-  for (const e of db.events) bump(e.project)
-  for (const t of db.tasks)  bump(t.project)
+  // Prefer the new `projects` array; fall back to the legacy single field for older rows.
+  for (const e of db.events) {
+    if (e.projects?.length) e.projects.forEach(bump)
+    else bump(e.project)
+  }
+  for (const t of db.tasks) {
+    if (t.projects?.length) t.projects.forEach(bump)
+    else bump(t.project)
+  }
   return [...counts.entries()]
     .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
     .map(([k]) => k)

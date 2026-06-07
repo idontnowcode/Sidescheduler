@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import EventModal from '../components/modals/EventModal'
 import TaskModal from '../components/modals/TaskModal'
 import { useThemeStore } from '../store/themeStore'
+import { useLangStore } from '../store/langStore'
 import { EditorPayload } from '../types'
 
 /**
@@ -12,8 +13,9 @@ import { EditorPayload } from '../types'
 export default function EditorApp() {
   const [payload, setPayload] = useState<EditorPayload | null>(null)
   const initTheme = useThemeStore((s) => s.init)
+  const initLang  = useLangStore((s) => s.init)
 
-  useEffect(() => { initTheme() }, [initTheme])
+  useEffect(() => { initTheme(); initLang() }, [initTheme, initLang])
 
   useEffect(() => {
     window.electronAPI.getEditorPayload().then((p) => {

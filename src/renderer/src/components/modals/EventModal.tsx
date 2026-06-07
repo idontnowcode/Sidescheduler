@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { CalEvent, RecurrenceRule } from '../../types'
 import RecurrenceConfirm from './RecurrenceConfirm'
 import ProjectPicker from '../ProjectPicker'
+import { useT } from '../../lib/i18n'
 
 const COLORS = ['#6366F1', '#3B82F6', '#22C55E', '#EF4444', '#F59E0B', '#EC4899', '#14B8A6', '#A855F7']
 const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
@@ -33,6 +34,7 @@ function combine(dateStr: string, timeStr: string): number {
 }
 
 export default function EventModal({ mode, event, defaultDate, defaultStartTime, defaultEndTime, onClose, onSaved, fullWindow }: Props) {
+  const t = useT()
   const isEdit = mode === 'edit' && event != null
   const baseDate = event ? new Date(event.startAt) : (defaultDate ?? new Date())
 
@@ -44,7 +46,7 @@ export default function EventModal({ mode, event, defaultDate, defaultStartTime,
   const [location, setLoc]  = useState(event?.location ?? '')
   const [description, setDescription] = useState(event?.description ?? '')
   const [reminder, setReminder] = useState<number | null>(event?.reminderMinutes ?? null)
-  const [project, setProject] = useState(event?.project ?? '')
+  const [projectsSel, setProjectsSel] = useState<string[]>(event?.projects ?? [])
 
   // Load known project names for suggestions
   const [projects, setProjects] = useState<string[]>([])
@@ -116,7 +118,7 @@ export default function EventModal({ mode, event, defaultDate, defaultStartTime,
       description: description || undefined,
       recurrence: buildRecurrence(),
       reminder_minutes: reminder ?? undefined,
-      project: project.trim() || undefined
+      projects: projectsSel
     }
 
     if (!isEdit) {
@@ -173,7 +175,7 @@ export default function EventModal({ mode, event, defaultDate, defaultStartTime,
           ? 'glass-panel w-screen h-screen border border-ink-200 dark:border-ink-800 overflow-y-auto flex flex-col'
           : 'glass-panel rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto border border-ink-200 dark:border-ink-800'}>
         <div className="px-5 py-4 border-b border-ink-100 dark:border-ink-800 flex items-center justify-between">
-          <h2 className="text-base font-semibold">{isEdit ? 'Edit Event' : 'Add Event'}</h2>
+          <h2 className="text-base font-semibold">{isEdit ? t('modal.editEvent') : t('modal.addEvent')}</h2>
           <button type="button" onClick={onClose} className="btn-ghost btn -mr-2">✕</button>
         </div>
 
@@ -197,21 +199,21 @@ export default function EventModal({ mode, event, defaultDate, defaultStartTime,
         )}
 
         <div className="p-5 space-y-4">
-          <Field label="Title">
+          <Field label={t('field.title')}>
             <input autoFocus type="text" value={title} onChange={(e) => setTitle(e.target.value)}
-              placeholder="Event title" className="input text-base" />
+              placeholder={t('ph.eventTitle')} className="input text-base" />
           </Field>
 
-          <Field label="Date">
+          <Field label={t('field.date')}>
             <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="input" />
           </Field>
 
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Start"><input type="time" value={start} onChange={(e) => setStart(e.target.value)} className="input" /></Field>
-            <Field label="End"><input type="time" value={end} onChange={(e) => setEnd(e.target.value)} className="input" /></Field>
+            <Field label={t('field.start')}><input type="time" value={start} onChange={(e) => setStart(e.target.value)} className="input" /></Field>
+            <Field label={t('field.end')}><input type="time" value={end} onChange={(e) => setEnd(e.target.value)} className="input" /></Field>
           </div>
 
-          <Field label="Color">
+          <Field label={t('field.color')}>
             <div className="flex gap-2 flex-wrap">
               {COLORS.map((c) => (
                 <button key={c} type="button" onClick={() => setColor(c)}
@@ -221,18 +223,18 @@ export default function EventModal({ mode, event, defaultDate, defaultStartTime,
             </div>
           </Field>
 
-          <Field label="Location (optional)">
+          <Field label={`${t('field.location')} ${t('field.optional')}`}>
             <input type="text" value={location} onChange={(e) => setLoc(e.target.value)}
-              placeholder="Room, cafe, etc." className="input" />
+              placeholder={t('ph.location')} className="input" />
           </Field>
 
-          <Field label="Project">
-            <ProjectPicker value={project} suggestions={projects} onChange={setProject} />
+          <Field label={t('field.project')}>
+            <ProjectPicker value={projectsSel} suggestions={projects} onChange={setProjectsSel} placeholder={t('ph.addProject')} />
           </Field>
 
-          <Field label="Reminder">
+          <Field label={t('field.reminder')}>
             <div className="flex gap-1 flex-wrap">
-              {([[null, 'Off'], [0, 'At start'], [5, '5m'], [10, '10m'], [15, '15m'], [30, '30m'], [60, '1h']] as const).map(([val, lbl]) => (
+              {([[null, t('reminder.off')], [0, t('reminder.atStart')], [5, '5m'], [10, '10m'], [15, '15m'], [30, '30m'], [60, '1h']] as const).map(([val, lbl]) => (
                 <button key={String(val)} type="button" onClick={() => setReminder(val)}
                   className={`text-xs px-2.5 py-1.5 rounded-lg font-medium transition-colors ${
                     reminder === val ? 'bg-accent-500 text-white' : 'bg-ink-100 dark:bg-ink-800 text-ink-500 hover:bg-ink-200 dark:hover:bg-ink-700'}`}>
@@ -242,14 +244,14 @@ export default function EventModal({ mode, event, defaultDate, defaultStartTime,
             </div>
           </Field>
 
-          <Field label="Notes (optional)">
+          <Field label={`${t('field.notes')} ${t('field.optional')}`}>
             <textarea value={description} onChange={(e) => setDescription(e.target.value)}
-              placeholder="Additional details" rows={2} className="input resize-none" />
+              placeholder={t('ph.notes')} rows={2} className="input resize-none" />
           </Field>
 
           <div className="pt-2 border-t border-ink-100 dark:border-ink-800">
             <label className="flex items-center justify-between cursor-pointer">
-              <span className="text-sm font-medium">Repeat</span>
+              <span className="text-sm font-medium">{t('field.repeat')}</span>
               <button type="button" onClick={() => setRecurOn((v) => !v)}
                 className={`relative w-10 h-6 rounded-full transition-colors ${recurOn ? 'bg-accent-500' : 'bg-ink-300 dark:bg-ink-700'}`}>
                 <span className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow-sm transition-transform ${recurOn ? 'translate-x-5 left-0.5' : 'left-0.5'}`} />
@@ -259,10 +261,10 @@ export default function EventModal({ mode, event, defaultDate, defaultStartTime,
             {recurOn && (
               <div className="mt-3 space-y-3 bg-accent-50 dark:bg-ink-800 rounded-xl p-3">
                 <div className="flex gap-1">
-                  {(['daily', 'weekly', 'monthly', 'yearly'] as const).map((t) => (
-                    <button key={t} type="button" onClick={() => setRecurType(t)}
-                      className={`flex-1 text-xs py-1.5 rounded-lg font-medium transition-colors ${recurType === t ? 'bg-accent-500 text-white' : 'bg-white dark:bg-ink-900 text-ink-500 hover:bg-ink-100 dark:hover:bg-ink-700'}`}>
-                      {t === 'daily' ? 'Daily' : t === 'weekly' ? 'Weekly' : t === 'monthly' ? 'Monthly' : 'Yearly'}
+                  {(['daily', 'weekly', 'monthly', 'yearly'] as const).map((rt) => (
+                    <button key={rt} type="button" onClick={() => setRecurType(rt)}
+                      className={`flex-1 text-xs py-1.5 rounded-lg font-medium transition-colors ${recurType === rt ? 'bg-accent-500 text-white' : 'bg-white dark:bg-ink-900 text-ink-500 hover:bg-ink-100 dark:hover:bg-ink-700'}`}>
+                      {rt === 'daily' ? t('repeat.daily') : rt === 'weekly' ? t('repeat.weekly') : rt === 'monthly' ? t('repeat.monthly') : t('repeat.yearly')}
                     </button>
                   ))}
                 </div>
@@ -279,11 +281,11 @@ export default function EventModal({ mode, event, defaultDate, defaultStartTime,
                 )}
 
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-xs text-ink-500">Ends:</span>
+                  <span className="text-xs text-ink-500">{t('repeat.ends')}</span>
                   {(['never', 'count', 'date'] as const).map((et) => (
                     <button key={et} type="button" onClick={() => setEndType(et)}
                       className={`text-xs px-2.5 py-1 rounded-lg ${endType === et ? 'bg-accent-100 dark:bg-accent-500/20 text-accent-600 dark:text-accent-400 font-medium' : 'text-ink-400 hover:bg-white dark:hover:bg-ink-700'}`}>
-                      {et === 'never' ? 'Never' : et === 'count' ? 'After N' : 'On Date'}
+                      {et === 'never' ? t('repeat.never') : et === 'count' ? t('repeat.afterN') : t('repeat.onDate')}
                     </button>
                   ))}
                 </div>
@@ -291,7 +293,7 @@ export default function EventModal({ mode, event, defaultDate, defaultStartTime,
                   <div className="flex items-center gap-2">
                     <input type="number" min="1" max="365" value={endCount}
                       onChange={(e) => setEndCount(e.target.value)} className="input w-24 text-sm" />
-                    <span className="text-xs text-ink-500">times</span>
+                    <span className="text-xs text-ink-500">{t('repeat.times')}</span>
                   </div>
                 )}
                 {endType === 'date' && (
@@ -305,12 +307,12 @@ export default function EventModal({ mode, event, defaultDate, defaultStartTime,
         <div className="px-5 py-3 border-t border-ink-100 dark:border-ink-800 flex gap-2 justify-between">
           {isEdit ? (
             <button type="button" onClick={handleDelete}
-              className="btn text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10">Delete</button>
+              className="btn text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10">{t('verb.delete')}</button>
           ) : <span />}
           <div className="flex gap-2">
-            <button type="button" onClick={onClose} className="btn btn-ghost">Cancel</button>
+            <button type="button" onClick={onClose} className="btn btn-ghost">{t('verb.cancel')}</button>
             <button type="submit" disabled={saving || !title.trim()} className="btn btn-primary disabled:opacity-50">
-              {saving ? 'Saving...' : isEdit ? 'Save' : 'Add'}
+              {saving ? t('verb.saving') : isEdit ? t('verb.save') : t('verb.add')}
             </button>
           </div>
         </div>

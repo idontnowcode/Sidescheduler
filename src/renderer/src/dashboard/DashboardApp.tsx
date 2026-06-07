@@ -7,6 +7,8 @@ import EventModal from '../components/modals/EventModal'
 import TaskModal from '../components/modals/TaskModal'
 import { useDashboardData } from './useDashboardData'
 import { useThemeStore } from '../store/themeStore'
+import { useLangStore } from '../store/langStore'
+import { useT } from '../lib/i18n'
 
 type ViewMode = 'today' | 'day' | 'month' | 'week' | 'settings'
 
@@ -24,9 +26,13 @@ function weekEnd(d: Date)    { const s = weekStart(d); return new Date(s.getFull
 export default function DashboardApp() {
   const [view, setView] = useState<ViewMode>('today')
   const [current, setCurrent] = useState(() => new Date())
+  // The day the user clicked in Week header or Month cell — drives the "Selected" task filter.
+  const [selectedDay, setSelectedDay] = useState<Date | null>(null)
   const initTheme = useThemeStore((s) => s.init)
+  const initLang  = useLangStore((s) => s.init)
+  const t = useT()
 
-  useEffect(() => { initTheme() }, [initTheme])
+  useEffect(() => { initTheme(); initLang() }, [initTheme, initLang])
 
   const [addEvent, setAddEvent] = useState<{ date: Date; startTime?: string; endTime?: string } | null>(null)
   const [addTask, setAddTask]   = useState<{ date?: Date } | null>(null)
@@ -104,7 +110,7 @@ export default function DashboardApp() {
     view === 'week'  ? (() => {
       const ws = weekStart(current), we = weekEnd(current)
       return `${MONTHS_SHORT[ws.getMonth()]} ${ws.getDate()} – ${MONTHS_SHORT[we.getMonth()]} ${we.getDate()}, ${we.getFullYear()}`
-    })() : 'Settings'
+    })() : t('settings.title')
 
   const showNav = view !== 'today' && view !== 'settings'
 
@@ -113,7 +119,7 @@ export default function DashboardApp() {
       <div className="flex items-center gap-3 px-6 py-3 border-b border-ink-100 dark:border-ink-800 flex-shrink-0">
         <div className="flex rounded-xl bg-ink-100 dark:bg-ink-800 p-0.5">
           {([
-            ['today', 'Today'], ['day', 'Day'], ['week', 'Week'], ['month', 'Month'], ['settings', 'Settings']
+            ['today', t('tab.today')], ['day', t('tab.day')], ['week', t('tab.week')], ['month', t('tab.month')], ['settings', t('tab.settings')]
           ] as const).map(([v, label]) => (
             <button key={v} onClick={() => setView(v)}
               className={`px-3.5 py-1.5 rounded-lg text-sm font-medium transition-all ${
@@ -130,7 +136,7 @@ export default function DashboardApp() {
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" />
           </svg>
-          Quick add
+          {t('header.quickAdd')}
           <kbd className="text-2xs font-mono px-1 py-0.5 rounded bg-white dark:bg-ink-900 text-ink-400">⌘K</kbd>
         </button>
 
@@ -138,28 +144,28 @@ export default function DashboardApp() {
           <div className="flex items-center gap-1.5">
             <button onClick={() => setAddEvent({ date: view === 'today' ? today : current })}
               className="btn btn-primary text-sm flex items-center gap-1">
-              <span className="text-base leading-none">+</span> Event
+              {t('header.addEvent')}
             </button>
             <button onClick={() => setAddTask({ date: view === 'today' ? today : current })}
               className="btn bg-orange-500 text-white hover:bg-orange-600 text-sm flex items-center gap-1">
-              <span className="text-base leading-none">+</span> Task
+              {t('header.addTask')}
             </button>
           </div>
         )}
 
         {showNav && (
           <div className="flex items-center gap-0.5">
-            <button onClick={goToPrev} title="Previous" className="w-8 h-8 rounded-lg flex items-center justify-center text-ink-500 hover:bg-ink-100 dark:hover:bg-ink-800 text-lg leading-none">‹</button>
+            <button onClick={goToPrev} title={t('btn.previous')} className="w-8 h-8 rounded-lg flex items-center justify-center text-ink-500 hover:bg-ink-100 dark:hover:bg-ink-800 text-lg leading-none">‹</button>
             <button onClick={() => setCurrent(new Date())}
               className="px-3 h-8 rounded-lg text-xs font-medium text-ink-600 dark:text-ink-300 hover:bg-ink-100 dark:hover:bg-ink-800">
-              Today
+              {t('header.todayPill')}
             </button>
-            <button onClick={goToNext} title="Next" className="w-8 h-8 rounded-lg flex items-center justify-center text-ink-500 hover:bg-ink-100 dark:hover:bg-ink-800 text-lg leading-none">›</button>
+            <button onClick={goToNext} title={t('btn.next')} className="w-8 h-8 rounded-lg flex items-center justify-center text-ink-500 hover:bg-ink-100 dark:hover:bg-ink-800 text-lg leading-none">›</button>
           </div>
         )}
 
         {view !== 'settings' && (
-          <button onClick={reload} title="Refresh"
+          <button onClick={reload} title={t('btn.refresh')}
             className="w-8 h-8 rounded-lg flex items-center justify-center text-ink-400 hover:bg-ink-100 dark:hover:bg-ink-800">↻</button>
         )}
       </div>
@@ -170,24 +176,27 @@ export default function DashboardApp() {
          : view === 'month' ? (
             <MonthView current={current} events={events} tasks={allIncompleteTasks}
               onReload={reload} onNavigate={setCurrent}
+              onPickDay={(d) => { setSelectedDay(d); setCurrent(d); setView('day') }}
               onAddEvent={(d) => setAddEvent({ date: d })} />
           )
          : view === 'day' ? (
             <WeekView dayMode current={current} events={events} tasks={allIncompleteTasks}
               onReload={reload} onNavigate={setCurrent}
+              selectedDay={selectedDay} onSelectDay={setSelectedDay}
               onAddEvent={(d, st, et) => setAddEvent({ date: d, startTime: st, endTime: et })}
               onAddTask={(d) => setAddTask({ date: d })} />
           )
          : (
             <WeekView current={current} events={events} tasks={allIncompleteTasks}
               onReload={reload} onNavigate={setCurrent}
+              selectedDay={selectedDay} onSelectDay={setSelectedDay}
               onAddEvent={(d, st, et) => setAddEvent({ date: d, startTime: st, endTime: et })}
               onAddTask={(d) => setAddTask({ date: d })} />
           )}
         {/* Loading overlay — keeps the view mounted so scroll position is preserved */}
         {loading && view !== 'settings' && (
           <div className="absolute top-3 right-6 text-xs text-ink-400 bg-white/80 dark:bg-ink-900/80 px-2.5 py-1 rounded-lg backdrop-blur-sm">
-            Loading...
+            {t('header.loading')}
           </div>
         )}
       </div>
