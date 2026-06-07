@@ -14,6 +14,8 @@ interface Props {
   onReload: () => void; onNavigate: (d: Date) => void
   onAddEvent?: (date: Date, startTime?: string, endTime?: string) => void
   onAddTask?: (date: Date) => void
+  /** When true, render a single-day timeline instead of a week. */
+  dayMode?: boolean
 }
 
 const sod = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate())
@@ -89,11 +91,18 @@ function layoutDayEvents(evs: CalEvent[]): Map<string, { col: number; cols: numb
   return out
 }
 
-export default function WeekView({ current, events, tasks, onReload, onNavigate, onAddEvent, onAddTask }: Props) {
-  const days = weekDays(current)
+export default function WeekView({ current, events, tasks, onReload, onNavigate, onAddEvent, onAddTask, dayMode }: Props) {
+  const days = dayMode ? [sod(current)] : weekDays(current)
   const today = new Date()
   const scrollRef = useRef<HTMLDivElement>(null)
   useEffect(() => { if (scrollRef.current) scrollRef.current.scrollTop = 8 * HOUR_H }, [])
+
+  // Live "now" line — refresh every minute
+  const [nowTs, setNowTs] = useState(() => Date.now())
+  useEffect(() => {
+    const t = setInterval(() => setNowTs(Date.now()), 60 * 1000)
+    return () => clearInterval(t)
+  }, [])
 
   const [taskOpen, setTaskOpen] = useState(true)
   const [taskH, setTaskH] = useState(220)
@@ -295,6 +304,16 @@ export default function WeekView({ current, events, tasks, onReload, onNavigate,
                 {Array.from({length:24},(_,h)=>(
                   <div key={h} className="absolute left-0 right-0 border-t border-ink-100 dark:border-ink-800/40" style={{top:h*HOUR_H}} />
                 ))}
+                {/* Current-time line (only on today's column) */}
+                {sameDay(day, new Date(nowTs)) && (() => {
+                  const nowY = tsToY(nowTs, day)
+                  return (
+                    <div className="absolute left-0 right-0 z-20 pointer-events-none" style={{ top: nowY }}>
+                      <div className="absolute -left-1 -top-1.5 w-3 h-3 rounded-full bg-red-500 shadow" />
+                      <div className="h-px bg-red-500" />
+                    </div>
+                  )
+                })()}
                 {dayEvs.map(ev => {
                   const top = tsToY(ev.startAt, day)
                   const dur = ev.endAt - ev.startAt

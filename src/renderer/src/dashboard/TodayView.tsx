@@ -41,6 +41,8 @@ export default function TodayView({ events, allIncompleteTasks, onReload }: Prop
   const overdueTasks  = allIncompleteTasks.filter((t) => !t.done && !t.recurrence && t.dueAt != null && t.dueAt < todayStart)
   // today's tasks: keep done so completed-today are visible
   const todayTasks    = allIncompleteTasks.filter((t) => t.dueAt != null && t.dueAt >= todayStart && t.dueAt <= todayEnd)
+  // inbox: tasks without a due date and not done
+  const inboxTasks    = allIncompleteTasks.filter((t) => !t.done && t.dueAt == null && !t.recurrence).slice(0, 8)
 
   const [editEvent, setEditEvent] = useState<CalEvent | null>(null)
   const [editTask, setEditTask]   = useState<Task | null>(null)
@@ -118,6 +120,20 @@ export default function TodayView({ events, allIncompleteTasks, onReload }: Prop
             </div>
           )}
         </Card>
+
+        {inboxTasks.length > 0 && (
+          <Card className="md:col-span-2">
+            <CardHeader label="Inbox" count={inboxTasks.length} color="ink" />
+            <p className="text-xs text-ink-400 mb-2 -mt-1.5">Tasks without a due date — pick a few to schedule.</p>
+            <div className="space-y-1">
+              {inboxTasks.map((t) => (
+                <TaskRow key={t.id} task={t}
+                  onToggle={() => handleToggle(t.id, onReload)}
+                  onEdit={() => setEditTask(t)} />
+              ))}
+            </div>
+          </Card>
+        )}
       </div>
 
       {editEvent && (
@@ -190,12 +206,14 @@ function CardHeader({ label, count, color, empty }: {
   const colorMap: Record<string, string> = {
     accent: 'text-accent-600 dark:text-accent-400',
     red:    'text-red-500 dark:text-red-400',
-    orange: 'text-orange-500 dark:text-orange-400'
+    orange: 'text-orange-500 dark:text-orange-400',
+    ink:    'text-ink-600 dark:text-ink-300'
   }
   const badgeMap: Record<string, string> = {
     accent: 'bg-accent-50 dark:bg-accent-500/15 text-accent-600 dark:text-accent-400',
     red:    'bg-red-50 dark:bg-red-500/15 text-red-500 dark:text-red-400',
-    orange: 'bg-orange-50 dark:bg-orange-500/15 text-orange-500 dark:text-orange-400'
+    orange: 'bg-orange-50 dark:bg-orange-500/15 text-orange-500 dark:text-orange-400',
+    ink:    'bg-ink-100 dark:bg-ink-800 text-ink-600 dark:text-ink-300'
   }
   return (
     <div className="flex items-center gap-2 mb-3">

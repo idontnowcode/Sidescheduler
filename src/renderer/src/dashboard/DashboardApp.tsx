@@ -8,7 +8,7 @@ import TaskModal from '../components/modals/TaskModal'
 import { useDashboardData } from './useDashboardData'
 import { useThemeStore } from '../store/themeStore'
 
-type ViewMode = 'today' | 'month' | 'week' | 'settings'
+type ViewMode = 'today' | 'day' | 'month' | 'week' | 'settings'
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June',
                 'July', 'August', 'September', 'October', 'November', 'December']
@@ -37,12 +37,14 @@ export default function DashboardApp() {
 
   const rangeStart = useMemo(() =>
     view === 'today' ? todayStart :
+    view === 'day'   ? sod(current).getTime() :
     view === 'month' ? monthStart(current).getTime() :
     view === 'week'  ? weekStart(current).getTime() : todayStart,
   [view, current, todayStart])
 
   const rangeEnd = useMemo(() =>
     view === 'today' ? todayEnd :
+    view === 'day'   ? sod(current).getTime() + 86400000 - 1 :
     view === 'month' ? monthEnd(current).getTime() :
     view === 'week'  ? weekEnd(current).getTime() : todayEnd,
   [view, current, todayEnd])
@@ -59,6 +61,7 @@ export default function DashboardApp() {
       if (e.key === 't' && !e.metaKey && !e.ctrlKey) { setView('today'); setCurrent(new Date()) }
       else if (e.key === 'm' && !e.metaKey) setView('month')
       else if (e.key === 'w' && !e.metaKey) setView('week')
+      else if (e.key === 'd' && !e.metaKey && !e.ctrlKey) setView('day')
       else if (e.key === 'n' && !e.shiftKey && !e.metaKey && !e.ctrlKey) {
         e.preventDefault(); setAddEvent({ date: current })
       }
@@ -81,19 +84,22 @@ export default function DashboardApp() {
 
   const goToPrev = () => setCurrent((c) => {
     const d = new Date(c)
-    if (view === 'month') d.setMonth(d.getMonth() - 1)
-    else d.setDate(d.getDate() - 7)
+    if (view === 'month')     d.setMonth(d.getMonth() - 1)
+    else if (view === 'day')  d.setDate(d.getDate() - 1)
+    else                       d.setDate(d.getDate() - 7)
     return d
   })
   const goToNext = () => setCurrent((c) => {
     const d = new Date(c)
-    if (view === 'month') d.setMonth(d.getMonth() + 1)
-    else d.setDate(d.getDate() + 7)
+    if (view === 'month')     d.setMonth(d.getMonth() + 1)
+    else if (view === 'day')  d.setDate(d.getDate() + 1)
+    else                       d.setDate(d.getDate() + 7)
     return d
   })
 
   const headerLabel =
     view === 'today' ? `${MONTHS[today.getMonth()]} ${today.getDate()}, ${today.getFullYear()}` :
+    view === 'day'   ? `${MONTHS[current.getMonth()]} ${current.getDate()}, ${current.getFullYear()}` :
     view === 'month' ? `${MONTHS[current.getMonth()]} ${current.getFullYear()}` :
     view === 'week'  ? (() => {
       const ws = weekStart(current), we = weekEnd(current)
@@ -107,7 +113,7 @@ export default function DashboardApp() {
       <div className="flex items-center gap-3 px-6 py-3 border-b border-ink-100 dark:border-ink-800 flex-shrink-0">
         <div className="flex rounded-xl bg-ink-100 dark:bg-ink-800 p-0.5">
           {([
-            ['today', 'Today'], ['month', 'Month'], ['week', 'Week'], ['settings', 'Settings']
+            ['today', 'Today'], ['day', 'Day'], ['week', 'Week'], ['month', 'Month'], ['settings', 'Settings']
           ] as const).map(([v, label]) => (
             <button key={v} onClick={() => setView(v)}
               className={`px-3.5 py-1.5 rounded-lg text-sm font-medium transition-all ${
@@ -165,6 +171,12 @@ export default function DashboardApp() {
             <MonthView current={current} events={events} tasks={allIncompleteTasks}
               onReload={reload} onNavigate={setCurrent}
               onAddEvent={(d) => setAddEvent({ date: d })} />
+          )
+         : view === 'day' ? (
+            <WeekView dayMode current={current} events={events} tasks={allIncompleteTasks}
+              onReload={reload} onNavigate={setCurrent}
+              onAddEvent={(d, st, et) => setAddEvent({ date: d, startTime: st, endTime: et })}
+              onAddTask={(d) => setAddTask({ date: d })} />
           )
          : (
             <WeekView current={current} events={events} tasks={allIncompleteTasks}

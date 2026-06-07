@@ -112,7 +112,7 @@ export default function TaskBoard() {
                 </SubSection>
               )}
               {noDueTasks.length > 0 && (
-                <SubSection title="No Due Date" color="ink-light" count={noDueTasks.length}>
+                <SubSection title="Inbox" color="ink-light" count={noDueTasks.length}>
                   {noDueTasks.map((t) => <TaskItem key={t.id} task={t} />)}
                 </SubSection>
               )}

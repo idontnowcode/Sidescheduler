@@ -24,6 +24,26 @@ function snoozeTo(deltaDays: number | null): number | null {
   return d.getTime()
 }
 
+function snoozeInHours(hours: number): number {
+  return Date.now() + hours * 3600000
+}
+
+function snoozeToTonight(): number {
+  const d = new Date()
+  d.setHours(18, 0, 0, 0)
+  if (d.getTime() <= Date.now()) d.setDate(d.getDate() + 1) // already past 18:00 -> tomorrow evening
+  return d.getTime()
+}
+
+function snoozeToWeekend(): number {
+  const d = new Date()
+  // upcoming Saturday at 09:00
+  const daysUntilSat = (6 - d.getDay() + 7) % 7 || 7
+  d.setDate(d.getDate() + daysUntilSat)
+  d.setHours(9, 0, 0, 0)
+  return d.getTime()
+}
+
 function fmtDuration(min: number): string {
   if (min < 60) return `${min}m`
   const h = Math.floor(min / 60), r = min % 60
@@ -49,6 +69,11 @@ export default function TaskItem({ task, dueBadge, overdue }: Props) {
   async function snooze(deltaDays: number | null) {
     setMenu(false)
     await window.electronAPI.snoozeTask(task.id, snoozeTo(deltaDays))
+    reload()
+  }
+  async function snoozeAt(ts: number) {
+    setMenu(false)
+    await window.electronAPI.snoozeTask(task.id, ts)
     reload()
   }
 
@@ -130,8 +155,11 @@ export default function TaskItem({ task, dueBadge, overdue }: Props) {
         {menu && (
           <div ref={menuRef}
             className="absolute right-0 top-6 z-30 bg-white dark:bg-ink-900 border border-ink-200 dark:border-ink-800 rounded-xl shadow-glass-lg py-1 min-w-[160px]">
+            <MenuItem onClick={() => snoozeAt(snoozeInHours(2))}>+2 hours</MenuItem>
+            <MenuItem onClick={() => snoozeAt(snoozeToTonight())}>This evening (18:00)</MenuItem>
             <MenuItem onClick={() => snooze(0)}>Move to today</MenuItem>
             <MenuItem onClick={() => snooze(1)}>Move to tomorrow</MenuItem>
+            <MenuItem onClick={() => snoozeAt(snoozeToWeekend())}>This weekend</MenuItem>
             <MenuItem onClick={() => snooze(7)}>Move to next week</MenuItem>
             <MenuItem onClick={() => snooze(null)}>Clear due date</MenuItem>
             <hr className="my-1 border-ink-100 dark:border-ink-800" />

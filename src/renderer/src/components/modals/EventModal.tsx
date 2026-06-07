@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { CalEvent, RecurrenceRule } from '../../types'
 import RecurrenceConfirm from './RecurrenceConfirm'
 
@@ -53,6 +53,34 @@ export default function EventModal({ mode, event, defaultDate, defaultStartTime,
   const [endDate, setEndDate]     = useState(initialRecur?.endDate ? toDateInput(new Date(initialRecur.endDate)) : '')
 
   const [saving, setSaving] = useState(false)
+
+  // Conflict detection — list events on the same day and find overlaps
+  const [conflicts, setConflicts] = useState<CalEvent[]>([])
+  useEffect(() => {
+    let cancelled = false
+    const s = combine(date, start)
+    const e = combine(date, end)
+    if (!Number.isFinite(s) || !Number.isFinite(e) || s >= e) { setConflicts([]); return }
+    const dayS = new Date(date + 'T00:00:00').getTime()
+    const dayE = dayS + 86400000 - 1
+    window.electronAPI.listEvents({ start: dayS, end: dayE }).then((rows) => {
+      if (cancelled) return
+      // Convert via inline mapper to avoid extra import
+      const overlapping = rows
+        .filter((r) => {
+          // ignore the event being edited itself
+          if (event && (r.id === event.id || (event.originalId && r.id.startsWith(event.originalId + '__')))) return false
+          return r.start_at < e && r.end_at > s
+        })
+        .slice(0, 3)
+        .map((r) => ({
+          id: r.id, title: r.title, startAt: r.start_at, endAt: r.end_at, color: r.color,
+          location: r.location ?? undefined
+        } as CalEvent))
+      setConflicts(overlapping)
+    }).catch(() => setConflicts([]))
+    return () => { cancelled = true }
+  }, [date, start, end, event])
   const [recurChoice, setRecurChoice] = useState<{ payload: Partial<import('../../types').EventRow> } | null>(null)
 
   function buildRecurrence(): string | undefined {
@@ -139,6 +167,25 @@ export default function EventModal({ mode, event, defaultDate, defaultStartTime,
           <h2 className="text-base font-semibold">{isEdit ? 'Edit Event' : 'Add Event'}</h2>
           <button type="button" onClick={onClose} className="btn-ghost btn -mr-2">✕</button>
         </div>
+
+        {conflicts.length > 0 && (
+          <div className="mx-5 mt-4 -mb-1 px-3.5 py-2.5 rounded-lg bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 text-xs">
+            <p className="font-medium text-amber-700 dark:text-amber-400 mb-1">
+              ⚠ Conflicts with {conflicts.length} event{conflicts.length !== 1 ? 's' : ''}
+            </p>
+            <ul className="space-y-0.5 text-amber-700 dark:text-amber-300/80">
+              {conflicts.map((c) => {
+                const s = new Date(c.startAt), e = new Date(c.endAt)
+                const fmt = (d: Date) => `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`
+                return <li key={c.id} className="flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: c.color }} />
+                  <span className="truncate flex-1">{c.title}</span>
+                  <span className="tabular-nums opacity-70">{fmt(s)}–{fmt(e)}</span>
+                </li>
+              })}
+            </ul>
+          </div>
+        )}
 
         <div className="p-5 space-y-4">
           <Field label="Title">
