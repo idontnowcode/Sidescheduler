@@ -54,6 +54,7 @@ export interface CalEvent {
   description?: string
   recurrence?: RecurrenceRule
   reminderMinutes?: number
+  project?: string
   isRecurringInstance?: boolean
   originalId?: string
 }
@@ -84,6 +85,7 @@ export interface EventRow {
   source: string; google_id: string | null
   recurrence?: string
   reminder_minutes?: number
+  project?: string | null
   created_at: number; updated_at: number
 }
 
@@ -106,6 +108,7 @@ export function rowToEvent(row: EventRow): CalEvent {
     location: row.location ?? undefined, description: row.description ?? undefined,
     recurrence: (row.recurrence && !isInstance) ? JSON.parse(row.recurrence) : undefined,
     reminderMinutes: row.reminder_minutes,
+    project: row.project ?? undefined,
     isRecurringInstance: isInstance, originalId
   }
 }
@@ -173,7 +176,7 @@ declare global {
       createEvent: (data: {
         title: string; start_at: number; end_at: number;
         color?: string; location?: string; description?: string; recurrence?: string;
-        reminder_minutes?: number
+        reminder_minutes?: number; project?: string
       }) => Promise<EventRow>
       updateEvent: (data: Partial<EventRow> & { id: string }) => Promise<EventRow>
       moveEvent: (id: string, start_at: number, end_at: number) => Promise<EventRow>
@@ -200,6 +203,8 @@ declare global {
       deleteTask: (id: string) => Promise<void>
 
       search: (query: string) => Promise<SearchResult>
+
+      listProjects: () => Promise<string[]>
 
       getWorkload: () => Promise<Workload>
 

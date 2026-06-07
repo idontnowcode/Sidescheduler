@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Task, RecurrenceRule, Subtask } from '../../types'
+import ProjectPicker from '../ProjectPicker'
 
 type Priority = 'urgent' | 'normal' | 'low'
 
@@ -35,6 +36,12 @@ export default function TaskModal({ mode, task, defaultDueDate, onClose, onSaved
   )
   const [priority, setPriority] = useState<Priority>(task?.priority ?? 'normal')
   const [project, setProject]   = useState(task?.project ?? '')
+
+  // Known project names for the picker suggestions
+  const [projects, setProjects] = useState<string[]>([])
+  useEffect(() => {
+    window.electronAPI.listProjects().then(setProjects).catch(() => setProjects([]))
+  }, [])
 
   // Estimated duration (split into hours + minutes for UX, stored as minutes)
   const initMin = task?.estimatedMinutes ?? 0
@@ -186,8 +193,7 @@ export default function TaskModal({ mode, task, defaultDueDate, onClose, onSaved
             <label className="block text-2xs font-medium text-ink-500 mb-1.5 uppercase tracking-wider">
               Project <span className="normal-case text-ink-400 font-normal">(optional)</span>
             </label>
-            <input type="text" value={project} onChange={(e) => setProject(e.target.value)}
-              placeholder="e.g. Q2 close, Side project" className="input" />
+            <ProjectPicker value={project} suggestions={projects} onChange={setProject} />
           </div>
 
           {/* Subtasks */}

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { CalEvent, RecurrenceRule } from '../../types'
 import RecurrenceConfirm from './RecurrenceConfirm'
+import ProjectPicker from '../ProjectPicker'
 
 const COLORS = ['#6366F1', '#3B82F6', '#22C55E', '#EF4444', '#F59E0B', '#EC4899', '#14B8A6', '#A855F7']
 const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
@@ -43,6 +44,13 @@ export default function EventModal({ mode, event, defaultDate, defaultStartTime,
   const [location, setLoc]  = useState(event?.location ?? '')
   const [description, setDescription] = useState(event?.description ?? '')
   const [reminder, setReminder] = useState<number | null>(event?.reminderMinutes ?? null)
+  const [project, setProject] = useState(event?.project ?? '')
+
+  // Load known project names for suggestions
+  const [projects, setProjects] = useState<string[]>([])
+  useEffect(() => {
+    window.electronAPI.listProjects().then(setProjects).catch(() => setProjects([]))
+  }, [])
 
   const initialRecur = event?.recurrence
   const [recurOn, setRecurOn]     = useState(!!initialRecur)
@@ -107,7 +115,8 @@ export default function EventModal({ mode, event, defaultDate, defaultStartTime,
       location: location || undefined,
       description: description || undefined,
       recurrence: buildRecurrence(),
-      reminder_minutes: reminder ?? undefined
+      reminder_minutes: reminder ?? undefined,
+      project: project.trim() || undefined
     }
 
     if (!isEdit) {
@@ -215,6 +224,10 @@ export default function EventModal({ mode, event, defaultDate, defaultStartTime,
           <Field label="Location (optional)">
             <input type="text" value={location} onChange={(e) => setLoc(e.target.value)}
               placeholder="Room, cafe, etc." className="input" />
+          </Field>
+
+          <Field label="Project">
+            <ProjectPicker value={project} suggestions={projects} onChange={setProject} />
           </Field>
 
           <Field label="Reminder">

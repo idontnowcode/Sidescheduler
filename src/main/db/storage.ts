@@ -25,6 +25,7 @@ export interface EventRow {
   google_id: string | null
   recurrence?: string
   reminder_minutes?: number   // notify this many minutes before start (undefined = off)
+  project?: string | null     // user-defined project tag (shared vocabulary with tasks)
   created_at: number
   updated_at: number
 }
@@ -144,7 +145,7 @@ export function listEvents(start: number, end: number): EventRow[] {
 export function createEvent(data: {
   title: string; start_at: number; end_at: number
   color?: string; location?: string; description?: string; recurrence?: string
-  reminder_minutes?: number
+  reminder_minutes?: number; project?: string
 }): EventRow {
   const now = Date.now()
   const row: EventRow = {
@@ -154,6 +155,7 @@ export function createEvent(data: {
     location: data.location ?? null, description: data.description ?? null,
     source: 'local', google_id: null, recurrence: data.recurrence,
     reminder_minutes: data.reminder_minutes,
+    project: data.project ?? null,
     created_at: now, updated_at: now
   }
   const db = load(); db.events.push(row); persist(db); return row
@@ -323,6 +325,24 @@ export function deleteTask(id: string): void {
   const db = load()
   db.tasks = db.tasks.filter(t => t.id !== id)
   persist(db)
+}
+
+// ── Projects ──────────────────────────────────────────────────────────────
+/** Unique non-empty project names across events and tasks (sorted by usage). */
+export function listProjects(): string[] {
+  const counts = new Map<string, number>()
+  const db = load()
+  const bump = (p: string | null | undefined) => {
+    if (!p) return
+    const k = p.trim()
+    if (!k) return
+    counts.set(k, (counts.get(k) ?? 0) + 1)
+  }
+  for (const e of db.events) bump(e.project)
+  for (const t of db.tasks)  bump(t.project)
+  return [...counts.entries()]
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .map(([k]) => k)
 }
 
 // ── Search ────────────────────────────────────────────────────────────────

@@ -57,6 +57,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Search
   search: (query: string) => ipcRenderer.invoke('db:search', { query }),
 
+  // Projects
+  listProjects: () => ipcRenderer.invoke('db:projects:list'),
+
   // Workload
   getWorkload: () => ipcRenderer.invoke('workload:get'),
 

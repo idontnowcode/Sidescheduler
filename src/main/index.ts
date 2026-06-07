@@ -5,6 +5,7 @@ import {
   initDb,
   listEvents, createEvent, updateEvent, updateEventMove, updateEventInstance, deleteEvent, deleteEventInstance,
   listTasks, listAllIncompleteTasks, listAllTasks, createTask, updateTask, toggleTask, snoozeTask, deleteTask,
+  listProjects,
   searchAll
 } from './db/storage'
 import { loadSettings, saveSettings, WindowSettings } from './settings'
@@ -390,6 +391,9 @@ ipcMain.handle('db:tasks:delete',              (_e, { id }: { id: string }) => {
 
 // ── IPC: Search ───────────────────────────────────────────────────────────
 ipcMain.handle('db:search', (_e, { query }: { query: string }) => searchAll(query))
+
+// ── IPC: Projects ─────────────────────────────────────────────────────────
+ipcMain.handle('db:projects:list', () => listProjects())
 
 // ── IPC: Workload ─────────────────────────────────────────────────────────
 ipcMain.handle('workload:get', () => computeWorkload(Date.now()))
