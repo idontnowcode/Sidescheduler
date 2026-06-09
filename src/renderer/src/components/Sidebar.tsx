@@ -74,7 +74,7 @@ export default function Sidebar({ onHover }: Props) {
 
       {/* Notes (LightNote) */}
       <IconBtn title="Notes (LightNote)" size={btnSize}
-        onClick={(e) => { e.stopPropagation(); window.electronAPI.openDashboard() }}>
+        onClick={(e) => { e.stopPropagation(); window.electronAPI.lightnoteOpen() }}>
         <NoteIcon size={iconSize} />
       </IconBtn>
 

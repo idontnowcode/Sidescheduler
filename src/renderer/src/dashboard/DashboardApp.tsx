@@ -3,7 +3,6 @@ import MonthView from './MonthView'
 import WeekView from './WeekView'
 import TodayView from './TodayView'
 import SettingsView from './SettingsView'
-import NotesView from './NotesView'
 import EventModal from '../components/modals/EventModal'
 import TaskModal from '../components/modals/TaskModal'
 import { useDashboardData } from './useDashboardData'
@@ -11,7 +10,7 @@ import { useThemeStore } from '../store/themeStore'
 import { useLangStore } from '../store/langStore'
 import { useT } from '../lib/i18n'
 
-type ViewMode = 'today' | 'day' | 'month' | 'week' | 'notes' | 'settings'
+type ViewMode = 'today' | 'day' | 'month' | 'week' | 'settings'
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June',
                 'July', 'August', 'September', 'October', 'November', 'December']
@@ -112,17 +111,16 @@ export default function DashboardApp() {
       const ws = weekStart(current), we = weekEnd(current)
       return `${MONTHS_SHORT[ws.getMonth()]} ${ws.getDate()} – ${MONTHS_SHORT[we.getMonth()]} ${we.getDate()}, ${we.getFullYear()}`
     })() :
-    view === 'notes' ? 'Notes' :
     t('settings.title')
 
-  const showNav = view !== 'today' && view !== 'settings' && view !== 'notes'
+  const showNav = view !== 'today' && view !== 'settings'
 
   return (
     <div className="h-screen flex flex-col surface select-none overflow-hidden">
       <div className="flex items-center gap-3 px-6 py-3 border-b border-ink-100 dark:border-ink-800 flex-shrink-0">
         <div className="flex rounded-xl bg-ink-100 dark:bg-ink-800 p-0.5">
           {([
-            ['today', t('tab.today')], ['day', t('tab.day')], ['week', t('tab.week')], ['month', t('tab.month')], ['notes', '📝 Notes'], ['settings', t('tab.settings')]
+            ['today', t('tab.today')], ['day', t('tab.day')], ['week', t('tab.week')], ['month', t('tab.month')], ['settings', t('tab.settings')]
           ] as const).map(([v, label]) => (
             <button key={v} onClick={() => setView(v)}
               className={`px-3.5 py-1.5 rounded-lg text-sm font-medium transition-all ${
@@ -143,7 +141,7 @@ export default function DashboardApp() {
           <kbd className="text-2xs font-mono px-1 py-0.5 rounded bg-white dark:bg-ink-900 text-ink-400">⌘K</kbd>
         </button>
 
-        {view !== 'settings' && view !== 'notes' && (
+        {view !== 'settings' && (
           <div className="flex items-center gap-1.5">
             <button onClick={() => setAddEvent({ date: view === 'today' ? today : current })}
               className="btn btn-primary text-sm flex items-center gap-1">
@@ -167,15 +165,14 @@ export default function DashboardApp() {
           </div>
         )}
 
-        {view !== 'settings' && view !== 'notes' && (
+        {view !== 'settings' && (
           <button onClick={reload} title={t('btn.refresh')}
             className="w-8 h-8 rounded-lg flex items-center justify-center text-ink-400 hover:bg-ink-100 dark:hover:bg-ink-800">↻</button>
         )}
       </div>
 
       <div className="flex-1 overflow-hidden relative">
-        {view === 'notes'    ? <NotesView />
-         : view === 'settings' ? <SettingsView />
+        {view === 'settings' ? <SettingsView />
          : view === 'today' ? <TodayView events={events} allIncompleteTasks={allIncompleteTasks} onReload={reload} />
          : view === 'month' ? (
             <MonthView current={current} events={events} tasks={allIncompleteTasks}

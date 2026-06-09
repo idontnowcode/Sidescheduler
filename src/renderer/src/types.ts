@@ -225,22 +225,8 @@ declare global {
       getAutoStart: () => Promise<boolean>
       setAutoStart: (value: boolean) => Promise<void>
 
-      // LightNote bridge
-      lightnoteDetect:      () => Promise<{ found: boolean; dataPath: string | null }>
-      lightnoteListRecent:  (limit?: number) => Promise<LightNoteRef[]>
-      lightnoteCreateQuick: (data: { title: string; text: string }) => Promise<{ ok: boolean; pageId?: string; error?: string }>
+      // LightNote launcher
+      lightnoteOpen: () => void
     }
   }
-}
-
-// ── LightNote bridge ──────────────────────────────────────────────────────
-export interface LightNoteRef {
-  id: string
-  title: string
-  excerpt: string
-  updatedAt: number
-  notebookId: string
-  notebookName: string
-  sectionId: string
-  sectionName: string
 }
