@@ -8,6 +8,9 @@ files:
   - "!**/.vscode/*"
   - "!src/*"
   - "!electron.vite.config.*"
+extraResources:
+  - from: resources/lightnote
+    to: lightnote
 win:
   target:
     - target: nsis

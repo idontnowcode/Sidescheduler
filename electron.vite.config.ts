@@ -4,10 +4,20 @@ import react from '@vitejs/plugin-react'
 
 export default defineConfig({
   main: {
-    plugins: [externalizeDepsPlugin()]
+    // Bundle @google/generative-ai into the main process output so it's
+    // available without needing a separate node_modules at runtime.
+    plugins: [externalizeDepsPlugin({ exclude: ['@google/generative-ai'] })]
   },
   preload: {
-    plugins: [externalizeDepsPlugin()]
+    plugins: [externalizeDepsPlugin()],
+    build: {
+      rollupOptions: {
+        input: {
+          index: resolve('src/preload/index.ts'),
+          lightnote: resolve('src/preload/lightnote.js')
+        }
+      }
+    }
   },
   renderer: {
     resolve: {

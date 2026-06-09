@@ -1,8 +1,10 @@
-import { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, screen, Display, Notification, dialog } from 'electron'
+import { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, screen, Display, Notification, safeStorage } from 'electron'
 import { join } from 'path'
-import { spawn } from 'child_process'
-import { readFileSync } from 'fs'
 import { computeWorkload, buildReminderBody } from './workload'
+
+// LightNote IPC handlers — CommonJS module bundled by Rollup (allowJs: true)
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const { registerIpcHandlers: registerLightNoteIpc } = require('./lightnote/ipc-handlers')
 import {
   initDb,
   listEvents, createEvent, updateEvent, updateEventMove, updateEventInstance, deleteEvent, deleteEventInstance,
@@ -18,6 +20,7 @@ let mainWindow: BrowserWindow | null = null
 let dashboardWindow: BrowserWindow | null = null
 let paletteWindow: BrowserWindow | null = null
 let editorWindow: BrowserWindow | null = null
+let lightNoteWindow: BrowserWindow | null = null
 let paletteRequester: 'sidebar' | 'dashboard' = 'sidebar'
 let pendingEditorPayload: unknown = null
 let tray: Tray | null = null
@@ -480,71 +483,47 @@ function scheduleNextReminder(): void {
   }, delay)
 }
 
-// ── LightNote launcher ────────────────────────────────────────────────────
-// Launches the LightNote app as a separate detached process.
-// The path is stored in settings (lightnotePath) and can be configured
-// in Dashboard → Settings → LightNote.
+// ── LightNote embedded window ─────────────────────────────────────────────
+// LightNote runs inside DSP's own Electron process — no external launcher.
+// Renderer HTML lives in resources/lightnote/; preload in out/preload/lightnote.js.
 
-async function launchLightNote(): Promise<void> {
-  let lightnotePath = loadSettings().lightnotePath || ''
-
-  // If no path is configured, prompt the user to select the folder once.
-  if (!lightnotePath) {
-    const result = await dialog.showOpenDialog({
-      title: 'LightNote 폴더 선택',
-      message: 'LightNote 앱 폴더를 선택하세요 (package.json이 있는 폴더)',
-      properties: ['openDirectory'],
-      buttonLabel: '선택'
-    })
-    if (result.canceled || !result.filePaths[0]) return
-    lightnotePath = result.filePaths[0]
-    saveSettings({ lightnotePath })
+function openLightNoteWindow(): void {
+  if (lightNoteWindow && !lightNoteWindow.isDestroyed()) {
+    lightNoteWindow.show()
+    lightNoteWindow.focus()
+    return
   }
 
-  try {
-    // Resolve electron binary via node_modules/electron/path.txt
-    // (same logic as node_modules/electron/index.js)
-    const electronModuleDir = join(lightnotePath, 'node_modules', 'electron')
-    const relPath = readFileSync(join(electronModuleDir, 'path.txt'), 'utf-8').trim()
-    const electronExe = join(electronModuleDir, 'dist', relPath)
+  lightNoteWindow = new BrowserWindow({
+    width: 1280,
+    height: 800,
+    minWidth: 960,
+    minHeight: 600,
+    title: 'LightNote',
+    show: false,
+    webPreferences: {
+      preload: join(__dirname, '../preload/lightnote.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: false,
+      // Allow file:// resources (images stored to disk by LightNote)
+      webSecurity: false
+    }
+  })
 
-    const child = spawn(electronExe, ['.'], {
-      cwd: lightnotePath,
-      detached: true,
-      stdio: 'ignore'
-    })
-    child.on('error', (err) => {
-      console.error('[LightNote] launch failed:', err.message, '| exe:', electronExe)
-      dialog.showErrorBox(
-        'LightNote 실행 오류',
-        `LightNote를 시작할 수 없습니다.\n\n경로: ${lightnotePath}\n오류: ${err.message}\n\nDashboard → Settings → LightNote에서 경로를 다시 지정해주세요.`
-      )
-    })
-    child.unref()
-  } catch (err) {
-    console.error('[LightNote] launch error:', err)
-    dialog.showErrorBox(
-      'LightNote 실행 오류',
-      `LightNote를 시작할 수 없습니다.\n\n경로: ${lightnotePath}\n오류: ${String(err)}\n\nDashboard → Settings → LightNote에서 경로를 다시 지정해주세요.`
-    )
-  }
+  lightNoteWindow.setMenuBarVisibility(false)
+  lightNoteWindow.once('ready-to-show', () => lightNoteWindow?.show())
+  lightNoteWindow.on('closed', () => { lightNoteWindow = null })
+
+  // Resolve HTML path: dev uses source tree, packaged uses process.resourcesPath
+  const htmlPath = app.isPackaged
+    ? join(process.resourcesPath, 'lightnote', 'index.html')
+    : join(__dirname, '../../resources/lightnote/index.html')
+
+  lightNoteWindow.loadFile(htmlPath)
 }
 
-ipcMain.on('lightnote:launch', () => { launchLightNote().catch(console.error) })
-
-// Called from Settings UI to pick/change the LightNote folder
-ipcMain.handle('lightnote:select-path', async () => {
-  const result = await dialog.showOpenDialog({
-    title: 'LightNote 폴더 선택',
-    message: 'LightNote 앱 폴더를 선택하세요 (package.json이 있는 폴더)',
-    properties: ['openDirectory'],
-    buttonLabel: '선택'
-  })
-  if (result.canceled || !result.filePaths[0]) return null
-  const p = result.filePaths[0]
-  saveSettings({ lightnotePath: p })
-  return p
-})
+ipcMain.on('lightnote:launch', openLightNoteWindow)
 
 // ── IPC: App settings ─────────────────────────────────────────────────────
 ipcMain.handle('app:get-login-item', () => app.getLoginItemSettings().openAtLogin)
@@ -558,6 +537,7 @@ app.whenReady().then(() => {
   // Windows: required for Notification title/grouping to show app name
   app.setAppUserModelId('com.gcjang.daily-sidebar-planner')
   initDb()
+  registerLightNoteIpc(ipcMain, () => lightNoteWindow, safeStorage, null, app)
   createWindow()
   createTray()
   scheduleNextReminder()

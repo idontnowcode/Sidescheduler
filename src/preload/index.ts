@@ -67,7 +67,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getAutoStart: () => ipcRenderer.invoke('app:get-login-item'),
   setAutoStart: (value: boolean) => ipcRenderer.invoke('app:set-login-item', { value }),
 
-  // LightNote launcher
-  lightnoteOpen: () => ipcRenderer.send('lightnote:launch'),
-  lightnoteSelectPath: () => ipcRenderer.invoke('lightnote:select-path')
+  // LightNote (embedded — opens a BrowserWindow managed by DSP's main process)
+  lightnoteOpen: () => ipcRenderer.send('lightnote:launch')
 })
