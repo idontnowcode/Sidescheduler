@@ -486,11 +486,13 @@ const LIGHTNOTE_DIR = join(
 )
 
 ipcMain.on('lightnote:launch', () => {
-  const child = spawn('npm', ['start'], {
+  // Invoke electron.exe directly — avoids cmd.exe shell dependency on Windows.
+  // node_modules/electron/dist/electron.exe is the standard install path.
+  const electronExe = join(LIGHTNOTE_DIR, 'node_modules', 'electron', 'dist', 'electron.exe')
+  const child = spawn(electronExe, ['.'], {
     cwd: LIGHTNOTE_DIR,
     detached: true,
-    stdio: 'ignore',
-    shell: true
+    stdio: 'ignore'
   })
   child.unref()
 })
