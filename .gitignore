@@ -12,6 +12,9 @@ planner.db
 # Electron build cache
 .vite/
 
+# Worktrees (never commit worktree contents)
+.worktrees/
+
 # IDE
 .vscode/
 .idea/
