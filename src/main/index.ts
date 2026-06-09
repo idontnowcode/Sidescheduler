@@ -2,7 +2,7 @@ import { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, screen, Display, 
 import { join } from 'path'
 import { computeWorkload, buildReminderBody } from './workload'
 
-// LightNote IPC handlers — CommonJS module bundled by Rollup (allowJs: true)
+// LightNote IPC handlers — CJS module, copied to out/main/lightnote/ by the copyLightnoteCjs plugin
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const { registerIpcHandlers: registerLightNoteIpc } = require('./lightnote/ipc-handlers')
 import {
