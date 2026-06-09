@@ -35,8 +35,21 @@ function saveApiKey(key) {
 function loadApiKey() {
   const settings = loadRawSettings();
   if (_safeStorage && _safeStorage.isEncryptionAvailable() && settings.encryptedApiKey) {
-    const buf = Buffer.from(settings.encryptedApiKey, 'base64');
-    return _safeStorage.decryptString(buf);
+    try {
+      const buf = Buffer.from(settings.encryptedApiKey, 'base64');
+      return _safeStorage.decryptString(buf);
+    } catch (_) {
+      // The key was encrypted by a different Electron app (e.g. standalone LightNote).
+      // It cannot be decrypted here — clear it so the user is prompted to re-enter.
+      try {
+        const fresh = loadRawSettings();
+        delete fresh.encryptedApiKey;
+        const file = getSettingsFile();
+        fs.mkdirSync(path.dirname(file), { recursive: true });
+        fs.writeFileSync(file, JSON.stringify(fresh));
+      } catch (_2) {}
+      return null;
+    }
   }
   return settings.apiKeyPlain || null;
 }
