@@ -9,6 +9,7 @@ export default function SettingsView() {
   const [displays, setDisplays] = useState<DisplayInfo[]>([])
   const [autoStart, setAutoStart] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [lightnotePickMsg, setLightnotePickMsg] = useState('')
   const themeMode = useThemeStore((s) => s.mode)
   const setThemeMode = useThemeStore((s) => s.setMode)
   const lang = useLangStore((s) => s.lang)
@@ -154,6 +155,33 @@ export default function SettingsView() {
           </div>
           <Toggle checked={settings.reminderEnabled} onChange={() => update({ reminderEnabled: !settings.reminderEnabled })} />
         </div>
+      </Section>
+
+      <Section title="LightNote" desc="Sidebar Notes button launches this app">
+        <div className="flex items-start gap-3">
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium mb-1">App folder path</p>
+            <p className="text-xs text-ink-500 break-all font-mono bg-ink-50 dark:bg-ink-800 px-3 py-2 rounded-lg">
+              {settings.lightnotePath || <span className="text-orange-400 font-sans font-normal">Not configured — click Browse to set</span>}
+            </p>
+            {lightnotePickMsg && <p className="text-xs text-green-600 dark:text-green-400 mt-1">{lightnotePickMsg}</p>}
+          </div>
+          <button
+            onClick={async () => {
+              const p = await window.electronAPI.lightnoteSelectPath()
+              if (p) {
+                setSettings(prev => prev ? { ...prev, lightnotePath: p } : prev)
+                setLightnotePickMsg(`✓ Saved: ${p.split('\\').pop() ?? p}`)
+                setTimeout(() => setLightnotePickMsg(''), 3000)
+              }
+            }}
+            className="btn btn-secondary text-sm mt-6 flex-shrink-0">
+            Browse…
+          </button>
+        </div>
+        <p className="text-xs text-ink-400 mt-2">
+          Select the folder that contains LightNote's <code className="font-mono">package.json</code> and <code className="font-mono">node_modules/</code>.
+        </p>
       </Section>
 
       <Section title="App" desc="">

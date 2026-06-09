@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, screen, Display, Notification } from 'electron'
+import { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, screen, Display, Notification, dialog } from 'electron'
 import { join } from 'path'
 import { spawn } from 'child_process'
 import { readFileSync } from 'fs'
@@ -481,31 +481,69 @@ function scheduleNextReminder(): void {
 }
 
 // ── LightNote launcher ────────────────────────────────────────────────────
-// Launches the LightNote app from AppLab as a separate detached process.
-const LIGHTNOTE_DIR = join(
-  'C:', 'Users', 'admin', 'Desktop', 'AI_Based_Projects', '9_AppLab', 'apps', 'lightnote'
-)
+// Launches the LightNote app as a separate detached process.
+// The path is stored in settings (lightnotePath) and can be configured
+// in Dashboard → Settings → LightNote.
 
-ipcMain.on('lightnote:launch', () => {
+async function launchLightNote(): Promise<void> {
+  let lightnotePath = loadSettings().lightnotePath || ''
+
+  // If no path is configured, prompt the user to select the folder once.
+  if (!lightnotePath) {
+    const result = await dialog.showOpenDialog({
+      title: 'LightNote 폴더 선택',
+      message: 'LightNote 앱 폴더를 선택하세요 (package.json이 있는 폴더)',
+      properties: ['openDirectory'],
+      buttonLabel: '선택'
+    })
+    if (result.canceled || !result.filePaths[0]) return
+    lightnotePath = result.filePaths[0]
+    saveSettings({ lightnotePath })
+  }
+
   try {
-    // Resolve the electron binary path from path.txt — same logic as
-    // node_modules/electron/index.js — avoids cmd.exe shell dependency.
-    const electronModuleDir = join(LIGHTNOTE_DIR, 'node_modules', 'electron')
+    // Resolve electron binary via node_modules/electron/path.txt
+    // (same logic as node_modules/electron/index.js)
+    const electronModuleDir = join(lightnotePath, 'node_modules', 'electron')
     const relPath = readFileSync(join(electronModuleDir, 'path.txt'), 'utf-8').trim()
     const electronExe = join(electronModuleDir, 'dist', relPath)
 
     const child = spawn(electronExe, ['.'], {
-      cwd: LIGHTNOTE_DIR,
+      cwd: lightnotePath,
       detached: true,
       stdio: 'ignore'
     })
-    child.on('error', (err) =>
+    child.on('error', (err) => {
       console.error('[LightNote] launch failed:', err.message, '| exe:', electronExe)
-    )
+      dialog.showErrorBox(
+        'LightNote 실행 오류',
+        `LightNote를 시작할 수 없습니다.\n\n경로: ${lightnotePath}\n오류: ${err.message}\n\nDashboard → Settings → LightNote에서 경로를 다시 지정해주세요.`
+      )
+    })
     child.unref()
   } catch (err) {
     console.error('[LightNote] launch error:', err)
+    dialog.showErrorBox(
+      'LightNote 실행 오류',
+      `LightNote를 시작할 수 없습니다.\n\n경로: ${lightnotePath}\n오류: ${String(err)}\n\nDashboard → Settings → LightNote에서 경로를 다시 지정해주세요.`
+    )
   }
+}
+
+ipcMain.on('lightnote:launch', () => { launchLightNote().catch(console.error) })
+
+// Called from Settings UI to pick/change the LightNote folder
+ipcMain.handle('lightnote:select-path', async () => {
+  const result = await dialog.showOpenDialog({
+    title: 'LightNote 폴더 선택',
+    message: 'LightNote 앱 폴더를 선택하세요 (package.json이 있는 폴더)',
+    properties: ['openDirectory'],
+    buttonLabel: '선택'
+  })
+  if (result.canceled || !result.filePaths[0]) return null
+  const p = result.filePaths[0]
+  saveSettings({ lightnotePath: p })
+  return p
 })
 
 // ── IPC: App settings ─────────────────────────────────────────────────────

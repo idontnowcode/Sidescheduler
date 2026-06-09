@@ -68,5 +68,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   setAutoStart: (value: boolean) => ipcRenderer.invoke('app:set-login-item', { value }),
 
   // LightNote launcher
-  lightnoteOpen: () => ipcRenderer.send('lightnote:launch')
+  lightnoteOpen: () => ipcRenderer.send('lightnote:launch'),
+  lightnoteSelectPath: () => ipcRenderer.invoke('lightnote:select-path')
 })

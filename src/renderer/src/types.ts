@@ -8,6 +8,7 @@ export interface WindowSettings {
   workStartHour: number
   workEndHour: number
   reminderEnabled: boolean
+  lightnotePath: string
 }
 
 export interface Workload {
@@ -227,6 +228,7 @@ declare global {
 
       // LightNote launcher
       lightnoteOpen: () => void
+      lightnoteSelectPath: () => Promise<string | null>
     }
   }
 }

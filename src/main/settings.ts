@@ -15,6 +15,8 @@ export interface WindowSettings {
   workStartHour: number     // 0-23, start of the work day
   workEndHour: number       // 0-23, end of the work day
   reminderEnabled: boolean  // fire 9am / 1pm briefings
+  // ── LightNote integration ──
+  lightnotePath: string     // absolute path to the LightNote app folder
 }
 
 const DEFAULT: WindowSettings = {
@@ -23,7 +25,8 @@ const DEFAULT: WindowSettings = {
   locked: false,
   workStartHour: 9,
   workEndHour: 18,
-  reminderEnabled: true
+  reminderEnabled: true,
+  lightnotePath: ''
 }
 
 let cache: WindowSettings | null = null
