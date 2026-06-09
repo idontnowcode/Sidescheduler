@@ -65,5 +65,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // App settings
   getAutoStart: () => ipcRenderer.invoke('app:get-login-item'),
-  setAutoStart: (value: boolean) => ipcRenderer.invoke('app:set-login-item', { value })
+  setAutoStart: (value: boolean) => ipcRenderer.invoke('app:set-login-item', { value }),
+
+  // LightNote bridge
+  lightnoteDetect:      (): Promise<{ found: boolean; dataPath: string | null }> => ipcRenderer.invoke('lightnote:detect'),
+  lightnoteListRecent:  (limit?: number) => ipcRenderer.invoke('lightnote:list-recent', limit),
+  lightnoteCreateQuick: (data: { title: string; text: string }) => ipcRenderer.invoke('lightnote:create-quick-note', data)
 })

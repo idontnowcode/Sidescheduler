@@ -1,5 +1,8 @@
 import { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, screen, Display, Notification } from 'electron'
 import { join } from 'path'
+import { existsSync, readFileSync, writeFileSync, mkdirSync, renameSync } from 'fs'
+import { homedir } from 'os'
+import { randomUUID } from 'crypto'
 import { computeWorkload, buildReminderBody } from './workload'
 import {
   initDb,
@@ -27,9 +30,9 @@ const PANEL_W         = 300
 
 /** Sidebar collapsed height scales with width to fit icons */
 function sidebarHeight(width: number): number {
-  if (width === 32) return 168
-  if (width === 52) return 204
-  return 184  // 40px default
+  if (width === 32) return 200
+  if (width === 52) return 244
+  return 220  // 40px default — +36px for Notes button
 }
 
 // ── Display / bounds ──────────────────────────────────────────────────────
@@ -477,6 +480,123 @@ function scheduleNextReminder(): void {
     scheduleNextReminder()
   }, delay)
 }
+
+// ── LightNote bridge (read-only filesystem access) ───────────────────────
+// Tries both casing variants because Electron's productName affects the userData folder name.
+const LN_DATA_CANDIDATES = [
+  join(homedir(), 'AppData', 'Roaming', 'LightNote', 'lightnote-data'),
+  join(homedir(), 'AppData', 'Roaming', 'lightnote', 'lightnote-data'),
+]
+
+function getLightNoteDataPath(): string | null {
+  for (const p of LN_DATA_CANDIDATES) if (existsSync(p)) return p
+  return null
+}
+
+function lnReadJson<T>(filePath: string): T | null {
+  try { return JSON.parse(readFileSync(filePath, 'utf-8')) as T } catch { return null }
+}
+
+function lnWriteAtomic(filePath: string, data: unknown): void {
+  const tmp = filePath + '.tmp'
+  writeFileSync(tmp, JSON.stringify(data, null, 2))
+  try { renameSync(tmp, filePath) } catch { writeFileSync(filePath, JSON.stringify(data, null, 2)) }
+}
+
+interface LnNotebook { id: string; name: string; color?: string; createdAt?: number; updatedAt?: number; order?: number }
+interface LnSection  { id: string; name: string; notebookId?: string; createdAt?: number; updatedAt?: number; order?: number }
+interface LnPageMeta { id: string; title: string; createdAt?: number; updatedAt?: number; order?: number }
+
+ipcMain.handle('lightnote:detect', () => {
+  const dataPath = getLightNoteDataPath()
+  return { found: dataPath !== null, dataPath }
+})
+
+ipcMain.handle('lightnote:list-recent', (_e, limit: number = 20) => {
+  const dataPath = getLightNoteDataPath()
+  if (!dataPath) return []
+  const notebooks = lnReadJson<LnNotebook[]>(join(dataPath, 'notebooks.json')) || []
+  const result: object[] = []
+  for (const nb of notebooks) {
+    const nbDir   = join(dataPath, 'notebooks', nb.id)
+    const sections = lnReadJson<LnSection[]>(join(nbDir, 'sections.json')) || []
+    for (const sec of sections) {
+      const secDir = join(nbDir, 'sections', sec.id)
+      const pages  = lnReadJson<LnPageMeta[]>(join(secDir, 'pages.json')) || []
+      for (const page of pages) {
+        type DeltaOp = { insert: string | object; attributes?: object }
+        const content = lnReadJson<{ delta?: { ops: DeltaOp[] } }>(join(secDir, 'pages', page.id + '.json'))
+        const text = (content?.delta?.ops || [])
+          .filter(op => typeof op.insert === 'string')
+          .map(op => op.insert as string)
+          .join('')
+        result.push({
+          id: page.id,
+          title: page.title || '(No title)',
+          excerpt: text.slice(0, 100).replace(/\n+/g, ' ').trim(),
+          updatedAt: page.updatedAt || 0,
+          notebookId: nb.id,
+          notebookName: nb.name,
+          sectionId: sec.id,
+          sectionName: sec.name,
+        })
+      }
+    }
+  }
+  return (result as Array<{ updatedAt: number }>)
+    .sort((a, b) => b.updatedAt - a.updatedAt)
+    .slice(0, limit)
+})
+
+ipcMain.handle('lightnote:create-quick-note', (_e, { title, text }: { title: string; text: string }) => {
+  const dataPath = getLightNoteDataPath()
+  if (!dataPath) return { ok: false, error: 'LightNote not installed' }
+  try {
+    const NB_NAME  = '📋 Quick Notes (DSP)'
+    const SEC_NAME = 'Inbox'
+
+    // Get or create notebook
+    const nbListPath = join(dataPath, 'notebooks.json')
+    const notebooks: LnNotebook[] = lnReadJson<LnNotebook[]>(nbListPath) || []
+    let nb = notebooks.find(n => n.name === NB_NAME)
+    if (!nb) {
+      nb = { id: randomUUID(), name: NB_NAME, color: '#6366f1', createdAt: Date.now(), updatedAt: Date.now(), order: notebooks.length }
+      notebooks.push(nb)
+      lnWriteAtomic(nbListPath, notebooks)
+      mkdirSync(join(dataPath, 'notebooks', nb.id, 'sections'), { recursive: true })
+      writeFileSync(join(dataPath, 'notebooks', nb.id, 'sections.json'), '[]')
+    }
+
+    // Get or create section
+    const secListPath = join(dataPath, 'notebooks', nb.id, 'sections.json')
+    const sections: LnSection[] = lnReadJson<LnSection[]>(secListPath) || []
+    let sec = sections.find(s => s.name === SEC_NAME)
+    if (!sec) {
+      sec = { id: randomUUID(), name: SEC_NAME, notebookId: nb.id, createdAt: Date.now(), updatedAt: Date.now(), order: sections.length }
+      sections.push(sec)
+      lnWriteAtomic(secListPath, sections)
+      mkdirSync(join(dataPath, 'notebooks', nb.id, 'sections', sec.id, 'pages'), { recursive: true })
+      writeFileSync(join(dataPath, 'notebooks', nb.id, 'sections', sec.id, 'pages.json'), '[]')
+    }
+
+    // Create page
+    const pageId = randomUUID()
+    const now    = Date.now()
+    const pagesListPath = join(dataPath, 'notebooks', nb.id, 'sections', sec.id, 'pages.json')
+    const pagesList: LnPageMeta[] = lnReadJson<LnPageMeta[]>(pagesListPath) || []
+    pagesList.push({ id: pageId, title, createdAt: now, updatedAt: now, order: pagesList.length })
+    lnWriteAtomic(pagesListPath, pagesList)
+
+    const delta = { ops: [{ insert: title + '\n', attributes: { header: 1 } }, { insert: (text || '') + '\n' }] }
+    const pageDir = join(dataPath, 'notebooks', nb.id, 'sections', sec.id, 'pages')
+    mkdirSync(join(pageDir, pageId, 'images'), { recursive: true })
+    lnWriteAtomic(join(pageDir, pageId + '.json'), { id: pageId, title, delta, updatedAt: now })
+
+    return { ok: true, pageId }
+  } catch (err: unknown) {
+    return { ok: false, error: String((err as Error).message || err) }
+  }
+})
 
 // ── IPC: App settings ─────────────────────────────────────────────────────
 ipcMain.handle('app:get-login-item', () => app.getLoginItemSettings().openAtLogin)
