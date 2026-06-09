@@ -1,6 +1,7 @@
 import { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, screen, Display, Notification } from 'electron'
 import { join } from 'path'
 import { spawn } from 'child_process'
+import { readFileSync } from 'fs'
 import { computeWorkload, buildReminderBody } from './workload'
 import {
   initDb,
@@ -486,15 +487,25 @@ const LIGHTNOTE_DIR = join(
 )
 
 ipcMain.on('lightnote:launch', () => {
-  // Invoke electron.exe directly — avoids cmd.exe shell dependency on Windows.
-  // node_modules/electron/dist/electron.exe is the standard install path.
-  const electronExe = join(LIGHTNOTE_DIR, 'node_modules', 'electron', 'dist', 'electron.exe')
-  const child = spawn(electronExe, ['.'], {
-    cwd: LIGHTNOTE_DIR,
-    detached: true,
-    stdio: 'ignore'
-  })
-  child.unref()
+  try {
+    // Resolve the electron binary path from path.txt — same logic as
+    // node_modules/electron/index.js — avoids cmd.exe shell dependency.
+    const electronModuleDir = join(LIGHTNOTE_DIR, 'node_modules', 'electron')
+    const relPath = readFileSync(join(electronModuleDir, 'path.txt'), 'utf-8').trim()
+    const electronExe = join(electronModuleDir, 'dist', relPath)
+
+    const child = spawn(electronExe, ['.'], {
+      cwd: LIGHTNOTE_DIR,
+      detached: true,
+      stdio: 'ignore'
+    })
+    child.on('error', (err) =>
+      console.error('[LightNote] launch failed:', err.message, '| exe:', electronExe)
+    )
+    child.unref()
+  } catch (err) {
+    console.error('[LightNote] launch error:', err)
+  }
 })
 
 // ── IPC: App settings ─────────────────────────────────────────────────────
