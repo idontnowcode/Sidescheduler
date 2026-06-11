@@ -32,9 +32,9 @@ const PANEL_W         = 300
 
 /** Sidebar collapsed height scales with width to fit icons */
 function sidebarHeight(width: number): number {
-  if (width === 32) return 200
-  if (width === 52) return 244
-  return 220  // 40px default — +36px for Notes button
+  if (width === 32) return 165
+  if (width === 52) return 210
+  return 185  // 40px default
 }
 
 // ── Display / bounds ──────────────────────────────────────────────────────

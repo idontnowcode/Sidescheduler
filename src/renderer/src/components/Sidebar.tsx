@@ -22,7 +22,7 @@ export default function Sidebar({ onHover }: Props) {
 
   const iconSize = w === 32 ? 14 : w === 40 ? 16 : 19
   const btnSize  = w === 32 ? 24 : w === 40 ? 30 : 34
-  const sidebarH = w === 32 ? 200 : w === 52 ? 244 : 220  // matches main/index.ts (+Notes button)
+  const sidebarH = w === 32 ? 165 : w === 52 ? 210 : 185  // matches main/index.ts
 
   return (
     <div
@@ -70,12 +70,6 @@ export default function Sidebar({ onHover }: Props) {
       <IconBtn title={isToday ? 'Today' : 'Go to today'} size={btnSize}
         active={isToday} onClick={(e) => { e.stopPropagation(); goToToday() }}>
         <CalendarIcon size={iconSize} />
-      </IconBtn>
-
-      {/* Notes (LightNote) */}
-      <IconBtn title="Notes (LightNote)" size={btnSize}
-        onClick={(e) => { e.stopPropagation(); window.electronAPI.lightnoteOpen() }}>
-        <NoteIcon size={iconSize} />
       </IconBtn>
 
       <div className="flex-1" />
@@ -153,17 +147,6 @@ function UnlockIcon({ size }: { size: number }) {
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
       <rect x="3" y="11" width="18" height="11" rx="2" />
       <path d="M7 11V7a5 5 0 0 1 9.9-1" />
-    </svg>
-  )
-}
-function NoteIcon({ size }: { size: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-      <polyline points="14 2 14 8 20 8" />
-      <line x1="16" y1="13" x2="8" y2="13" />
-      <line x1="16" y1="17" x2="8" y2="17" />
-      <line x1="10" y1="9" x2="8" y2="9" />
     </svg>
   )
 }
