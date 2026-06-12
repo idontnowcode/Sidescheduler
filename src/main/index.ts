@@ -360,7 +360,7 @@ ipcMain.on('editor:saved', () => {
 
 // ── Note Editor window (note create/edit overlay) ─────────────────────────
 const NOTE_EDITOR_W = 480
-const NOTE_EDITOR_H = 560
+const NOTE_EDITOR_H = 640
 
 function calcNoteEditorBounds() {
   const display = getDisplayForSettings(loadSettings())
@@ -431,6 +431,9 @@ ipcMain.handle('db:notes:update',  (_e, data) => { const r = updateNote(data); b
 ipcMain.handle('db:notes:delete',  (_e, { id }: { id: string }) => { deleteNote(id); broadcastRefresh(); return null })
 ipcMain.handle('db:notes:link',    (_e, { noteId, kind, itemId }: { noteId: string; kind: 'event' | 'task'; itemId: string }) => { const r = linkNoteToItem(noteId, kind, itemId); broadcastRefresh(); return r })
 ipcMain.handle('db:notes:unlink',  (_e, { noteId, kind, itemId }: { noteId: string; kind: 'event' | 'task'; itemId: string }) => { unlinkNoteFromItem(noteId, kind, itemId); broadcastRefresh(); return null })
+
+ipcMain.handle('db:events:get', (_e, { id }: { id: string }) => getEventById(id) ?? null)
+ipcMain.handle('db:tasks:get',  (_e, { id }: { id: string }) => getTaskById(id)  ?? null)
 
 // ── IPC: Window settings + displays ───────────────────────────────────────
 ipcMain.handle('settings:get', () => loadSettings())

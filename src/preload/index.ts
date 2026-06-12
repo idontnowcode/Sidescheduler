@@ -89,6 +89,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return () => ipcRenderer.removeListener('note-editor:payload', h)
   },
 
+  // Single-item lookups (used by NoteEditorApp linked-items panel)
+  getEventById: (id: string) => ipcRenderer.invoke('db:events:get', { id }),
+  getTaskById:  (id: string) => ipcRenderer.invoke('db:tasks:get',  { id }),
+
   // Notes CRUD
   listNotesByItem: (kind: string, itemId: string) => ipcRenderer.invoke('db:notes:by-item', { kind, itemId }),
   listAllNotes:    () => ipcRenderer.invoke('db:notes:all'),

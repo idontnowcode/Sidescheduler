@@ -275,6 +275,10 @@ declare global {
       lightnoteOpen: () => void
       lightnoteOpenPage: (pageId: string, notebookId: string, sectionId: string) => void
 
+      // Single-item lookups
+      getEventById: (id: string) => Promise<EventRow | null>
+      getTaskById:  (id: string) => Promise<TaskRow | null>
+
       // Note Editor window
       openNoteEditor: (payload: NoteEditorPayload) => void
       closeNoteEditor: () => void
