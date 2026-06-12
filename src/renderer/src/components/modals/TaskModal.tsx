@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
 import { Task, RecurrenceRule, Subtask } from '../../types'
 import ProjectPicker from '../ProjectPicker'
+import FocusAreaPicker from '../FocusAreaPicker'
+import NoteLinksSection from '../NoteLinksSection'
 import { useT } from '../../lib/i18n'
 
 type Priority = 'urgent' | 'normal' | 'low'
@@ -38,6 +40,7 @@ export default function TaskModal({ mode, task, defaultDueDate, onClose, onSaved
   )
   const [priority, setPriority] = useState<Priority>(task?.priority ?? 'normal')
   const [projectsSel, setProjectsSel] = useState<string[]>(task?.projects ?? [])
+  const [focusAreaId, setFocusAreaId] = useState<string | null>(task?.focusAreaId ?? null)
 
   // Known project names for the picker suggestions
   const [projects, setProjects] = useState<string[]>([])
@@ -115,8 +118,8 @@ export default function TaskModal({ mode, task, defaultDueDate, onClose, onSaved
       await window.electronAPI.updateTask({
         id: task!.id, title: title.trim(), due_at, priority,
         projects: projectsSel,
-        // Keep legacy single field in sync with the first selected project.
         project: projectsSel[0] ?? null,
+        focus_area_id: focusAreaId,
         recurrence: buildRecurrence(),
         estimated_minutes,
         subtasks: subs
@@ -125,6 +128,7 @@ export default function TaskModal({ mode, task, defaultDueDate, onClose, onSaved
       await window.electronAPI.createTask({
         title: title.trim(), due_at, priority,
         projects: projectsSel,
+        focus_area_id: focusAreaId,
         recurrence: buildRecurrence(),
         estimated_minutes,
         subtasks: subs
@@ -153,9 +157,11 @@ export default function TaskModal({ mode, task, defaultDueDate, onClose, onSaved
         className={fullWindow
           ? 'glass-panel w-screen h-screen border border-ink-200 dark:border-ink-800 overflow-y-auto flex flex-col'
           : 'glass-panel rounded-2xl w-full max-w-md border border-ink-200 dark:border-ink-800'}>
-        <div className="px-5 py-4 border-b border-ink-100 dark:border-ink-800 flex items-center justify-between">
+        <div className={`px-5 py-4 border-b border-ink-100 dark:border-ink-800 flex items-center justify-between${fullWindow ? ' cursor-move select-none' : ''}`}
+          style={fullWindow ? { WebkitAppRegion: 'drag' } as any : undefined}>
           <h2 className="text-base font-semibold">{isEdit ? t('modal.editTask') : t('modal.addTask')}</h2>
-          <button type="button" onClick={onClose} className="btn btn-ghost -mr-2">✕</button>
+          <button type="button" onClick={onClose} className="btn btn-ghost -mr-2"
+            style={{ WebkitAppRegion: 'no-drag' } as any}>✕</button>
         </div>
 
         <div className="p-5 space-y-4">
@@ -197,6 +203,13 @@ export default function TaskModal({ mode, task, defaultDueDate, onClose, onSaved
               {t('field.project')} <span className="normal-case text-ink-400 font-normal">{t('field.optional')}</span>
             </label>
             <ProjectPicker value={projectsSel} suggestions={projects} onChange={setProjectsSel} placeholder={t('ph.addProject')} />
+          </div>
+
+          <div>
+            <label className="block text-2xs font-medium text-ink-500 mb-1.5 uppercase tracking-wider">
+              Focus Area <span className="normal-case text-ink-400 font-normal">{t('field.optional')}</span>
+            </label>
+            <FocusAreaPicker value={focusAreaId} onChange={setFocusAreaId} />
           </div>
 
           {/* Subtasks */}
@@ -308,6 +321,10 @@ export default function TaskModal({ mode, task, defaultDueDate, onClose, onSaved
               <p className="text-2xs text-ink-400 mt-2">A due date is required for repeating tasks</p>
             )}
           </div>
+        </div>
+
+        <div className="px-5 py-3 border-t border-ink-100 dark:border-ink-800">
+          <NoteLinksSection kind="task" itemId={task?.id ?? null} itemTitle={title} />
         </div>
 
         <div className="px-5 py-3 border-t border-ink-100 dark:border-ink-800 flex gap-2 justify-between">

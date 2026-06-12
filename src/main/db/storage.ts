@@ -13,6 +13,15 @@ export interface RecurrenceRule {
   exceptions?: number[]
 }
 
+export interface FocusAreaRow {
+  id: string
+  title: string
+  color: string
+  archived: boolean
+  due_at?: number | null
+  created_at: number
+}
+
 export interface EventRow {
   id: string
   title: string
@@ -29,6 +38,7 @@ export interface EventRow {
   project?: string | null
   /** Multi-select project tags. Empty array == no projects. */
   projects?: string[]
+  focus_area_id?: string | null
   created_at: number
   updated_at: number
 }
@@ -49,6 +59,7 @@ export interface TaskRow {
   project: string | null
   /** Multi-select project tags. Preferred; readers should fall back to `[project]`. */
   projects?: string[]
+  focus_area_id?: string | null
   recurrence?: string             // JSON RecurrenceRule (for repeating tasks)
   estimated_minutes?: number      // user-provided estimate
   subtasks?: Subtask[]            // checklist items
@@ -56,7 +67,17 @@ export interface TaskRow {
   updated_at: number
 }
 
-interface DB { events: EventRow[]; tasks: TaskRow[] }
+export interface NoteRow {
+  id: string
+  title: string
+  content: string
+  linked_events: string[]
+  linked_tasks: string[]
+  created_at: number
+  updated_at: number
+}
+
+interface DB { events: EventRow[]; tasks: TaskRow[]; focusAreas: FocusAreaRow[]; notes: NoteRow[] }
 
 // ── File I/O ──────────────────────────────────────────────────────────────
 let cache: DB | null = null
@@ -66,9 +87,15 @@ function dbPath(): string { return join(app.getPath('userData'), 'planner.json')
 function load(): DB {
   if (cache) return cache
   const p = dbPath()
-  cache = existsSync(p)
-    ? (JSON.parse(readFileSync(p, 'utf-8')) as DB)
-    : { events: [], tasks: [] }
+  const raw = existsSync(p)
+    ? (JSON.parse(readFileSync(p, 'utf-8')) as Partial<DB>)
+    : {}
+  cache = {
+    events: raw.events ?? [],
+    tasks: raw.tasks ?? [],
+    focusAreas: raw.focusAreas ?? [],
+    notes: raw.notes ?? []
+  }
   return cache
 }
 
@@ -148,10 +175,48 @@ export function listEvents(start: number, end: number): EventRow[] {
   return results.sort((a, b) => a.start_at - b.start_at)
 }
 
+export function getEventById(id: string): EventRow | undefined {
+  return load().events.find(e => e.id === id)
+}
+
+export function getTaskById(id: string): TaskRow | undefined {
+  return load().tasks.find(t => t.id === id)
+}
+
+export function listFocusAreas(): FocusAreaRow[] {
+  return load().focusAreas.map(a => ({ ...a, archived: a.archived ?? false, due_at: a.due_at ?? null }))
+}
+
+export function createFocusArea(data: { title: string; color: string; due_at?: number | null }): FocusAreaRow {
+  const db = load()
+  const row: FocusAreaRow = {
+    id: randomUUID(), title: data.title.trim(),
+    color: data.color || '#6366f1', archived: false,
+    due_at: data.due_at ?? null, created_at: Date.now()
+  }
+  db.focusAreas.push(row); persist(db); return row
+}
+
+export function updateFocusArea(data: Partial<FocusAreaRow> & { id: string }): FocusAreaRow {
+  const db = load()
+  const idx = db.focusAreas.findIndex(f => f.id === data.id)
+  if (idx === -1) throw new Error(`FocusArea ${data.id} not found`)
+  db.focusAreas[idx] = { ...db.focusAreas[idx], ...data }
+  persist(db); return db.focusAreas[idx]
+}
+
+export function deleteFocusArea(id: string): void {
+  const db = load()
+  db.focusAreas = db.focusAreas.filter(f => f.id !== id)
+  db.events = db.events.map(e => e.focus_area_id === id ? { ...e, focus_area_id: null } : e)
+  db.tasks  = db.tasks.map(t  => t.focus_area_id === id ? { ...t,  focus_area_id: null } : t)
+  persist(db)
+}
+
 export function createEvent(data: {
   title: string; start_at: number; end_at: number
   color?: string; location?: string; description?: string; recurrence?: string
-  reminder_minutes?: number; projects?: string[]
+  reminder_minutes?: number; projects?: string[]; focus_area_id?: string | null
 }): EventRow {
   const now = Date.now()
   const projects = (data.projects ?? []).map(s => s.trim()).filter(Boolean)
@@ -163,8 +228,8 @@ export function createEvent(data: {
     source: 'local', google_id: null, recurrence: data.recurrence,
     reminder_minutes: data.reminder_minutes,
     projects,
-    // Keep legacy single field in sync with first project so older readers stay happy.
     project: projects[0] ?? null,
+    focus_area_id: data.focus_area_id ?? null,
     created_at: now, updated_at: now
   }
   const db = load(); db.events.push(row); persist(db); return row
@@ -274,6 +339,7 @@ export function listAllTasks(): TaskRow[] {
 export function createTask(data: {
   title: string; due_at?: number | null; priority?: string; projects?: string[];
   recurrence?: string; estimated_minutes?: number; subtasks?: Subtask[]
+  focus_area_id?: string | null
 }): TaskRow {
   const now = Date.now()
   const projects = (data.projects ?? []).map(s => s.trim()).filter(Boolean)
@@ -281,7 +347,8 @@ export function createTask(data: {
     id: randomUUID(), title: data.title, due_at: data.due_at ?? null,
     done: 0, priority: data.priority ?? 'normal',
     projects,
-    project: projects[0] ?? null,   // legacy mirror
+    project: projects[0] ?? null,
+    focus_area_id: data.focus_area_id ?? null,
     recurrence: data.recurrence,
     estimated_minutes: data.estimated_minutes,
     subtasks: data.subtasks,
@@ -362,6 +429,84 @@ export function listProjects(): string[] {
   return [...counts.entries()]
     .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
     .map(([k]) => k)
+}
+
+// ── Notes ─────────────────────────────────────────────────────────────────
+export function listNotesByItem(kind: 'event' | 'task', itemId: string): NoteRow[] {
+  return (load().notes ?? []).filter(n =>
+    kind === 'event' ? n.linked_events.includes(itemId) : n.linked_tasks.includes(itemId)
+  )
+}
+
+export function listAllNotes(): NoteRow[] {
+  return load().notes ?? []
+}
+
+export function getNoteById(id: string): NoteRow | undefined {
+  return (load().notes ?? []).find(n => n.id === id)
+}
+
+export function createNote(data: {
+  title: string; content: string; kind?: 'event' | 'task'; itemId?: string
+}): NoteRow {
+  const db = load()
+  const note: NoteRow = {
+    id: randomUUID(),
+    title: data.title || 'Untitled',
+    content: data.content,
+    linked_events: data.kind === 'event' && data.itemId ? [data.itemId] : [],
+    linked_tasks:  data.kind === 'task'  && data.itemId ? [data.itemId] : [],
+    created_at: Date.now(),
+    updated_at: Date.now()
+  }
+  const notes = db.notes ?? [];
+  notes.push(note)
+  persist({ ...db, notes })
+  return note
+}
+
+export function updateNote(data: Partial<NoteRow> & { id: string }): NoteRow {
+  const db = load()
+  const notes = db.notes ?? []
+  const idx = notes.findIndex(n => n.id === data.id)
+  if (idx === -1) throw new Error(`Note ${data.id} not found`)
+  notes[idx] = { ...notes[idx], ...data, updated_at: Date.now() }
+  persist({ ...db, notes })
+  return notes[idx]
+}
+
+export function deleteNote(id: string): void {
+  const db = load()
+  const notes = (db.notes ?? []).filter(n => n.id !== id)
+  persist({ ...db, notes })
+}
+
+export function linkNoteToItem(noteId: string, kind: 'event' | 'task', itemId: string): NoteRow {
+  const db = load()
+  const notes = db.notes ?? []
+  const idx = notes.findIndex(n => n.id === noteId)
+  if (idx === -1) throw new Error(`Note ${noteId} not found`)
+  const n = notes[idx]
+  if (kind === 'event' && !n.linked_events.includes(itemId)) {
+    n.linked_events = [...n.linked_events, itemId]
+  } else if (kind === 'task' && !n.linked_tasks.includes(itemId)) {
+    n.linked_tasks = [...n.linked_tasks, itemId]
+  }
+  n.updated_at = Date.now()
+  persist({ ...db, notes })
+  return n
+}
+
+export function unlinkNoteFromItem(noteId: string, kind: 'event' | 'task', itemId: string): void {
+  const db = load()
+  const notes = db.notes ?? []
+  const idx = notes.findIndex(n => n.id === noteId)
+  if (idx === -1) return
+  const n = notes[idx]
+  if (kind === 'event') n.linked_events = n.linked_events.filter(id => id !== itemId)
+  else n.linked_tasks = n.linked_tasks.filter(id => id !== itemId)
+  n.updated_at = Date.now()
+  persist({ ...db, notes })
 }
 
 // ── Search ────────────────────────────────────────────────────────────────

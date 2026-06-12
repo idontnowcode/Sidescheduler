@@ -10,6 +10,9 @@ import {
   listEvents, createEvent, updateEvent, updateEventMove, updateEventInstance, deleteEvent, deleteEventInstance,
   listTasks, listAllIncompleteTasks, listAllTasks, createTask, updateTask, toggleTask, snoozeTask, deleteTask,
   listProjects,
+  listFocusAreas, createFocusArea, updateFocusArea, deleteFocusArea,
+  getEventById, getTaskById,
+  listNotesByItem, listAllNotes, getNoteById, createNote, updateNote, deleteNote, linkNoteToItem, unlinkNoteFromItem,
   searchAll
 } from './db/storage'
 import { loadSettings, saveSettings, WindowSettings } from './settings'
@@ -20,9 +23,11 @@ let mainWindow: BrowserWindow | null = null
 let dashboardWindow: BrowserWindow | null = null
 let paletteWindow: BrowserWindow | null = null
 let editorWindow: BrowserWindow | null = null
+let noteEditorWindow: BrowserWindow | null = null
 let lightNoteWindow: BrowserWindow | null = null
 let paletteRequester: 'sidebar' | 'dashboard' = 'sidebar'
 let pendingEditorPayload: unknown = null
+let pendingNoteEditorPayload: unknown = null
 let tray: Tray | null = null
 let windowExpanded = false
 
@@ -32,9 +37,9 @@ const PANEL_W         = 300
 
 /** Sidebar collapsed height scales with width to fit icons */
 function sidebarHeight(width: number): number {
-  if (width === 32) return 165
-  if (width === 52) return 210
-  return 185  // 40px default
+  if (width === 32) return 232
+  if (width === 52) return 282
+  return 262  // 40px default
 }
 
 // ── Display / bounds ──────────────────────────────────────────────────────
@@ -353,6 +358,80 @@ ipcMain.on('editor:saved', () => {
   closeEditorWindow()
 })
 
+// ── Note Editor window (note create/edit overlay) ─────────────────────────
+const NOTE_EDITOR_W = 480
+const NOTE_EDITOR_H = 560
+
+function calcNoteEditorBounds() {
+  const display = getDisplayForSettings(loadSettings())
+  const wa = display.workArea
+  return {
+    x: wa.x + Math.max(0, Math.floor((wa.width  - NOTE_EDITOR_W) / 2)),
+    y: wa.y + Math.max(0, Math.floor((wa.height - NOTE_EDITOR_H) / 4)),
+    width: NOTE_EDITOR_W, height: NOTE_EDITOR_H
+  }
+}
+
+function openNoteEditorWindow(payload: unknown): void {
+  pendingNoteEditorPayload = payload
+
+  if (noteEditorWindow && !noteEditorWindow.isDestroyed()) {
+    noteEditorWindow.setBounds(calcNoteEditorBounds())
+    noteEditorWindow.webContents.send('note-editor:payload', payload)
+    noteEditorWindow.show()
+    noteEditorWindow.focus()
+    return
+  }
+
+  noteEditorWindow = new BrowserWindow({
+    ...calcNoteEditorBounds(),
+    frame: false, transparent: true,
+    alwaysOnTop: true, skipTaskbar: true,
+    resizable: false, hasShadow: false, focusable: true,
+    show: false,
+    webPreferences: {
+      preload: join(__dirname, '../preload/index.js'),
+      contextIsolation: true, nodeIntegration: false, sandbox: false
+    }
+  })
+  noteEditorWindow.setAlwaysOnTop(true, 'screen-saver')
+
+  if (process.env.NODE_ENV === 'development' && process.env['ELECTRON_RENDERER_URL']) {
+    noteEditorWindow.loadURL(process.env['ELECTRON_RENDERER_URL'] + '#note')
+  } else {
+    noteEditorWindow.loadFile(join(__dirname, '../renderer/index.html'), { hash: 'note' })
+  }
+
+  noteEditorWindow.once('ready-to-show', () => {
+    if (!noteEditorWindow || noteEditorWindow.isDestroyed()) return
+    noteEditorWindow.setBounds(calcNoteEditorBounds())
+    noteEditorWindow.show()
+    noteEditorWindow.focus()
+  })
+  // Note editor stays open on blur (unlike event/task editor) — user needs time to write
+  noteEditorWindow.on('closed', () => { noteEditorWindow = null })
+}
+
+function closeNoteEditorWindow(): void {
+  if (noteEditorWindow && !noteEditorWindow.isDestroyed()) noteEditorWindow.close()
+  noteEditorWindow = null
+}
+
+ipcMain.on('note-editor:open', (_e, payload: unknown) => openNoteEditorWindow(payload))
+ipcMain.on('note-editor:close', () => closeNoteEditorWindow())
+ipcMain.handle('note-editor:get-pending', () => pendingNoteEditorPayload)
+ipcMain.on('note-editor:saved', () => { broadcastRefresh() })
+
+// ── IPC: Notes ────────────────────────────────────────────────────────────
+ipcMain.handle('db:notes:by-item', (_e, { kind, itemId }: { kind: 'event' | 'task'; itemId: string }) => listNotesByItem(kind, itemId))
+ipcMain.handle('db:notes:all',     () => listAllNotes())
+ipcMain.handle('db:notes:get',     (_e, { id }: { id: string }) => getNoteById(id))
+ipcMain.handle('db:notes:create',  (_e, data) => { const r = createNote(data); broadcastRefresh(); return r })
+ipcMain.handle('db:notes:update',  (_e, data) => { const r = updateNote(data); broadcastRefresh(); return r })
+ipcMain.handle('db:notes:delete',  (_e, { id }: { id: string }) => { deleteNote(id); broadcastRefresh(); return null })
+ipcMain.handle('db:notes:link',    (_e, { noteId, kind, itemId }: { noteId: string; kind: 'event' | 'task'; itemId: string }) => { const r = linkNoteToItem(noteId, kind, itemId); broadcastRefresh(); return r })
+ipcMain.handle('db:notes:unlink',  (_e, { noteId, kind, itemId }: { noteId: string; kind: 'event' | 'task'; itemId: string }) => { unlinkNoteFromItem(noteId, kind, itemId); broadcastRefresh(); return null })
+
 // ── IPC: Window settings + displays ───────────────────────────────────────
 ipcMain.handle('settings:get', () => loadSettings())
 ipcMain.handle('settings:set', (_e, patch: Partial<WindowSettings>) => {
@@ -399,6 +478,12 @@ ipcMain.handle('db:search', (_e, { query }: { query: string }) => searchAll(quer
 
 // ── IPC: Projects ─────────────────────────────────────────────────────────
 ipcMain.handle('db:projects:list', () => listProjects())
+
+// ── IPC: Focus Areas ──────────────────────────────────────────────────────
+ipcMain.handle('db:focus-areas:list',   () => listFocusAreas())
+ipcMain.handle('db:focus-areas:create', (_e, data) => createFocusArea(data))
+ipcMain.handle('db:focus-areas:update', (_e, data) => updateFocusArea(data))
+ipcMain.handle('db:focus-areas:delete', (_e, { id }: { id: string }) => { deleteFocusArea(id); broadcastRefresh(); return null })
 
 // ── IPC: Workload ─────────────────────────────────────────────────────────
 ipcMain.handle('workload:get', () => computeWorkload(Date.now()))
@@ -505,9 +590,7 @@ function openLightNoteWindow(): void {
       preload: join(__dirname, '../preload/lightnote.js'),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false,
-      // Allow file:// resources (images stored to disk by LightNote)
-      webSecurity: false
+      sandbox: false
     }
   })
 
@@ -515,15 +598,43 @@ function openLightNoteWindow(): void {
   lightNoteWindow.once('ready-to-show', () => lightNoteWindow?.show())
   lightNoteWindow.on('closed', () => { lightNoteWindow = null })
 
-  // Resolve HTML path: dev uses source tree, packaged uses process.resourcesPath
-  const htmlPath = app.isPackaged
-    ? join(process.resourcesPath, 'lightnote', 'index.html')
-    : join(__dirname, '../../resources/lightnote/index.html')
-
-  lightNoteWindow.loadFile(htmlPath)
+  if (process.env.NODE_ENV === 'development' && process.env['ELECTRON_RENDERER_URL']) {
+    lightNoteWindow.loadURL(process.env['ELECTRON_RENDERER_URL'] + '#lightnote')
+  } else {
+    lightNoteWindow.loadFile(join(__dirname, '../renderer/index.html'), { hash: 'lightnote' })
+  }
 }
 
 ipcMain.on('lightnote:launch', openLightNoteWindow)
+
+ipcMain.on('lightnote:open-page', (_e, { pageId, notebookId, sectionId }) => {
+  openLightNoteWindow()
+  // Wait for window ready then navigate
+  const send = () => lightNoteWindow?.webContents.send('lightnote:open-page', { pageId, notebookId, sectionId })
+  if (lightNoteWindow?.webContents.isLoading()) {
+    lightNoteWindow.webContents.once('did-finish-load', send)
+  } else {
+    setTimeout(send, 100)
+  }
+})
+
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const linkStorage = require('./lightnote/link-storage')
+
+ipcMain.handle('lightnote:links:items-for-page', (_e, { pageId }) => {
+  const links = linkStorage.getLinksByPage(pageId)
+  if (!links) return { events: [], tasks: [] }
+  return {
+    events: (links.linkedEvents as string[])
+      .map((id: string) => getEventById(id))
+      .filter(Boolean)
+      .map((e: ReturnType<typeof getEventById>) => ({ id: e!.id, title: e!.title, start_at: e!.start_at })),
+    tasks: (links.linkedTasks as string[])
+      .map((id: string) => getTaskById(id))
+      .filter(Boolean)
+      .map((t: ReturnType<typeof getTaskById>) => ({ id: t!.id, title: t!.title, done: t!.done }))
+  }
+})
 
 // ── IPC: App settings ─────────────────────────────────────────────────────
 ipcMain.handle('app:get-login-item', () => app.getLoginItemSettings().openAtLogin)

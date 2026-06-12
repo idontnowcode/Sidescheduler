@@ -43,6 +43,36 @@ export interface RecurrenceRule {
   exceptions?: number[]
 }
 
+// ── Notes ─────────────────────────────────────────────────────────────────
+export interface NoteRow {
+  id: string
+  title: string
+  content: string
+  linked_events: string[]
+  linked_tasks: string[]
+  created_at: number
+  updated_at: number
+}
+
+// ── Note Links (LightNote page refs — kept for LightNote side integration) ─
+export interface PageRef {
+  pageId: string
+  notebookId: string
+  sectionId: string
+  title: string
+  notebookName: string
+  sectionName: string
+}
+
+// ── Focus Areas ───────────────────────────────────────────────────────────
+export interface FocusArea {
+  id: string
+  title: string
+  color: string
+  archived: boolean
+  due_at?: number | null
+}
+
 // ── Domain models ─────────────────────────────────────────────────────────
 export interface CalEvent {
   id: string
@@ -56,6 +86,7 @@ export interface CalEvent {
   reminderMinutes?: number
   /** Multi-select project tags. Always an array in domain layer (empty when none). */
   projects: string[]
+  focusAreaId?: string | null
   isRecurringInstance?: boolean
   originalId?: string
 }
@@ -74,6 +105,7 @@ export interface Task {
   priority: 'urgent' | 'normal' | 'low'
   /** Multi-select project tags. */
   projects: string[]
+  focusAreaId?: string | null
   recurrence?: RecurrenceRule
   estimatedMinutes?: number
   subtasks?: Subtask[]
@@ -90,6 +122,7 @@ export interface EventRow {
   /** @deprecated use `projects` */
   project?: string | null
   projects?: string[]
+  focus_area_id?: string | null
   created_at: number; updated_at: number
 }
 
@@ -99,6 +132,7 @@ export interface TaskRow {
   /** @deprecated use `projects` */
   project: string | null
   projects?: string[]
+  focus_area_id?: string | null
   recurrence?: string
   estimated_minutes?: number
   subtasks?: Subtask[]
@@ -123,6 +157,7 @@ export function rowToEvent(row: EventRow): CalEvent {
     recurrence: (row.recurrence && !isInstance) ? JSON.parse(row.recurrence) : undefined,
     reminderMinutes: row.reminder_minutes,
     projects: readProjects(row),
+    focusAreaId: row.focus_area_id ?? null,
     isRecurringInstance: isInstance, originalId
   }
 }
@@ -133,6 +168,7 @@ export function rowToTask(row: TaskRow): Task {
     done: row.done === 1,
     priority: (row.priority as Task['priority']) || 'normal',
     projects: readProjects(row),
+    focusAreaId: row.focus_area_id ?? null,
     recurrence: row.recurrence ? JSON.parse(row.recurrence) : undefined,
     estimatedMinutes: row.estimated_minutes,
     subtasks: row.subtasks
@@ -157,6 +193,11 @@ export type EditorPayload =
   | { kind: 'event'; mode: 'edit'; event: CalEvent }
   | { kind: 'task';  mode: 'create'; defaultDueDate?: number }
   | { kind: 'task';  mode: 'edit'; task: Task }
+
+// ── Note Editor window payload ─────────────────────────────────────────────
+export type NoteEditorPayload =
+  | { mode: 'create'; kind: 'event' | 'task'; itemId: string; itemTitle: string }
+  | { mode: 'edit'; noteId: string; itemTitle?: string }
 
 // ── Window API ────────────────────────────────────────────────────────────
 declare global {
@@ -220,6 +261,11 @@ declare global {
 
       listProjects: () => Promise<string[]>
 
+      listFocusAreas: () => Promise<FocusArea[]>
+      createFocusArea: (data: { title: string; color: string; due_at?: number | null }) => Promise<FocusArea>
+      updateFocusArea: (data: Partial<FocusArea> & { id: string }) => Promise<FocusArea>
+      deleteFocusArea: (id: string) => Promise<void>
+
       getWorkload: () => Promise<Workload>
 
       getAutoStart: () => Promise<boolean>
@@ -227,6 +273,24 @@ declare global {
 
       // LightNote (embedded)
       lightnoteOpen: () => void
+      lightnoteOpenPage: (pageId: string, notebookId: string, sectionId: string) => void
+
+      // Note Editor window
+      openNoteEditor: (payload: NoteEditorPayload) => void
+      closeNoteEditor: () => void
+      getNoteEditorPayload: () => Promise<NoteEditorPayload | null>
+      notifyNoteEditorSaved: () => void
+      onNoteEditorPayload: (cb: (p: NoteEditorPayload) => void) => () => void
+
+      // Notes CRUD
+      listNotesByItem: (kind: string, itemId: string) => Promise<NoteRow[]>
+      listAllNotes:    () => Promise<NoteRow[]>
+      getNoteById:     (id: string) => Promise<NoteRow | undefined>
+      createNote:      (data: { title: string; content: string; kind?: string; itemId?: string }) => Promise<NoteRow>
+      updateNote:      (data: Partial<NoteRow> & { id: string }) => Promise<NoteRow>
+      deleteNote:      (id: string) => Promise<void>
+      linkNote:        (noteId: string, kind: string, itemId: string) => Promise<void>
+      unlinkNote:      (noteId: string, kind: string, itemId: string) => Promise<void>
     }
   }
 }

@@ -17,6 +17,14 @@ if (hash === '#dashboard') {
   import('./editor/EditorApp').then(({ default: EditorApp }) => {
     ReactDOM.createRoot(root).render(<React.StrictMode><EditorApp /></React.StrictMode>)
   })
+} else if (hash === '#note') {
+  import('./note/NoteEditorApp').then(({ default: NoteEditorApp }) => {
+    ReactDOM.createRoot(root).render(<React.StrictMode><NoteEditorApp /></React.StrictMode>)
+  })
+} else if (hash === '#lightnote') {
+  import('./lightnote/LightnoteApp').then(({ default: LightnoteApp }) => {
+    ReactDOM.createRoot(root).render(<React.StrictMode><LightnoteApp /></React.StrictMode>)
+  })
 } else {
   import('./App').then(({ default: App }) => {
     ReactDOM.createRoot(root).render(<React.StrictMode><App /></React.StrictMode>)

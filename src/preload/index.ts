@@ -60,6 +60,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Projects
   listProjects: () => ipcRenderer.invoke('db:projects:list'),
 
+  // Focus Areas
+  listFocusAreas:   () => ipcRenderer.invoke('db:focus-areas:list'),
+  createFocusArea:  (data: unknown) => ipcRenderer.invoke('db:focus-areas:create', data),
+  updateFocusArea:  (data: unknown) => ipcRenderer.invoke('db:focus-areas:update', data),
+  deleteFocusArea:  (id: string) => ipcRenderer.invoke('db:focus-areas:delete', { id }),
+
   // Workload
   getWorkload: () => ipcRenderer.invoke('workload:get'),
 
@@ -68,5 +74,28 @@ contextBridge.exposeInMainWorld('electronAPI', {
   setAutoStart: (value: boolean) => ipcRenderer.invoke('app:set-login-item', { value }),
 
   // LightNote (embedded — opens a BrowserWindow managed by DSP's main process)
-  lightnoteOpen: () => ipcRenderer.send('lightnote:launch')
+  lightnoteOpen: () => ipcRenderer.send('lightnote:launch'),
+  lightnoteOpenPage: (pageId: string, notebookId: string, sectionId: string) =>
+    ipcRenderer.send('lightnote:open-page', { pageId, notebookId, sectionId }),
+
+  // Note Editor window
+  openNoteEditor: (payload: unknown) => ipcRenderer.send('note-editor:open', payload),
+  closeNoteEditor: () => ipcRenderer.send('note-editor:close'),
+  getNoteEditorPayload: () => ipcRenderer.invoke('note-editor:get-pending'),
+  notifyNoteEditorSaved: () => ipcRenderer.send('note-editor:saved'),
+  onNoteEditorPayload: (cb: (p: unknown) => void) => {
+    const h = (_: unknown, p: unknown) => cb(p)
+    ipcRenderer.on('note-editor:payload', h)
+    return () => ipcRenderer.removeListener('note-editor:payload', h)
+  },
+
+  // Notes CRUD
+  listNotesByItem: (kind: string, itemId: string) => ipcRenderer.invoke('db:notes:by-item', { kind, itemId }),
+  listAllNotes:    () => ipcRenderer.invoke('db:notes:all'),
+  getNoteById:     (id: string) => ipcRenderer.invoke('db:notes:get', { id }),
+  createNote:      (data: unknown) => ipcRenderer.invoke('db:notes:create', data),
+  updateNote:      (data: unknown) => ipcRenderer.invoke('db:notes:update', data),
+  deleteNote:      (id: string) => ipcRenderer.invoke('db:notes:delete', { id }),
+  linkNote:        (noteId: string, kind: string, itemId: string) => ipcRenderer.invoke('db:notes:link', { noteId, kind, itemId }),
+  unlinkNote:      (noteId: string, kind: string, itemId: string) => ipcRenderer.invoke('db:notes:unlink', { noteId, kind, itemId }),
 })

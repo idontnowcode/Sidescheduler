@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react'
 import { CalEvent, RecurrenceRule } from '../../types'
 import RecurrenceConfirm from './RecurrenceConfirm'
 import ProjectPicker from '../ProjectPicker'
+import FocusAreaPicker from '../FocusAreaPicker'
+import NoteLinksSection from '../NoteLinksSection'
 import { useT } from '../../lib/i18n'
 
 const COLORS = ['#6366F1', '#3B82F6', '#22C55E', '#EF4444', '#F59E0B', '#EC4899', '#14B8A6', '#A855F7']
@@ -47,6 +49,7 @@ export default function EventModal({ mode, event, defaultDate, defaultStartTime,
   const [description, setDescription] = useState(event?.description ?? '')
   const [reminder, setReminder] = useState<number | null>(event?.reminderMinutes ?? null)
   const [projectsSel, setProjectsSel] = useState<string[]>(event?.projects ?? [])
+  const [focusAreaId, setFocusAreaId] = useState<string | null>(event?.focusAreaId ?? null)
 
   // Load known project names for suggestions
   const [projects, setProjects] = useState<string[]>([])
@@ -118,7 +121,8 @@ export default function EventModal({ mode, event, defaultDate, defaultStartTime,
       description: description || undefined,
       recurrence: buildRecurrence(),
       reminder_minutes: reminder ?? undefined,
-      projects: projectsSel
+      projects: projectsSel,
+      focus_area_id: focusAreaId
     }
 
     if (!isEdit) {
@@ -174,9 +178,11 @@ export default function EventModal({ mode, event, defaultDate, defaultStartTime,
         className={fullWindow
           ? 'glass-panel w-screen h-screen border border-ink-200 dark:border-ink-800 overflow-y-auto flex flex-col'
           : 'glass-panel rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto border border-ink-200 dark:border-ink-800'}>
-        <div className="px-5 py-4 border-b border-ink-100 dark:border-ink-800 flex items-center justify-between">
+        <div className={`px-5 py-4 border-b border-ink-100 dark:border-ink-800 flex items-center justify-between${fullWindow ? ' cursor-move select-none' : ''}`}
+          style={fullWindow ? { WebkitAppRegion: 'drag' } as any : undefined}>
           <h2 className="text-base font-semibold">{isEdit ? t('modal.editEvent') : t('modal.addEvent')}</h2>
-          <button type="button" onClick={onClose} className="btn-ghost btn -mr-2">✕</button>
+          <button type="button" onClick={onClose} className="btn-ghost btn -mr-2"
+            style={{ WebkitAppRegion: 'no-drag' } as any}>✕</button>
         </div>
 
         {conflicts.length > 0 && (
@@ -230,6 +236,10 @@ export default function EventModal({ mode, event, defaultDate, defaultStartTime,
 
           <Field label={t('field.project')}>
             <ProjectPicker value={projectsSel} suggestions={projects} onChange={setProjectsSel} placeholder={t('ph.addProject')} />
+          </Field>
+
+          <Field label="Focus Area">
+            <FocusAreaPicker value={focusAreaId} onChange={setFocusAreaId} />
           </Field>
 
           <Field label={t('field.reminder')}>
@@ -302,6 +312,10 @@ export default function EventModal({ mode, event, defaultDate, defaultStartTime,
               </div>
             )}
           </div>
+        </div>
+
+        <div className="px-5 py-3 border-t border-ink-100 dark:border-ink-800">
+          <NoteLinksSection kind="event" itemId={event?.id ?? null} itemTitle={title} />
         </div>
 
         <div className="px-5 py-3 border-t border-ink-100 dark:border-ink-800 flex gap-2 justify-between">
