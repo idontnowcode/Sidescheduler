@@ -68,7 +68,7 @@ declare global {
       extractActions: (text: string) => Promise<{ tasks?: ExtractedTask[]; events?: ExtractedEvent[]; error?: string }>
       applyActions: (payload: { tasks: ExtractedTask[]; events: ExtractedEvent[] }) => Promise<{ created: number; error?: string }>
       openExternal: (url: string) => Promise<void>
-      saveApiKey: (key: string) => Promise<{ success: boolean; error?: string }>
+      saveApiKey: (key: string) => Promise<{ success: boolean; error?: string; verified?: boolean; warning?: string }>
       checkApiKey: () => Promise<{ exists: boolean }>
       getLastOpened: () => Promise<{ notebookId: string; sectionId: string; pageId: string } | null>
       getLinkedItems: (pageId: string) => Promise<{

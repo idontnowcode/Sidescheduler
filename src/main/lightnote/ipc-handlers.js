@@ -256,11 +256,13 @@ function registerIpcHandlers(ipcMain, getWindow, safeStorage, dialog, app, sched
 
   // === API 키 ===
   ipcMain.handle('lightnote:save-api-key', async (_, { key }) => {
-    const isValid = await geminiService.testApiKey(key);
-    if (!isValid) return { success: false, error: 'INVALID_KEY' };
+    const res = await geminiService.testApiKey(key);
+    // Only refuse when the key is genuinely rejected. If we just couldn't verify
+    // (offline / region / quota), still save it — a real key must not be blocked.
+    if (res.reason === 'INVALID_KEY') return { success: false, error: 'INVALID_KEY', message: res.message };
     storage.saveApiKey(key);
     geminiService.init(key);
-    return { success: true };
+    return { success: true, verified: !!res.ok, warning: res.ok ? undefined : res.message };
   });
 
   ipcMain.handle('lightnote:check-api-key', async () => ({ exists: storage.hasApiKey() }));

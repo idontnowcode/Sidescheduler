@@ -62,34 +62,35 @@ export default function SettingsModal({ onClose }: Props) {
   }, [])
 
   const handleTest = useCallback(async () => {
-    if (!apiKey.trim()) { setKeyStatus({ text: 'API 키를 입력해주세요.', ok: false }); return }
-    setKeyStatus({ text: '테스트 중...', ok: null })
+    if (!apiKey.trim()) { setKeyStatus({ text: 'Enter an API key.', ok: false }); return }
+    setKeyStatus({ text: 'Testing…', ok: null })
     setIsTesting(true)
     try {
       const result = await window.lightnote.saveApiKey(apiKey.trim())
-      if (result.success) setKeyStatus({ text: '✓ 연결 성공!', ok: true })
-      else setKeyStatus({ text: '✗ 유효하지 않은 API 키입니다.', ok: false })
+      if (result.success && result.verified) setKeyStatus({ text: '✓ Connected & saved!', ok: true })
+      else if (result.success) setKeyStatus({ text: '✓ Saved, but could not verify now (network/region). It may still work.', ok: true })
+      else setKeyStatus({ text: '✗ Invalid API key.', ok: false })
     } catch {
-      setKeyStatus({ text: '✗ 연결 실패.', ok: false })
+      setKeyStatus({ text: '✗ Connection failed.', ok: false })
     } finally {
       setIsTesting(false)
     }
   }, [apiKey])
 
   const handleSave = useCallback(async () => {
-    if (!apiKey.trim()) { setKeyStatus({ text: 'API 키를 입력해주세요.', ok: false }); return }
-    setKeyStatus({ text: '저장 중...', ok: null })
+    if (!apiKey.trim()) { setKeyStatus({ text: 'Enter an API key.', ok: false }); return }
+    setKeyStatus({ text: 'Saving…', ok: null })
     setIsSaving(true)
     try {
       const result = await window.lightnote.saveApiKey(apiKey.trim())
       if (result.success) {
-        setKeyStatus({ text: '✓ 저장됨', ok: true })
-        setTimeout(onClose, 800)
+        setKeyStatus({ text: result.verified ? '✓ Saved' : '✓ Saved (unverified — may work)', ok: true })
+        setTimeout(onClose, 900)
       } else {
-        setKeyStatus({ text: '✗ 유효하지 않은 API 키입니다.', ok: false })
+        setKeyStatus({ text: '✗ Invalid API key.', ok: false })
       }
     } catch {
-      setKeyStatus({ text: '✗ 저장 실패.', ok: false })
+      setKeyStatus({ text: '✗ Save failed.', ok: false })
     } finally {
       setIsSaving(false)
     }

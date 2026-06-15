@@ -232,14 +232,20 @@ async function generateBrief(contextText) {
   }
 }
 
+// Returns { ok } on success, or { ok:false, reason } where reason is
+// 'INVALID_KEY' (the key is genuinely rejected) vs 'UNVERIFIED' (could not verify
+// right now — network/region/quota). Callers should NOT block saving on UNVERIFIED.
 async function testApiKey(apiKey) {
   try {
     const testAI = new GoogleGenerativeAI(apiKey);
     const model = testAI.getGenerativeModel({ model: MODEL_NAME });
     await model.generateContent('ping');
-    return true;
-  } catch {
-    return false;
+    return { ok: true };
+  } catch (err) {
+    const msg = String(err?.message || err);
+    const keyRejected = /API key not valid|API_KEY_INVALID|invalid api ?key|API key expired/i.test(msg)
+      || (/\b400\b/.test(msg) && /API_KEY/i.test(msg));
+    return { ok: false, reason: keyRejected ? 'INVALID_KEY' : 'UNVERIFIED', message: msg };
   }
 }
 
