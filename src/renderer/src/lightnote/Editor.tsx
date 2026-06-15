@@ -107,6 +107,9 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage }, 
   const [showPagePicker, setShowPagePicker] = useState(false)
   const [allPages, setAllPages] = useState<PageRefLoc[]>([])
   const [pageQuery, setPageQuery] = useState('')
+  // Image resize overlay: position + size + the target img element
+  const [resizeBox, setResizeBox] = useState<{ left: number; top: number; w: number; h: number } | null>(null)
+  const resizeTargetRef = useRef<HTMLImageElement | null>(null)
 
   const editorDivRef = useRef<HTMLDivElement>(null)
   const quillRef = useRef<Quill | null>(null)
@@ -229,8 +232,11 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage }, 
       saveTimerRef.current = setTimeout(savePage, 1000)
     })
 
-    // Custom image handler
-    const toolbar = quill.getModule('toolbar') as { addHandler: (name: string, fn: () => void) => void }
+    // Custom image handler (toolbar button)
+    const toolbar = quill.getModule('toolbar') as {
+      addHandler: (name: string, fn: () => void) => void
+      container: HTMLElement
+    }
     toolbar.addHandler('image', () => {
       const input = document.createElement('input')
       input.type = 'file'; input.accept = 'image/*'
@@ -238,29 +244,85 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage }, 
       input.click()
     })
 
+    // Explicit toggle handlers for blockquote / code-block. Quill 2's default
+    // toggle is inconsistent on multi-line / line-end selections; reading
+    // the current format and flipping it is reliable.
+    toolbar.addHandler('blockquote', () => {
+      const range = quill.getSelection(true)
+      if (!range) return
+      const fmt = quill.getFormat(range)
+      quill.format('blockquote', !fmt.blockquote, 'user')
+    })
+    toolbar.addHandler('code-block', () => {
+      const range = quill.getSelection(true)
+      if (!range) return
+      const fmt = quill.getFormat(range)
+      quill.format('code-block', !fmt['code-block'], 'user')
+    })
+
+    // Paste: handle image clipboard items in CAPTURE phase and stop further
+    // propagation so Quill's own clipboard module doesn't insert a 2nd copy.
     quill.root.addEventListener('paste', (e: ClipboardEvent) => {
       const items = e.clipboardData?.items
       if (!items) return
       for (const item of items) {
         if (item.type.startsWith('image/')) {
           e.preventDefault()
+          e.stopImmediatePropagation()
           const file = item.getAsFile()
           if (file) insertImageFile(file)
-          break
+          return
         }
       }
-    })
+    }, { capture: true })
 
     quill.root.addEventListener('drop', (e: DragEvent) => {
       const files = e.dataTransfer?.files
-      if (!files) return
+      if (!files || files.length === 0) return
       for (const file of files) {
         if (file.type.startsWith('image/')) {
           e.preventDefault()
+          e.stopImmediatePropagation()
           insertImageFile(file)
-          break
+          return
         }
       }
+    }, { capture: true })
+
+    // ── Image resize: click an image to show a selection box with a corner
+    //    handle; drag the handle to scale (aspect ratio preserved). The width
+    //    is written to the <img width> attribute, which Quill's ImageBlot
+    //    preserves in the delta — so it persists across saves.
+    const positionBoxOver = (img: HTMLImageElement) => {
+      const root = quill.root
+      const ir = img.getBoundingClientRect()
+      const rr = root.getBoundingClientRect()
+      setResizeBox({
+        left: ir.left - rr.left + root.scrollLeft,
+        top: ir.top - rr.top + root.scrollTop,
+        w: ir.width,
+        h: ir.height,
+      })
+    }
+    quill.root.addEventListener('click', (e) => {
+      const t = e.target as HTMLElement
+      if (t.tagName === 'IMG') {
+        resizeTargetRef.current = t as HTMLImageElement
+        positionBoxOver(t as HTMLImageElement)
+      } else {
+        resizeTargetRef.current = null
+        setResizeBox(null)
+      }
+    })
+    // Keep the overlay glued to the image while typing / scrolling
+    quill.on('editor-change', () => {
+      const img = resizeTargetRef.current
+      if (img && img.isConnected) positionBoxOver(img)
+      else { resizeTargetRef.current = null; setResizeBox(null) }
+    })
+    quill.root.addEventListener('scroll', () => {
+      const img = resizeTargetRef.current
+      if (img && img.isConnected) positionBoxOver(img)
     })
 
     // Ctrl+S save
@@ -422,8 +484,62 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage }, 
             </span>
           </div>
         </div>
-        <div className="quill-wrapper">
+        <div className="quill-wrapper" style={{ position: 'relative' }}>
           <div ref={editorDivRef} />
+          {resizeBox && (
+            <>
+              {/* Selection ring around the focused image */}
+              <div style={{
+                position: 'absolute', pointerEvents: 'none', zIndex: 5,
+                left: resizeBox.left, top: resizeBox.top, width: resizeBox.w, height: resizeBox.h,
+                border: '2px solid #7c6ff0', boxSizing: 'border-box', borderRadius: '2px',
+              }} />
+              {/* SE corner resize handle */}
+              <div
+                title="크기 조절 (Drag to resize)"
+                style={{
+                  position: 'absolute', zIndex: 6,
+                  left: resizeBox.left + resizeBox.w - 7, top: resizeBox.top + resizeBox.h - 7,
+                  width: '14px', height: '14px', background: '#7c6ff0', border: '2px solid #fff',
+                  borderRadius: '3px', cursor: 'nwse-resize', boxShadow: '0 1px 3px rgba(0,0,0,.4)',
+                }}
+                onMouseDown={(e) => {
+                  e.preventDefault(); e.stopPropagation()
+                  const img = resizeTargetRef.current
+                  if (!img || !quillRef.current) return
+                  const startX = e.clientX
+                  const startW = img.getBoundingClientRect().width
+                  const naturalRatio = img.naturalHeight && img.naturalWidth
+                    ? img.naturalHeight / img.naturalWidth
+                    : (img.getBoundingClientRect().height / startW || 1)
+                  const onMove = (ev: MouseEvent) => {
+                    const next = Math.max(40, Math.round(startW + (ev.clientX - startX)))
+                    img.setAttribute('width', String(next))
+                    img.removeAttribute('height')   // preserve aspect ratio
+                    img.style.width = `${next}px`
+                    img.style.height = 'auto'
+                    // refresh overlay position
+                    const root = quillRef.current!.root
+                    const ir = img.getBoundingClientRect()
+                    const rr = root.getBoundingClientRect()
+                    setResizeBox({
+                      left: ir.left - rr.left + root.scrollLeft,
+                      top: ir.top - rr.top + root.scrollTop,
+                      w: next, h: next * naturalRatio,
+                    })
+                  }
+                  const onUp = () => {
+                    document.removeEventListener('mousemove', onMove)
+                    document.removeEventListener('mouseup', onUp)
+                    // Tell Quill the DOM changed so the new width lands in the delta
+                    quillRef.current!.update('user')
+                  }
+                  document.addEventListener('mousemove', onMove)
+                  document.addEventListener('mouseup', onUp)
+                }}
+              />
+            </>
+          )}
         </div>
 
         {/* Linked planner items */}
