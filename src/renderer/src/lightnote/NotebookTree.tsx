@@ -224,7 +224,12 @@ const NotebookTree = forwardRef<TreeHandle, Props>(({ selected, onPageSelect, on
     await window.lightnote.movePage(d.nbId, d.secId, d.pageId, nbId, secId)
     setExpandedSecs(prev => new Set([...prev, secId]))
     await reload()
-  }, [dragPage, reload])
+    // Force-load both folders' pages — reload() closes over a possibly stale
+    // expandedSecs, so the moved page could otherwise stay invisible in the
+    // (newly expanded) target until the next manual toggle.
+    await loadPages(d.nbId, d.secId)
+    await loadPages(nbId, secId)
+  }, [dragPage, reload, loadPages])
 
   function renderSection(nbId: string, sec: Section, nbName: string, depth = 0): React.ReactNode {
     const isOpen = expandedSecs.has(sec.id)

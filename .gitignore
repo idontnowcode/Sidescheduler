@@ -26,3 +26,6 @@ scripts/e2e-*.png
 # env
 .env
 .env.*
+
+# Local verification screenshots
+scripts/*.png
