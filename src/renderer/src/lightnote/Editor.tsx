@@ -141,12 +141,13 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage }, 
     try { setAllPages(await window.lightnote.listAllPages()) } catch { /* ignore */ }
   }, [])
 
+  // Link a page but keep the picker open so several can be added in one pass.
+  // The just-linked page drops out of the list (it's filtered by relatedPages).
   const linkPage = useCallback(async (p: PageRefLoc) => {
     const cur = currentPageRef.current
     if (!cur) return
     await window.lightnote.addPageRef(cur.pageId, p.pageId)
-    setShowPagePicker(false)
-    reloadRelated()
+    await reloadRelated()
   }, [reloadRelated])
 
   const unlinkPage = useCallback(async (p: PageRefLoc) => {
@@ -484,8 +485,11 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage }, 
             onClick={e => e.stopPropagation()}
             style={{ width: '420px', maxHeight: '70vh', display: 'flex', flexDirection: 'column', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '12px', boxShadow: '0 12px 40px rgba(0,0,0,0.3)', overflow: 'hidden' }}
           >
-            <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', fontWeight: 600, fontSize: '14px', color: 'var(--text)' }}>
-              Link a page
+            <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)' }}>
+              <div style={{ fontWeight: 600, fontSize: '14px', color: 'var(--text)' }}>Link pages</div>
+              <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                Pick one or more — each is linked instantly.{relatedPages.length > 0 ? ` (${relatedPages.length} linked)` : ''}
+              </div>
             </div>
             <input
               autoFocus
@@ -495,15 +499,20 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage }, 
               style={{ margin: '12px 16px 8px', padding: '8px 10px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--bg-secondary)', color: 'var(--text)', fontSize: '13px' }}
             />
             <div style={{ overflowY: 'auto', padding: '0 8px 12px' }}>
-              {allPages
-                .filter(p => p.pageId !== currentPage?.pageId)
-                .filter(p => !relatedPages.some(r => r.pageId === p.pageId))
-                .filter(p => {
-                  const q = pageQuery.trim().toLowerCase()
-                  if (!q) return true
-                  return [p.title, p.notebookName, p.sectionName].filter(Boolean).join(' ').toLowerCase().includes(q)
-                })
-                .map(p => (
+              {(() => {
+                const q = pageQuery.trim().toLowerCase()
+                const list = allPages
+                  .filter(p => p.pageId !== currentPage?.pageId)
+                  .filter(p => !relatedPages.some(r => r.pageId === p.pageId))
+                  .filter(p => !q || [p.title, p.notebookName, p.sectionName].filter(Boolean).join(' ').toLowerCase().includes(q))
+                if (list.length === 0) {
+                  return (
+                    <div style={{ padding: '16px', textAlign: 'center', fontSize: '12px', color: 'var(--text-muted)' }}>
+                      {q ? 'No matching pages.' : 'No more pages to link.'}
+                    </div>
+                  )
+                }
+                return list.map(p => (
                   <button
                     key={p.pageId}
                     type="button"
@@ -515,15 +524,16 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage }, 
                     <span style={{ fontSize: '13px' }}>📄 {p.title || 'Untitled'}</span>
                     <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{[p.notebookName, p.sectionName].filter(Boolean).join(' / ')}</span>
                   </button>
-                ))}
+                ))
+              })()}
             </div>
             <div style={{ padding: '8px 16px', borderTop: '1px solid var(--border)', textAlign: 'right' }}>
               <button
                 type="button"
                 onClick={() => setShowPagePicker(false)}
-                style={{ fontSize: '12px', padding: '6px 12px', borderRadius: '8px', border: '1px solid var(--border)', background: 'transparent', color: 'var(--text)', cursor: 'pointer' }}
+                style={{ fontSize: '12px', padding: '6px 14px', borderRadius: '8px', border: '1px solid #7c6ff0', background: '#7c6ff0', color: '#fff', cursor: 'pointer', fontWeight: 600 }}
               >
-                Cancel
+                Done
               </button>
             </div>
           </div>
