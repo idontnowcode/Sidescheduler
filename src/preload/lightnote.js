@@ -20,6 +20,14 @@ contextBridge.exposeInMainWorld('lightnote', {
   savePage: (data) => ipcRenderer.invoke('lightnote:save-page', data),
   renamePage: (notebookId, sectionId, id, title) => ipcRenderer.invoke('lightnote:rename-page', { notebookId, sectionId, id, title }),
   deletePage: (notebookId, sectionId, id) => ipcRenderer.invoke('lightnote:delete-page', { notebookId, sectionId, id }),
+  duplicatePage: (notebookId, sectionId, id) => ipcRenderer.invoke('lightnote:duplicate-page', { notebookId, sectionId, id }),
+  movePage: (srcNbId, srcSecId, pageId, dstNbId, dstSecId) => ipcRenderer.invoke('lightnote:move-page', { srcNbId, srcSecId, pageId, dstNbId, dstSecId }),
+  listAllPages: () => ipcRenderer.invoke('lightnote:links:list-pages'),
+
+  // Page ↔ page links
+  getPageRefs: (pageId) => ipcRenderer.invoke('lightnote:page-refs:get', { pageId }),
+  addPageRef: (a, b) => ipcRenderer.invoke('lightnote:page-refs:add', { a, b }),
+  removePageRef: (a, b) => ipcRenderer.invoke('lightnote:page-refs:remove', { a, b }),
 
   // 이미지
   saveImage: (data) => ipcRenderer.invoke('lightnote:save-image', data),

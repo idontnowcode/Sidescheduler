@@ -167,7 +167,7 @@ export default function AIAssistant({ onClose, getCurrentPage, onPageSelect, onT
       await window.lightnote.savePage({ notebookId: nbId!, sectionId: secId!, pageId: page.id, delta, title })
       await onTreeReload()
       setSavedState('saved')
-      onPageSelect(nbId!, secId!, page.id, `AI 답변 › 답변 모음 › ${title}`)
+      onPageSelect(nbId!, secId!, page.id, `AI Answers › Saved › ${title}`)
     } catch {
       setSavedState('error')
     }

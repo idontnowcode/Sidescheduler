@@ -42,6 +42,7 @@ export interface WebSource {
   url: string
 }
 
+export interface PageRefLoc { pageId: string; notebookId: string; sectionId: string; title: string; notebookName?: string; sectionName?: string }
 export interface ExtractedTask { title: string; dueDate: string | null; priority: 'urgent' | 'normal' | 'low' }
 export interface ExtractedEvent { title: string; date: string; start: string | null; end: string | null }
 
@@ -62,6 +63,12 @@ declare global {
       savePage: (args: { notebookId: string; sectionId: string; pageId: string; delta: unknown; title: string }) => Promise<void>
       renamePage: (notebookId: string, sectionId: string, id: string, title: string) => Promise<Page>
       deletePage: (notebookId: string, sectionId: string, id: string) => Promise<void>
+      duplicatePage: (notebookId: string, sectionId: string, id: string) => Promise<Page>
+      movePage: (srcNbId: string, srcSecId: string, pageId: string, dstNbId: string, dstSecId: string) => Promise<{ id?: string; error?: string }>
+      listAllPages: () => Promise<PageRefLoc[]>
+      getPageRefs: (pageId: string) => Promise<PageRefLoc[]>
+      addPageRef: (a: string, b: string) => Promise<{ success: boolean }>
+      removePageRef: (a: string, b: string) => Promise<{ success: boolean }>
       saveImage: (args: unknown) => Promise<unknown>
       search: (question: string, useWebSearch: boolean) => Promise<{ error?: string; success?: boolean }>
       organizePage: (title: string, text: string) => Promise<{ error?: string }>

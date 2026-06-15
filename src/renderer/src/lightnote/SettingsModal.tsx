@@ -1,20 +1,20 @@
 import { useState, useEffect, useCallback } from 'react'
 
 const THEMES = {
-  dark:   { label: '다크',    vars: { '--bg':'#1e1e1e','--bg2':'#252526','--bg3':'#2d2d30','--bg4':'#3c3c3c','--border':'#3c3c3c','--text':'#cccccc','--text-dim':'#888888' } },
-  light:  { label: '라이트',  vars: { '--bg':'#f5f5f5','--bg2':'#ffffff','--bg3':'#ebebeb','--bg4':'#d4d4d4','--border':'#d0d0d0','--text':'#1e1e1e','--text-dim':'#666666' } },
-  sepia:  { label: '세피아',  vars: { '--bg':'#f4ead8','--bg2':'#fdf6e3','--bg3':'#ecddc0','--bg4':'#d9c49c','--border':'#d0b880','--text':'#4a3728','--text-dim':'#8a7260' } },
+  dark:   { label: 'Dark',    vars: { '--bg':'#1e1e1e','--bg2':'#252526','--bg3':'#2d2d30','--bg4':'#3c3c3c','--border':'#3c3c3c','--text':'#cccccc','--text-dim':'#888888' } },
+  light:  { label: 'Light',  vars: { '--bg':'#f5f5f5','--bg2':'#ffffff','--bg3':'#ebebeb','--bg4':'#d4d4d4','--border':'#d0d0d0','--text':'#1e1e1e','--text-dim':'#666666' } },
+  sepia:  { label: 'Sepia',  vars: { '--bg':'#f4ead8','--bg2':'#fdf6e3','--bg3':'#ecddc0','--bg4':'#d9c49c','--border':'#d0b880','--text':'#4a3728','--text-dim':'#8a7260' } },
   oled:   { label: 'OLED',   vars: { '--bg':'#000000','--bg2':'#0a0a0a','--bg3':'#111111','--bg4':'#1a1a1a','--border':'#222222','--text':'#e0e0e0','--text-dim':'#555555' } },
-  forest: { label: '포레스트',vars: { '--bg':'#1a2420','--bg2':'#1f2e29','--bg3':'#263832','--bg4':'#2f4840','--border':'#2f4840','--text':'#c5d8cc','--text-dim':'#6a8f7a' } },
+  forest: { label: 'Forest', vars: { '--bg':'#1a2420','--bg2':'#1f2e29','--bg3':'#263832','--bg4':'#2f4840','--border':'#2f4840','--text':'#c5d8cc','--text-dim':'#6a8f7a' } },
 }
 
 const ACCENTS = {
-  blue:   { label: '블루',   color: '#0e7cff', hover: '#1a8cff' },
-  indigo: { label: '인디고', color: '#7c4dff', hover: '#8b5cff' },
-  mint:   { label: '민트',   color: '#00bcd4', hover: '#00d4ec' },
-  green:  { label: '그린',   color: '#4caf50', hover: '#5bc460' },
-  orange: { label: '오렌지', color: '#ff9800', hover: '#ffab2e' },
-  pink:   { label: '핑크',   color: '#e91e63', hover: '#f72b73' },
+  blue:   { label: 'Blue',   color: '#0e7cff', hover: '#1a8cff' },
+  indigo: { label: 'Indigo', color: '#7c4dff', hover: '#8b5cff' },
+  mint:   { label: 'Mint',   color: '#00bcd4', hover: '#00d4ec' },
+  green:  { label: 'Green',  color: '#4caf50', hover: '#5bc460' },
+  orange: { label: 'Orange', color: '#ff9800', hover: '#ffab2e' },
+  pink:   { label: 'Pink',   color: '#e91e63', hover: '#f72b73' },
 }
 
 export function applyTheme(key: string) {
@@ -107,9 +107,9 @@ export default function SettingsModal({ onClose }: Props) {
     <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) onClose() }}
       onKeyDown={e => { if (e.key === 'Escape') onClose() }}>
       <div className="modal-box settings-modal-box">
-        <div className="modal-title">⚙ 설정</div>
+        <div className="modal-title">⚙ Settings</div>
 
-        <div className="settings-section-title">배경 테마</div>
+        <div className="settings-section-title">Background theme</div>
         <div className="theme-grid">
           {Object.entries(THEMES).map(([key, theme]) => {
             const v = theme.vars
@@ -131,7 +131,7 @@ export default function SettingsModal({ onClose }: Props) {
 
         <div className="settings-divider" />
 
-        <div className="settings-section-title">강조 색상</div>
+        <div className="settings-section-title">Accent color</div>
         <div className="accent-grid">
           {Object.entries(ACCENTS).map(([key, accent]) => (
             <div key={key} className={`accent-dot${currentAccent === key ? ' active' : ''}`}
@@ -161,12 +161,12 @@ export default function SettingsModal({ onClose }: Props) {
         <p className="modal-hint">
           📌 <a href="#" onClick={e => { e.preventDefault(); window.lightnote.openExternal('https://aistudio.google.com/apikey') }}>
             Google AI Studio
-          </a>에서 무료 발급
+          </a> — get a free key
         </p>
         <div className="modal-actions">
-          <button className="btn-secondary" onClick={onClose}>취소</button>
-          <button className="btn-secondary" disabled={isTesting} onClick={handleTest}>연결 테스트</button>
-          <button className="btn-primary" disabled={isSaving} onClick={handleSave}>저장</button>
+          <button className="btn-secondary" onClick={onClose}>Cancel</button>
+          <button className="btn-secondary" disabled={isTesting} onClick={handleTest}>Test connection</button>
+          <button className="btn-primary" disabled={isSaving} onClick={handleSave}>Save</button>
         </div>
         {keyStatus.text && <div className={`key-status${statusClass}`}>{keyStatus.text}</div>}
       </div>

@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback, forwardRef, useImperativeHandle } from 'react'
 import Quill from 'quill'
+import type { PageRefLoc } from './types'
 
 export interface EditorHandle {
   loadPage: (nbId: string, secId: string, pageId: string) => Promise<void>
@@ -10,21 +11,22 @@ export interface EditorHandle {
 
 interface Props {
   onOpenSettings: () => void
+  onOpenPage?: (nbId: string, secId: string, pageId: string, crumb: string) => void
 }
 
 type SaveState = 'saved' | 'saving' | 'editing' | 'error'
 
 function saveStateText(s: SaveState) {
-  if (s === 'saving') return '저장 중...'
-  if (s === 'editing') return '수정 중...'
-  if (s === 'error') return '저장 실패'
-  return '저장됨'
+  if (s === 'saving') return 'Saving…'
+  if (s === 'editing') return 'Editing…'
+  if (s === 'error') return 'Save failed'
+  return 'Saved'
 }
 
 function extractTextFromDelta(delta: { ops?: Array<{ insert?: unknown }> }): string {
   return (delta.ops || []).map(op => {
     if (typeof op.insert === 'string') return op.insert
-    if (op.insert && typeof op.insert === 'object' && 'image' in op.insert) return '[이미지]\n'
+    if (op.insert && typeof op.insert === 'object' && 'image' in op.insert) return '[image]\n'
     return ''
   }).join('')
 }
@@ -90,7 +92,7 @@ function fmtEventWhen(start: number, end?: number) {
   return `${fmtDate(start)} ${fmtTime(start)}${end ? `–${fmtTime(end)}` : ''}`
 }
 
-const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings }, ref) => {
+const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage }, ref) => {
   const [currentPage, setCurrentPage] = useState<{ notebookId: string; sectionId: string; pageId: string } | null>(null)
   const [titleValue, setTitleValue] = useState('')
   const [saveState, setSaveState] = useState<SaveState>('saved')
@@ -101,6 +103,10 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings }, ref) => {
   const [organizePreviewHtml, setOrganizePreviewHtml] = useState('')
   const [linkedItems, setLinkedItems] = useState<LinkedItems>({ events: [], tasks: [] })
   const [linksExpanded, setLinksExpanded] = useState(false)
+  const [relatedPages, setRelatedPages] = useState<PageRefLoc[]>([])
+  const [showPagePicker, setShowPagePicker] = useState(false)
+  const [allPages, setAllPages] = useState<PageRefLoc[]>([])
+  const [pageQuery, setPageQuery] = useState('')
 
   const editorDivRef = useRef<HTMLDivElement>(null)
   const quillRef = useRef<Quill | null>(null)
@@ -114,19 +120,47 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings }, ref) => {
   useEffect(() => { isDirtyRef.current = isDirty }, [isDirty])
   useEffect(() => { currentPageRef.current = currentPage }, [currentPage])
 
-  // Load linked items when page changes
+  // Load linked items (events/tasks) + related pages when the page changes
   useEffect(() => {
-    if (!currentPage) { setLinkedItems({ events: [], tasks: [] }); return }
+    if (!currentPage) { setLinkedItems({ events: [], tasks: [] }); setRelatedPages([]); return }
     window.lightnote.getLinkedItems?.(currentPage.pageId)
       .then((items: LinkedItems) => setLinkedItems(items))
       .catch(() => {})
+    window.lightnote.getPageRefs?.(currentPage.pageId)
+      .then(setRelatedPages)
+      .catch(() => {})
   }, [currentPage])
+
+  const reloadRelated = useCallback(async () => {
+    if (!currentPageRef.current) return
+    try { setRelatedPages(await window.lightnote.getPageRefs(currentPageRef.current.pageId)) } catch { /* ignore */ }
+  }, [])
+
+  const openPagePicker = useCallback(async () => {
+    setShowPagePicker(true); setPageQuery('')
+    try { setAllPages(await window.lightnote.listAllPages()) } catch { /* ignore */ }
+  }, [])
+
+  const linkPage = useCallback(async (p: PageRefLoc) => {
+    const cur = currentPageRef.current
+    if (!cur) return
+    await window.lightnote.addPageRef(cur.pageId, p.pageId)
+    setShowPagePicker(false)
+    reloadRelated()
+  }, [reloadRelated])
+
+  const unlinkPage = useCallback(async (p: PageRefLoc) => {
+    const cur = currentPageRef.current
+    if (!cur) return
+    await window.lightnote.removePageRef(cur.pageId, p.pageId)
+    reloadRelated()
+  }, [reloadRelated])
 
   const savePage = useCallback(async () => {
     const cp = currentPageRef.current
     if (!cp || !quillRef.current) return
     const delta = quillRef.current.getContents()
-    const title = (document.getElementById('ln-page-title') as HTMLInputElement)?.value?.trim() || '제목 없음'
+    const title = (document.getElementById('ln-page-title') as HTMLInputElement)?.value?.trim() || 'Untitled'
     try {
       setSaveState('saving')
       await window.lightnote.savePage({ ...cp, delta, title })
@@ -145,7 +179,7 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings }, ref) => {
 
     const quill = new Quill(editorDivRef.current, {
       theme: 'snow',
-      placeholder: '내용을 입력하세요...',
+      placeholder: 'Start writing…',
       modules: {
         toolbar: [
           [{ header: [1, 2, 3, false] }],
@@ -232,7 +266,7 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings }, ref) => {
       const dataUrl = await new Promise<string>((resolve, reject) => {
         const reader = new FileReader()
         reader.onload = e => resolve(e.target!.result as string)
-        reader.onerror = () => reject(new Error('FileReader 실패'))
+        reader.onerror = () => reject(new Error('FileReader failed'))
         reader.readAsDataURL(file)
       })
       const range = quillRef.current.getSelection(true)
@@ -246,7 +280,7 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings }, ref) => {
       const ext = (file.name || 'image').split('.').pop()?.replace(/[^a-zA-Z0-9]/g, '') || 'png'
       window.lightnote.saveImage({ ...currentPageRef.current, imageData: btoa(binary), ext }).catch(() => {})
     } catch (err) {
-      console.error('이미지 삽입 실패:', err)
+      console.error('Image insert failed:', err)
     }
   }
 
@@ -258,7 +292,7 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings }, ref) => {
       currentPageRef.current = cp
       try {
         const data = await window.lightnote.loadPage(nbId, secId, pageId)
-        setTitleValue(data.title || '제목 없음')
+        setTitleValue(data.title || 'Untitled')
         if (quillRef.current) {
           const delta = data.delta as { ops?: unknown[] } | null
           quillRef.current.setContents(delta && delta.ops ? delta as Parameters<typeof quillRef.current.setContents>[0] : [], 'silent')
@@ -310,7 +344,7 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings }, ref) => {
     if (!currentPage || isOrganizing) return
     const text = quillRef.current ? extractTextFromDelta(quillRef.current.getContents() as { ops?: Array<{ insert?: unknown }> }) : ''
     if (!text.trim() || text.trim() === '\n') {
-      alert('정리할 내용이 없습니다. 먼저 노트를 작성해주세요.')
+      alert('Nothing to organize. Write a note first.')
       return
     }
     if (isDirtyRef.current) await savePage()
@@ -345,7 +379,7 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings }, ref) => {
             id="ln-page-title"
             type="text"
             className="page-title-input"
-            placeholder="제목 없음"
+            placeholder="Untitled"
             maxLength={100}
             value={titleValue}
             onChange={handleTitleChange}
@@ -356,7 +390,7 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings }, ref) => {
               className="organize-btn"
               disabled={isOrganizing}
               onClick={handleOrganize}
-            >✨ AI 정리</button>
+            >✨ AI Organize</button>
             <span className={`save-indicator${stClass ? ' ' + stClass : ''}`}>
               {saveStateText(saveState)}
             </span>
@@ -394,12 +428,112 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings }, ref) => {
             )}
           </div>
         )}
+
+        {/* Related pages (page ↔ page links) — visually distinct from event/task links */}
+        {currentPage && (
+          <div style={{ borderTop: '1px solid var(--border)', padding: '8px 16px', flexShrink: 0, background: 'var(--bg)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+              <span style={{ fontSize: '11px', fontWeight: 600, color: '#7c6ff0', letterSpacing: '0.05em', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                🔗 Related pages ({relatedPages.length})
+              </span>
+              <button
+                type="button"
+                onClick={openPagePicker}
+                style={{ fontSize: '11px', padding: '2px 8px', borderRadius: '6px', border: '1px solid #7c6ff0', color: '#7c6ff0', background: 'transparent', cursor: 'pointer' }}
+              >
+                + Link a page
+              </button>
+            </div>
+            {relatedPages.length > 0 && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '6px' }}>
+                {relatedPages.map(p => (
+                  <span
+                    key={p.pageId}
+                    style={{ fontSize: '12px', padding: '2px 4px 2px 8px', borderRadius: '8px', background: 'rgba(124,111,240,0.12)', color: '#6a5de0', border: '1px solid rgba(124,111,240,0.35)', display: 'flex', alignItems: 'center', gap: '4px' }}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => onOpenPage?.(p.notebookId, p.sectionId, p.pageId, p.title)}
+                      title={[p.notebookName, p.sectionName].filter(Boolean).join(' / ')}
+                      style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', padding: 0, font: 'inherit' }}
+                    >
+                      📄 {p.title || 'Untitled'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => unlinkPage(p)}
+                      title="Remove link"
+                      style={{ background: 'none', border: 'none', color: '#6a5de0', cursor: 'pointer', padding: '0 2px', fontSize: '13px', lineHeight: 1 }}
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
+
+      {showPagePicker && (
+        <div
+          onClick={() => setShowPagePicker(false)}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{ width: '420px', maxHeight: '70vh', display: 'flex', flexDirection: 'column', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '12px', boxShadow: '0 12px 40px rgba(0,0,0,0.3)', overflow: 'hidden' }}
+          >
+            <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', fontWeight: 600, fontSize: '14px', color: 'var(--text)' }}>
+              Link a page
+            </div>
+            <input
+              autoFocus
+              value={pageQuery}
+              onChange={e => setPageQuery(e.target.value)}
+              placeholder="Search pages…"
+              style={{ margin: '12px 16px 8px', padding: '8px 10px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--bg-secondary)', color: 'var(--text)', fontSize: '13px' }}
+            />
+            <div style={{ overflowY: 'auto', padding: '0 8px 12px' }}>
+              {allPages
+                .filter(p => p.pageId !== currentPage?.pageId)
+                .filter(p => !relatedPages.some(r => r.pageId === p.pageId))
+                .filter(p => {
+                  const q = pageQuery.trim().toLowerCase()
+                  if (!q) return true
+                  return [p.title, p.notebookName, p.sectionName].filter(Boolean).join(' ').toLowerCase().includes(q)
+                })
+                .map(p => (
+                  <button
+                    key={p.pageId}
+                    type="button"
+                    onClick={() => linkPage(p)}
+                    style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '2px', width: '100%', textAlign: 'left', padding: '8px 10px', borderRadius: '8px', border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--text)' }}
+                    onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-secondary)')}
+                    onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                  >
+                    <span style={{ fontSize: '13px' }}>📄 {p.title || 'Untitled'}</span>
+                    <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{[p.notebookName, p.sectionName].filter(Boolean).join(' / ')}</span>
+                  </button>
+                ))}
+            </div>
+            <div style={{ padding: '8px 16px', borderTop: '1px solid var(--border)', textAlign: 'right' }}>
+              <button
+                type="button"
+                onClick={() => setShowPagePicker(false)}
+                style={{ fontSize: '12px', padding: '6px 12px', borderRadius: '8px', border: '1px solid var(--border)', background: 'transparent', color: 'var(--text)', cursor: 'pointer' }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {!currentPage && (
         <div className="editor-empty">
           <div className="editor-empty-content">
             <div className="editor-empty-icon">📝</div>
-            <p>왼쪽에서 페이지를 선택하거나<br/>새로 만들어보세요.</p>
+            <p>Select a page on the left<br/>or create a new one.</p>
           </div>
         </div>
       )}
@@ -408,19 +542,19 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings }, ref) => {
       {showOrganize && (
         <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) { setShowOrganize(false); setIsOrganizing(false) } }}>
           <div className="modal-box organize-modal-box">
-            <div className="modal-title">✨ AI 정리 결과</div>
+            <div className="modal-title">✨ AI Organize result</div>
             <div
               className="organize-preview"
               dangerouslySetInnerHTML={{ __html: organizePreviewHtml || '' }}
             />
             {isOrganizing && (
               <div className="organize-loading">
-                정리 중<span className="loading-dots"><span/><span/><span/></span>
+                Organizing<span className="loading-dots"><span/><span/><span/></span>
               </div>
             )}
             <div className="modal-actions">
-              <button className="btn-secondary" onClick={() => { setShowOrganize(false); setIsOrganizing(false); setOrganizeText('') }}>취소</button>
-              <button className="btn-primary" disabled={isOrganizing || !organizeText.trim()} onClick={applyOrganize}>적용하기</button>
+              <button className="btn-secondary" onClick={() => { setShowOrganize(false); setIsOrganizing(false); setOrganizeText('') }}>Cancel</button>
+              <button className="btn-primary" disabled={isOrganizing || !organizeText.trim()} onClick={applyOrganize}>Apply</button>
             </div>
           </div>
         </div>

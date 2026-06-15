@@ -195,6 +195,70 @@ async function deletePage(notebookId, sectionId, pageId) {
   try { await fs.rm(pageImagesDir(notebookId, sectionId, pageId), { recursive: true, force: true }); } catch {}
 }
 
+async function duplicatePage(notebookId, sectionId, pageId) {
+  const src = await loadPage(notebookId, sectionId, pageId);
+  const pages = await getPages(notebookId, sectionId);
+  const id = crypto.randomUUID();
+  const now = Date.now();
+  const title = `${src.title || '제목 없음'} (copy)`;
+  const meta = { id, title, createdAt: now, updatedAt: now, order: pages.length };
+  pages.push(meta);
+  await writeJson(pagesPath(notebookId, sectionId), pages);
+  await writeJson(pageJsonPath(notebookId, sectionId, id), { id, title, delta: src.delta, updatedAt: now });
+  await fs.mkdir(pageImagesDir(notebookId, sectionId, id), { recursive: true });
+  return meta;
+}
+
+/** Move a page to another section (and/or notebook). */
+async function movePage(srcNbId, srcSecId, pageId, dstNbId, dstSecId) {
+  if (srcNbId === dstNbId && srcSecId === dstSecId) return null;
+  const data = await readJson(pageJsonPath(srcNbId, srcSecId, pageId));
+  const srcPages = await getPages(srcNbId, srcSecId);
+  const meta = srcPages.find(p => p.id === pageId);
+  if (!data || !meta) return null;
+  const dstPages = await getPages(dstNbId, dstSecId);
+  await fs.mkdir(path.dirname(pageJsonPath(dstNbId, dstSecId, pageId)), { recursive: true });
+  await writeJson(pageJsonPath(dstNbId, dstSecId, pageId), data);
+  dstPages.push({ ...meta, order: dstPages.length, updatedAt: Date.now() });
+  await writeJson(pagesPath(dstNbId, dstSecId), dstPages);
+  await writeJson(pagesPath(srcNbId, srcSecId), srcPages.filter(p => p.id !== pageId));
+  try { await fs.unlink(pageJsonPath(srcNbId, srcSecId, pageId)); } catch {}
+  try { await fs.rename(pageImagesDir(srcNbId, srcSecId, pageId), pageImagesDir(dstNbId, dstSecId, pageId)); } catch {}
+  return { id: pageId };
+}
+
+/** Locate a page by id (scans all notebooks/sections). */
+async function findPageLocation(pageId) {
+  const nbs = await getNotebooks();
+  for (const nb of nbs) {
+    const secs = await getSections(nb.id);
+    for (const sec of secs) {
+      const pages = await getPages(nb.id, sec.id);
+      const pg = pages.find(p => p.id === pageId);
+      if (pg) return { notebookId: nb.id, sectionId: sec.id, pageId, title: pg.title, notebookName: nb.name, sectionName: sec.name };
+    }
+  }
+  return null;
+}
+
+// === PAGE ↔ PAGE LINKS (bidirectional, kept separate from event/task links) ===
+function pageRefsPath() { return path.join(DATA_ROOT, 'page-refs.json'); }
+async function loadPageRefs() { return (await readJson(pageRefsPath())) || {}; }
+async function getPageRefs(pageId) { const m = await loadPageRefs(); return m[pageId] || []; }
+async function addPageRef(a, b) {
+  if (!a || !b || a === b) return;
+  const m = await loadPageRefs();
+  m[a] = [...new Set([...(m[a] || []), b])];
+  m[b] = [...new Set([...(m[b] || []), a])];
+  await writeJson(pageRefsPath(), m);
+}
+async function removePageRef(a, b) {
+  const m = await loadPageRefs();
+  if (m[a]) m[a] = m[a].filter(x => x !== b);
+  if (m[b]) m[b] = m[b].filter(x => x !== a);
+  await writeJson(pageRefsPath(), m);
+}
+
 // === SETTINGS ===
 function settingsPath() { return path.join(DATA_ROOT, 'settings.json'); }
 
@@ -213,5 +277,7 @@ module.exports = {
   init, getNotebooks, createNotebook, renameNotebook, deleteNotebook,
   getSections, createSection, renameSection, deleteSection,
   getPages, createPage, loadPage, savePage, renamePage, deletePage,
+  duplicatePage, movePage, findPageLocation,
+  getPageRefs, addPageRef, removePageRef,
   getLastOpened, saveLastOpened,
 };

@@ -105,6 +105,49 @@ try {
 check('LINKED event carries time (end_at)', !!linkedData?.events?.[0]?.end_at, JSON.stringify(linkedData?.events?.[0] ?? linkedData))
 check('LINKED task carries due_at', linkedData?.tasks?.[0]?.due_at != null, JSON.stringify(linkedData?.tasks?.[0] ?? linkedData))
 
+// ── LightNote page copy / move / page-to-page links ────────────────────────
+let pageOps = null
+try {
+  await main.evaluate(() => window.electronAPI.lightnoteOpen())
+  const lnWin = await app.waitForEvent('window', { predicate: (w) => w.url().includes('#lightnote'), timeout: 12000 })
+  await lnWin.waitForLoadState('domcontentloaded')
+  await lnWin.waitForFunction(() => !!window.lightnote, null, { timeout: 8000 })
+  pageOps = await lnWin.evaluate(async () => {
+    const nb = await window.lightnote.createNotebook('E2E ops nb', '#5b5fc7')
+    const secA = await window.lightnote.createSection(nb.id, 'Sec A', null)
+    const secB = await window.lightnote.createSection(nb.id, 'Sec B', null)
+    const p1 = await window.lightnote.createPage(nb.id, secA.id, 'Ops page 1')
+    const p2 = await window.lightnote.createPage(nb.id, secA.id, 'Ops page 2')
+
+    // duplicate
+    const dup = await window.lightnote.duplicatePage(nb.id, secA.id, p1.id)
+    const aPages = await window.lightnote.getPages(nb.id, secA.id)
+    const dupOk = aPages.some((p) => p.id === dup.id) && /\(copy\)$/.test(dup.title)
+
+    // move p2 from A → B
+    const mv = await window.lightnote.movePage(nb.id, secA.id, p2.id, nb.id, secB.id)
+    const aAfter = await window.lightnote.getPages(nb.id, secA.id)
+    const bAfter = await window.lightnote.getPages(nb.id, secB.id)
+    const moveOk = !mv.error && !aAfter.some((p) => p.id === p2.id) && bAfter.some((p) => p.id === p2.id)
+
+    // page ↔ page refs (bidirectional)
+    await window.lightnote.addPageRef(p1.id, p2.id)
+    const refs1 = await window.lightnote.getPageRefs(p1.id)
+    const refs2 = await window.lightnote.getPageRefs(p2.id)
+    const linkOk = refs1.some((r) => r.pageId === p2.id) && refs2.some((r) => r.pageId === p1.id)
+    await window.lightnote.removePageRef(p1.id, p2.id)
+    const refsAfter = await window.lightnote.getPageRefs(p1.id)
+    const unlinkOk = !refsAfter.some((r) => r.pageId === p2.id)
+
+    return { dupOk, dupTitle: dup.title, moveOk, linkOk, refLoc: refs1[0], unlinkOk }
+  })
+  await lnWin.close().catch(() => {})
+} catch (e) { pageOps = { error: String(e).slice(0, 160) } }
+check('lightnote duplicate page (+copy suffix)', pageOps?.dupOk === true, JSON.stringify(pageOps?.dupTitle ?? pageOps))
+check('lightnote move page across sections', pageOps?.moveOk === true, JSON.stringify(pageOps))
+check('lightnote page-ref add is bidirectional + resolves location', pageOps?.linkOk === true && !!pageOps?.refLoc?.title, JSON.stringify(pageOps?.refLoc ?? pageOps))
+check('lightnote page-ref remove clears both sides', pageOps?.unlinkOk === true, JSON.stringify(pageOps))
+
 // R5: verify apply-actions actually created the items in the planner
 const aiWrite = await main.evaluate(async () => {
   const tasks = await window.electronAPI.listAllTasks()

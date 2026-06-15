@@ -95,7 +95,7 @@ export default function LightnoteApp() {
           <button className="icon-btn" title="AI Assistant (Ctrl+F)" onClick={() => setIsAiOpen(v => !v)}>
             🤖 AI
           </button>
-          <button className="icon-btn" title="설정" onClick={() => setIsSettingsOpen(true)}>
+          <button className="icon-btn" title="Settings" onClick={() => setIsSettingsOpen(true)}>
             ⚙
           </button>
         </div>
@@ -112,6 +112,7 @@ export default function LightnoteApp() {
         <Editor
           ref={editorRef}
           onOpenSettings={() => setIsSettingsOpen(true)}
+          onOpenPage={handlePageSelect}
         />
 
         {isAiOpen && (

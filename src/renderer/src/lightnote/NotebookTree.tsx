@@ -25,13 +25,18 @@ function buildSectionTree(sections: Section[]): Section[] {
   sections.forEach(s => { map[s.id] = { ...s, children: [] } })
   const roots: Section[] = []
   sections.forEach(s => {
-    if (s.parentId && map[s.parentId]) {
-      map[s.parentId].children!.push(map[s.id])
-    } else {
-      roots.push(map[s.id])
-    }
+    if (s.parentId && map[s.parentId]) map[s.parentId].children!.push(map[s.id])
+    else roots.push(map[s.id])
   })
   return roots
+}
+
+function findSection(sections: Section[], id: string): Section | undefined {
+  for (const s of sections) {
+    if (s.id === id) return s
+    if (s.children) { const f = findSection(s.children, id); if (f) return f }
+  }
+  return undefined
 }
 
 const NotebookTree = forwardRef<TreeHandle, Props>(({ selected, onPageSelect, onEditorClear }, ref) => {
@@ -43,6 +48,8 @@ const NotebookTree = forwardRef<TreeHandle, Props>(({ selected, onPageSelect, on
   const [ctxMenu, setCtxMenu] = useState<ContextMenuState | null>(null)
   const [inputModal, setInputModal] = useState<InputModalState | null>(null)
   const [inputValue, setInputValue] = useState('')
+  const [dragPage, setDragPage] = useState<{ nbId: string; secId: string; pageId: string } | null>(null)
+  const [dropSec, setDropSec] = useState<string | null>(null)
 
   const loadNotebooks = useCallback(async () => {
     const nbs = await window.lightnote.getNotebooks()
@@ -63,14 +70,22 @@ const NotebookTree = forwardRef<TreeHandle, Props>(({ selected, onPageSelect, on
     return pages
   }, [])
 
+  // Reload notebooks + sections AND pages of every expanded section, so newly
+  // created/moved pages show up without restarting.
   const reload = useCallback(async () => {
     const nbs = await loadNotebooks()
     for (const nb of nbs) {
-      if (expandedNbs.has(nb.id)) {
-        await loadSections(nb.id)
+      if (!expandedNbs.has(nb.id)) continue
+      const tree = await loadSections(nb.id)
+      const walk = async (secs: Section[]) => {
+        for (const s of secs) {
+          if (expandedSecs.has(s.id)) await loadPages(nb.id, s.id)
+          if (s.children?.length) await walk(s.children)
+        }
       }
+      await walk(tree)
     }
-  }, [loadNotebooks, loadSections, expandedNbs])
+  }, [loadNotebooks, loadSections, loadPages, expandedNbs, expandedSecs])
 
   useImperativeHandle(ref, () => ({ reload }))
 
@@ -95,8 +110,7 @@ const NotebookTree = forwardRef<TreeHandle, Props>(({ selected, onPageSelect, on
   const cancelInput = useCallback(() => { setInputModal(null) }, [])
 
   const toggleNb = useCallback(async (nbId: string) => {
-    const isOpen = expandedNbs.has(nbId)
-    if (isOpen) {
+    if (expandedNbs.has(nbId)) {
       setExpandedNbs(prev => { const s = new Set(prev); s.delete(nbId); return s })
     } else {
       setExpandedNbs(prev => new Set([...prev, nbId]))
@@ -105,18 +119,13 @@ const NotebookTree = forwardRef<TreeHandle, Props>(({ selected, onPageSelect, on
   }, [expandedNbs, sectionsByNb, loadSections])
 
   const toggleSec = useCallback(async (nbId: string, sec: Section) => {
-    const isOpen = expandedSecs.has(sec.id)
-    if (isOpen) {
+    if (expandedSecs.has(sec.id)) {
       setExpandedSecs(prev => { const s = new Set(prev); s.delete(sec.id); return s })
     } else {
       setExpandedSecs(prev => new Set([...prev, sec.id]))
-      if (!pagesBySec[sec.id]) {
-        await loadPages(nbId, sec.id)
-      }
+      if (!pagesBySec[sec.id]) await loadPages(nbId, sec.id)
       if (sec.children?.length) {
-        for (const child of sec.children) {
-          if (!pagesBySec[child.id]) await loadPages(nbId, child.id)
-        }
+        for (const child of sec.children) if (!pagesBySec[child.id]) await loadPages(nbId, child.id)
       }
     }
   }, [expandedSecs, pagesBySec, loadPages])
@@ -126,10 +135,8 @@ const NotebookTree = forwardRef<TreeHandle, Props>(({ selected, onPageSelect, on
   }, [onPageSelect])
 
   const showCtx = useCallback((e: React.MouseEvent, target: ContextMenuState['target']) => {
-    e.preventDefault()
-    e.stopPropagation()
-    let x = e.clientX, y = e.clientY
-    setCtxMenu({ x, y, target })
+    e.preventDefault(); e.stopPropagation()
+    setCtxMenu({ x: e.clientX, y: e.clientY, target })
   }, [])
 
   const hideCtx = useCallback(() => setCtxMenu(null), [])
@@ -140,39 +147,30 @@ const NotebookTree = forwardRef<TreeHandle, Props>(({ selected, onPageSelect, on
     const { type, notebookId, sectionId, pageId } = ctxMenu.target
     if (type === 'notebook') {
       const nb = notebooks.find(n => n.id === notebookId)
-      openInputModal('노트북 이름 변경', nb?.name || '', async (val) => {
-        await window.lightnote.renameNotebook(notebookId, val)
-        await reload()
-      })
+      openInputModal('Rename notebook', nb?.name || '', async (val) => { await window.lightnote.renameNotebook(notebookId, val); await reload() })
     } else if (type === 'section' && sectionId) {
-      openInputModal('폴더 이름 변경', '', async (val) => {
-        await window.lightnote.renameSection(notebookId, sectionId, val)
-        await reload()
-      })
+      const sec = findSection(sectionsByNb[notebookId] || [], sectionId)
+      openInputModal('Rename folder', sec?.name || '', async (val) => { await window.lightnote.renameSection(notebookId, sectionId, val); await reload() })
     } else if (type === 'page' && sectionId && pageId) {
-      const pages = pagesBySec[sectionId] || []
-      const pg = pages.find(p => p.id === pageId)
-      openInputModal('페이지 이름 변경', pg?.title || '', async (val) => {
-        await window.lightnote.renamePage(notebookId, sectionId, pageId, val)
-        await reload()
-      })
+      const pg = (pagesBySec[sectionId] || []).find(p => p.id === pageId)
+      openInputModal('Rename page', pg?.title || '', async (val) => { await window.lightnote.renamePage(notebookId, sectionId, pageId, val); await reload() })
     }
-  }, [ctxMenu, hideCtx, notebooks, pagesBySec, openInputModal, reload])
+  }, [ctxMenu, hideCtx, notebooks, sectionsByNb, pagesBySec, openInputModal, reload])
+
+  const handleDuplicate = useCallback(async () => {
+    if (!ctxMenu || ctxMenu.target.type !== 'page') return
+    const { notebookId, sectionId, pageId } = ctxMenu.target
+    hideCtx()
+    if (sectionId && pageId) { await window.lightnote.duplicatePage(notebookId, sectionId, pageId); await reload() }
+  }, [ctxMenu, hideCtx, reload])
 
   const handleDelete = useCallback(async () => {
     if (!ctxMenu) return
     hideCtx()
     const { type, notebookId, sectionId, pageId } = ctxMenu.target
-    if (type === 'notebook') {
-      await window.lightnote.deleteNotebook(notebookId)
-      if (selected.notebookId === notebookId) onEditorClear()
-    } else if (type === 'section' && sectionId) {
-      await window.lightnote.deleteSection(notebookId, sectionId)
-      if (selected.sectionId === sectionId) onEditorClear()
-    } else if (type === 'page' && sectionId && pageId) {
-      await window.lightnote.deletePage(notebookId, sectionId, pageId)
-      if (selected.pageId === pageId) onEditorClear()
-    }
+    if (type === 'notebook') { await window.lightnote.deleteNotebook(notebookId); if (selected.notebookId === notebookId) onEditorClear() }
+    else if (type === 'section' && sectionId) { await window.lightnote.deleteSection(notebookId, sectionId); if (selected.sectionId === sectionId) onEditorClear() }
+    else if (type === 'page' && sectionId && pageId) { await window.lightnote.deletePage(notebookId, sectionId, pageId); if (selected.pageId === pageId) onEditorClear() }
     await reload()
   }, [ctxMenu, hideCtx, selected, onEditorClear, reload])
 
@@ -180,46 +178,53 @@ const NotebookTree = forwardRef<TreeHandle, Props>(({ selected, onPageSelect, on
     if (!ctxMenu || ctxMenu.target.type !== 'section' || !ctxMenu.target.sectionId) return
     const { notebookId, sectionId } = ctxMenu.target
     hideCtx()
-    openInputModal('하위 폴더 이름 입력', '', async (val) => {
+    openInputModal('New subfolder name', '', async (val) => {
       await window.lightnote.createSection(notebookId, val, sectionId)
       setExpandedSecs(prev => new Set([...prev, sectionId!]))
       await reload()
     })
   }, [ctxMenu, hideCtx, openInputModal, reload])
 
+  const createPageIn = useCallback((nbId: string, secId: string, nbName: string, secName: string) => {
+    openInputModal('New page title', '', async (val) => {
+      const page = await window.lightnote.createPage(nbId, secId, val || 'Untitled')
+      setExpandedSecs(prev => new Set([...prev, secId]))
+      await reload()
+      // Force-load this section's pages too — reload() closes over a possibly
+      // stale expandedSecs set, so a page added to a just-expanded section
+      // would otherwise stay invisible until the next toggle.
+      await loadPages(nbId, secId)
+      onPageSelect(nbId, secId, page.id, `${nbName} › ${secName} › ${page.title}`)
+    })
+  }, [openInputModal, reload, loadPages, onPageSelect])
+
   const handleAddChild = useCallback(async () => {
     if (!ctxMenu) return
     const { type, notebookId, sectionId } = ctxMenu.target
     hideCtx()
     if (type === 'notebook') {
-      openInputModal('섹션 이름 입력', '', async (val) => {
+      openInputModal('New folder name', '', async (val) => {
         await window.lightnote.createSection(notebookId, val, null)
         setExpandedNbs(prev => new Set([...prev, notebookId]))
         await reload()
       })
     } else if (type === 'section' && sectionId) {
-      openInputModal('페이지 제목 입력', '', async (val) => {
-        const page = await window.lightnote.createPage(notebookId, sectionId, val || '제목 없음')
-        setExpandedSecs(prev => new Set([...prev, sectionId!]))
-        await reload()
-        const nb = notebooks.find(n => n.id === notebookId)
-        const secs = sectionsByNb[notebookId] || []
-        const sec = findSection(secs, sectionId)
-        onPageSelect(notebookId, sectionId, page.id, `${nb?.name || ''} › ${sec?.name || ''} › ${page.title}`)
-      })
+      const nb = notebooks.find(n => n.id === notebookId)
+      const sec = findSection(sectionsByNb[notebookId] || [], sectionId)
+      createPageIn(notebookId, sectionId, nb?.name || '', sec?.name || '')
     }
-  }, [ctxMenu, hideCtx, openInputModal, notebooks, sectionsByNb, onPageSelect, reload])
+  }, [ctxMenu, hideCtx, openInputModal, notebooks, sectionsByNb, createPageIn, reload])
 
-  function findSection(sections: Section[], id: string): Section | undefined {
-    for (const s of sections) {
-      if (s.id === id) return s
-      if (s.children) {
-        const found = findSection(s.children, id)
-        if (found) return found
-      }
-    }
-    return undefined
-  }
+  // ── Drag & drop: move a page onto another folder ──────────────────────────
+  const handleDropOnSec = useCallback(async (nbId: string, secId: string) => {
+    setDropSec(null)
+    const d = dragPage
+    setDragPage(null)
+    if (!d || (d.secId === secId)) return
+    await window.lightnote.movePage(d.nbId, d.secId, d.pageId, nbId, secId)
+    setExpandedSecs(prev => new Set([...prev, secId]))
+    await reload()
+  }, [dragPage, reload])
 
   function renderSection(nbId: string, sec: Section, nbName: string, depth = 0): React.ReactNode {
     const isOpen = expandedSecs.has(sec.id)
@@ -230,23 +235,18 @@ const NotebookTree = forwardRef<TreeHandle, Props>(({ selected, onPageSelect, on
     return (
       <div key={sec.id} style={{ paddingLeft: depth > 0 ? 12 : 0 }}>
         <div
-          className={`sec-header${isSelected ? ' selected' : ''}`}
+          className={`sec-header${isSelected ? ' selected' : ''}${dropSec === sec.id ? ' drop-target' : ''}`}
           onClick={() => toggleSec(nbId, sec)}
           onContextMenu={e => showCtx(e, { type: 'section', notebookId: nbId, sectionId: sec.id })}
+          onDragOver={e => { if (dragPage) { e.preventDefault(); setDropSec(sec.id) } }}
+          onDragLeave={() => setDropSec(prev => (prev === sec.id ? null : prev))}
+          onDrop={e => { e.preventDefault(); handleDropOnSec(nbId, sec.id) }}
         >
           <span className={`sec-arrow${isOpen ? ' open' : ''}`}>▶</span>
           <span className="sec-icon">{hasChildren ? '📁' : '📂'}</span>
           <span className="sec-name">{sec.name}</span>
-          <button className="icon-btn-sm sec-add-btn" title="페이지 추가"
-            onClick={e => {
-              e.stopPropagation()
-              openInputModal('페이지 제목 입력', '', async (val) => {
-                const page = await window.lightnote.createPage(nbId, sec.id, val || '제목 없음')
-                setExpandedSecs(prev => new Set([...prev, sec.id]))
-                await reload()
-                onPageSelect(nbId, sec.id, page.id, `${nbName} › ${sec.name} › ${page.title}`)
-              })
-            }}>+</button>
+          <button className="icon-btn-sm sec-add-btn" title="Add page"
+            onClick={e => { e.stopPropagation(); createPageIn(nbId, sec.id, nbName, sec.name) }}>+</button>
         </div>
         {isOpen && (
           <div className="sec-children">
@@ -255,6 +255,9 @@ const NotebookTree = forwardRef<TreeHandle, Props>(({ selected, onPageSelect, on
               <div
                 key={page.id}
                 className={`page-item${selected.pageId === page.id ? ' selected' : ''}`}
+                draggable
+                onDragStart={() => setDragPage({ nbId, secId: sec.id, pageId: page.id })}
+                onDragEnd={() => { setDragPage(null); setDropSec(null) }}
                 onClick={() => handlePageClick(nbId, sec.id, page, nbName, sec.name)}
                 onContextMenu={e => showCtx(e, { type: 'page', notebookId: nbId, sectionId: sec.id, pageId: page.id })}
               >
@@ -271,11 +274,11 @@ const NotebookTree = forwardRef<TreeHandle, Props>(({ selected, onPageSelect, on
   return (
     <div className="ln-sidebar" onClick={hideCtx}>
       <div className="sidebar-top">
-        <span className="sidebar-label">노트북</span>
-        <button className="icon-btn-sm" title="새 노트북"
+        <span className="sidebar-label">Notebooks</span>
+        <button className="icon-btn-sm" title="New notebook"
           onClick={e => {
             e.stopPropagation()
-            openInputModal('새 노트북 이름 입력', '', async (val) => {
+            openInputModal('New notebook name', '', async (val) => {
               const color = COLORS[notebooks.length % COLORS.length]
               await window.lightnote.createNotebook(val, color)
               await reload()
@@ -285,7 +288,7 @@ const NotebookTree = forwardRef<TreeHandle, Props>(({ selected, onPageSelect, on
 
       <div className="notebook-tree">
         {notebooks.length === 0 ? (
-          <div className="empty-hint">노트북이 없습니다.<br/>+ 버튼으로 만들어보세요.</div>
+          <div className="empty-hint">No notebooks yet.<br/>Use the + button to create one.</div>
         ) : (
           notebooks.map(nb => {
             const isOpen = expandedNbs.has(nb.id)
@@ -302,10 +305,10 @@ const NotebookTree = forwardRef<TreeHandle, Props>(({ selected, onPageSelect, on
                   <span className={`nb-arrow${isOpen ? ' open' : ''}`}>▶</span>
                   <span className="nb-color" style={{ background: nb.color }} />
                   <span className="nb-name">{nb.name}</span>
-                  <button className="icon-btn-sm nb-add-btn" title="섹션 추가"
+                  <button className="icon-btn-sm nb-add-btn" title="Add folder"
                     onClick={e => {
                       e.stopPropagation()
-                      openInputModal('섹션 이름 입력', '', async (val) => {
+                      openInputModal('New folder name', '', async (val) => {
                         await window.lightnote.createSection(nb.id, val, null)
                         setExpandedNbs(prev => new Set([...prev, nb.id]))
                         await reload()
@@ -326,19 +329,22 @@ const NotebookTree = forwardRef<TreeHandle, Props>(({ selected, onPageSelect, on
       {/* Context menu */}
       {ctxMenu && (
         <div className="context-menu" style={{ left: ctxMenu.x, top: ctxMenu.y }} onClick={e => e.stopPropagation()}>
-          <div className="ctx-item" onClick={handleRename}>이름 변경</div>
-          <div className="ctx-item ctx-danger" onClick={handleDelete}>삭제</div>
+          <div className="ctx-item" onClick={handleRename}>Rename</div>
+          {ctxMenu.target.type === 'page' && (
+            <div className="ctx-item" onClick={handleDuplicate}>📋 Duplicate</div>
+          )}
+          <div className="ctx-item ctx-danger" onClick={handleDelete}>Delete</div>
           {ctxMenu.target.type === 'section' && (
             <>
               <div className="ctx-sep" />
-              <div className="ctx-item" onClick={handleAddSubsection}>📁 하위 폴더 추가</div>
-              <div className="ctx-item" onClick={handleAddChild}>📄 페이지 추가</div>
+              <div className="ctx-item" onClick={handleAddSubsection}>📁 Add subfolder</div>
+              <div className="ctx-item" onClick={handleAddChild}>📄 Add page</div>
             </>
           )}
           {ctxMenu.target.type === 'notebook' && (
             <>
               <div className="ctx-sep" />
-              <div className="ctx-item" onClick={handleAddChild}>섹션 추가</div>
+              <div className="ctx-item" onClick={handleAddChild}>Add folder</div>
             </>
           )}
         </div>
@@ -359,8 +365,8 @@ const NotebookTree = forwardRef<TreeHandle, Props>(({ selected, onPageSelect, on
               maxLength={100}
             />
             <div className="modal-actions">
-              <button className="btn-secondary" onClick={cancelInput}>취소</button>
-              <button className="btn-primary" onClick={confirmInput}>확인</button>
+              <button className="btn-secondary" onClick={cancelInput}>Cancel</button>
+              <button className="btn-primary" onClick={confirmInput}>OK</button>
             </div>
           </div>
         </div>

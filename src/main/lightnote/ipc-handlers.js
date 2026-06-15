@@ -86,6 +86,25 @@ function registerIpcHandlers(ipcMain, getWindow, safeStorage, dialog, app, sched
     return { success: true };
   });
 
+  ipcMain.handle('lightnote:duplicate-page', async (_, { notebookId, sectionId, id }) =>
+    noteStorage.duplicatePage(notebookId, sectionId, id));
+
+  ipcMain.handle('lightnote:move-page', async (_, { srcNbId, srcSecId, pageId, dstNbId, dstSecId }) => {
+    const r = await noteStorage.movePage(srcNbId, srcSecId, pageId, dstNbId, dstSecId);
+    if (r) noteIndexer.invalidateCache(pageId);
+    return r || { error: 'MOVE_FAILED' };
+  });
+
+  // Page ↔ page links (separate from event/task links)
+  ipcMain.handle('lightnote:page-refs:get', async (_, { pageId }) => {
+    const ids = await noteStorage.getPageRefs(pageId);
+    const out = [];
+    for (const id of ids) { const loc = await noteStorage.findPageLocation(id); if (loc) out.push(loc); }
+    return out;
+  });
+  ipcMain.handle('lightnote:page-refs:add', async (_, { a, b }) => { await noteStorage.addPageRef(a, b); return { success: true }; });
+  ipcMain.handle('lightnote:page-refs:remove', async (_, { a, b }) => { await noteStorage.removePageRef(a, b); return { success: true }; });
+
   // === 이미지 ===
   ipcMain.handle('lightnote:save-image', async (_, data) =>
     imageHandler.saveImage(data));
