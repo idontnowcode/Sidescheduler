@@ -15,8 +15,14 @@ function fmtDue(ts: number): string {
 
 export default function TaskBoard() {
   const allTasks = useTaskStore((s) => s.tasks)
+  const loadAll  = useTaskStore((s) => s.loadAll)
   const { selected } = useDateStore()
   const [showAll, setShowAll] = useState(false)
+
+  const handleRollover = async () => {
+    await window.electronAPI.rolloverTasks()
+    await loadAll()
+  }
 
   const dayStart = sod(selected)
   const dayEnd   = dayStart + 86400000 - 1
@@ -96,6 +102,10 @@ export default function TaskBoard() {
             <div className="space-y-3 mt-2">
               {overdueTasks.length > 0 && (
                 <SubSection title="Overdue" color="red" count={overdueTasks.length}>
+                  <button onClick={handleRollover}
+                    className="w-full mb-1 text-2xs font-medium text-red-500 dark:text-red-400 bg-red-50 dark:bg-red-500/10 hover:bg-red-100 dark:hover:bg-red-500/20 rounded-lg py-1.5 transition-colors">
+                    ↪ Roll over {overdueTasks.length} to today
+                  </button>
                   {overdueTasks.map((t) => (
                     <TaskItem key={t.id} task={t}
                       dueBadge={t.dueAt != null ? fmtDue(t.dueAt) : undefined}

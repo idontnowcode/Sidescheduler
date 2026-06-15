@@ -155,15 +155,16 @@ export default function TaskModal({ mode, task, defaultDueDate, onClose, onSaved
       onClick={fullWindow ? undefined : onClose}>
       <form onSubmit={submit} onClick={(e) => e.stopPropagation()}
         className={fullWindow
-          ? 'glass-panel w-screen h-screen border border-ink-200 dark:border-ink-800 overflow-y-auto flex flex-col'
+          ? 'glass-panel w-screen h-screen border border-ink-200 dark:border-ink-800 overflow-hidden flex flex-col'
           : 'glass-panel rounded-2xl w-full max-w-md border border-ink-200 dark:border-ink-800'}>
-        <div className={`px-5 py-4 border-b border-ink-100 dark:border-ink-800 flex items-center justify-between${fullWindow ? ' cursor-move select-none' : ''}`}
+        <div className={`flex-shrink-0 px-5 py-4 border-b border-ink-100 dark:border-ink-800 flex items-center justify-between${fullWindow ? ' cursor-move select-none' : ''}`}
           style={fullWindow ? { WebkitAppRegion: 'drag' } as any : undefined}>
           <h2 className="text-base font-semibold">{isEdit ? t('modal.editTask') : t('modal.addTask')}</h2>
           <button type="button" onClick={onClose} className="btn btn-ghost -mr-2"
             style={{ WebkitAppRegion: 'no-drag' } as any}>✕</button>
         </div>
 
+        <div className={fullWindow ? 'flex-1 overflow-y-auto min-h-0' : ''}>
         <div className="p-5 space-y-4">
           <div>
             <label className="block text-2xs font-medium text-ink-500 mb-1.5 uppercase tracking-wider">{t('field.title')}</label>
@@ -322,12 +323,14 @@ export default function TaskModal({ mode, task, defaultDueDate, onClose, onSaved
             )}
           </div>
         </div>
+        </div>{/* end scrollable area */}
 
-        <div className="px-5 py-3 border-t border-ink-100 dark:border-ink-800">
-          <NoteLinksSection kind="task" itemId={task?.id ?? null} itemTitle={title} />
+        <div className="flex-shrink-0 px-5 py-3 border-t border-ink-100 dark:border-ink-800">
+          <NoteLinksSection kind="task" itemId={task?.id ?? null} itemTitle={title}
+            itemMeta={dueDate ? `✅ Due ${dueDate}` : '✅ No due date'} />
         </div>
 
-        <div className="px-5 py-3 border-t border-ink-100 dark:border-ink-800 flex gap-2 justify-between">
+        <div className="flex-shrink-0 px-5 py-3 border-t border-ink-100 dark:border-ink-800 flex gap-2 justify-between">
           {isEdit ? (
             <button type="button" onClick={handleDelete}
               className="btn text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10">{t('verb.delete')}</button>

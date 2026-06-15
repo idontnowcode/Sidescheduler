@@ -4,9 +4,10 @@ import RecurrenceConfirm from '../components/modals/RecurrenceConfirm'
 import EventModal from '../components/modals/EventModal'
 import TaskModal from '../components/modals/TaskModal'
 
-const HOUR_H   = 56
-const TOTAL_H  = 24 * HOUR_H
-const SNAP_MIN = 15
+const HOUR_H       = 56
+const TOTAL_H      = 24 * HOUR_H
+const SNAP_MIN     = 15
+const MIN_EVENT_PX = 22  // minimum rendered height — must match Math.max(dH, MIN_EVENT_PX)
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
 export type TaskFilterId = 'today' | 'selected' | 'incomplete' | 'overdue' | 'completed' | 'inbox'
@@ -16,9 +17,7 @@ interface Props {
   onReload: () => void; onNavigate: (d: Date) => void
   onAddEvent?: (date: Date, startTime?: string, endTime?: string) => void
   onAddTask?: (date: Date) => void
-  /** When true, render a single-day timeline instead of a week. */
   dayMode?: boolean
-  /** Day the user explicitly picked (Week header click). Enables the Selected filter. */
   selectedDay?: Date | null
   onSelectDay?: (d: Date | null) => void
 }
@@ -41,55 +40,33 @@ function fmtDuration(min: number): string {
   return r ? `${h}h ${r}m` : `${h}h`
 }
 
-/**
- * Lay out events that may overlap in the same day, Outlook / Google Calendar
- * style. Returns a map of event id -> { col, cols } where col is the column
- * index (0-based) and cols is the total column count of that event's
- * overlap cluster.
- *
- * Algorithm:
- *   1. Sort events by startAt (then by endAt desc so longer ones lock the
- *      cluster width first).
- *   2. Walk events in order. Build clusters of events that overlap any
- *      previous event in the current cluster (transitively).
- *   3. Inside a cluster, greedily assign each event to the lowest column
- *      that ended before the event starts. Otherwise open a new column.
- *   4. All events in a cluster share the same `cols` = max(column index)+1.
- */
+// Visual end accounts for the minimum rendered height so short events that would
+// visually overlap (even if they don't time-overlap) are placed side-by-side.
+const MIN_DUR_MS = Math.ceil((MIN_EVENT_PX / HOUR_H) * 3_600_000)  // ≈ 23.6 min
+const visEnd = (ev: CalEvent) => Math.max(ev.endAt, ev.startAt + MIN_DUR_MS)
+
 function layoutDayEvents(evs: CalEvent[]): Map<string, { col: number; cols: number }> {
   const out = new Map<string, { col: number; cols: number }>()
   if (evs.length === 0) return out
-
-  const sorted = [...evs].sort(
-    (a, b) => a.startAt - b.startAt || b.endAt - a.endAt
-  )
-
-  // Flush a cluster: assign columns to its members.
+  const sorted = [...evs].sort((a, b) => a.startAt - b.startAt || b.endAt - a.endAt)
   const flush = (cluster: CalEvent[]) => {
-    const columnEnd: number[] = [] // end timestamp of each column
-    const cols = new Map<string, number>()
+    const columnVisEnd: number[] = []
+    const colMap = new Map<string, number>()
     for (const ev of cluster) {
-      let col = columnEnd.findIndex((end) => end <= ev.startAt)
-      if (col === -1) col = columnEnd.length
-      columnEnd[col] = ev.endAt
-      cols.set(ev.id, col)
+      let col = columnVisEnd.findIndex((end) => end <= ev.startAt)
+      if (col === -1) col = columnVisEnd.length
+      columnVisEnd[col] = visEnd(ev)
+      colMap.set(ev.id, col)
     }
-    const total = columnEnd.length
-    for (const ev of cluster) {
-      out.set(ev.id, { col: cols.get(ev.id)!, cols: total })
-    }
+    const total = columnVisEnd.length
+    for (const ev of cluster) out.set(ev.id, { col: colMap.get(ev.id)!, cols: total })
   }
-
-  let cluster: CalEvent[] = []
-  let clusterEnd = 0
+  let cluster: CalEvent[] = [], clusterVisEnd = 0
   for (const ev of sorted) {
-    if (cluster.length === 0 || ev.startAt < clusterEnd) {
-      cluster.push(ev)
-      clusterEnd = Math.max(clusterEnd, ev.endAt)
+    if (cluster.length === 0 || ev.startAt < clusterVisEnd) {
+      cluster.push(ev); clusterVisEnd = Math.max(clusterVisEnd, visEnd(ev))
     } else {
-      flush(cluster)
-      cluster = [ev]
-      clusterEnd = ev.endAt
+      flush(cluster); cluster = [ev]; clusterVisEnd = visEnd(ev)
     }
   }
   flush(cluster)
@@ -98,20 +75,14 @@ function layoutDayEvents(evs: CalEvent[]): Map<string, { col: number; cols: numb
 
 export default function WeekView({ current, events, tasks, onReload, onNavigate, onAddTask, dayMode, selectedDay, onSelectDay }: Props) {
   const days = dayMode ? [sod(current)] : weekDays(current)
-  // Task filter chips (multi-select OR). Defaults: Today + Incomplete.
   const [filters, setFilters] = useState<Set<TaskFilterId>>(() => new Set<TaskFilterId>(['today', 'incomplete']))
   const toggleFilter = (id: TaskFilterId) => {
-    setFilters((prev) => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id); else next.add(id)
-      return next
-    })
+    setFilters((prev) => { const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next })
   }
   const today = new Date()
   const scrollRef = useRef<HTMLDivElement>(null)
   useEffect(() => { if (scrollRef.current) scrollRef.current.scrollTop = 8 * HOUR_H }, [])
 
-  // Live "now" line — refresh every minute
   const [nowTs, setNowTs] = useState(() => Date.now())
   useEffect(() => {
     const t = setInterval(() => setNowTs(Date.now()), 60 * 1000)
@@ -126,17 +97,24 @@ export default function WeekView({ current, events, tasks, onReload, onNavigate,
     e.preventDefault()
     resizingTask.current = true
     const startY = e.clientY, startH = taskH
-    const onMove = (me: MouseEvent) => {
-      if (!resizingTask.current) return
-      setTaskH(clamp(startH - (me.clientY - startY), 80, 450))
-    }
+    const onMove = (me: MouseEvent) => { if (!resizingTask.current) return; setTaskH(clamp(startH - (me.clientY - startY), 80, 450)) }
     const onUp = () => { resizingTask.current = false; document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp) }
     document.addEventListener('mousemove', onMove)
     document.addEventListener('mouseup', onUp)
   }, [taskH])
 
-  const dragRef = useRef<{ ev: CalEvent; day: Date; startY: number; origStart: number; origEnd: number } | null>(null)
-  const [preview, setPreview] = useState<{ id: string; top: number; height: number } | null>(null)
+  // ── Event drag (supports cross-day) ─────────────────────────────────────
+  // offsetInEventPx: distance from event top to mousedown point, in scroll-content px.
+  // On move, (clientY - scrollAreaTop + scrollTop - offsetInEventPx) gives the new event top.
+  const dragRef = useRef<{
+    ev: CalEvent; day: Date; origDayIdx: number
+    startY: number; origStart: number; origEnd: number
+    offsetInEventPx: number
+  } | null>(null)
+  // Tracks the day column the cursor is currently over during a drag (for cross-day).
+  const dragTargetDayIdxRef = useRef<number>(-1)
+  const [preview, setPreview] = useState<{ id: string; dayIdx: number; top: number; height: number } | null>(null)
+
   const resizeRef = useRef<{ ev: CalEvent; day: Date; startY: number; origEnd: number } | null>(null)
   const [resizePreview, setResizePreview] = useState<{ id: string; height: number } | null>(null)
 
@@ -145,12 +123,8 @@ export default function WeekView({ current, events, tasks, onReload, onNavigate,
   } | null>(null)
   const [editEvent, setEditEvent] = useState<CalEvent | null>(null)
   const [editTask, setEditTask] = useState<Task | null>(null)
-
-  // When true, the next click event on an event block is swallowed because
-  // it followed a drag-move or resize, not an intentional click-to-edit.
   const ignoreClickRef = useRef(false)
 
-  // ── Task → calendar time-blocking (HTML5 drag) ──────────────────────────
   const PRIORITY_COLOR: Record<string, string> = { urgent: '#EF4444', normal: '#6366F1', low: '#94A3B8' }
   const [dropCol, setDropCol] = useState<number | null>(null)
 
@@ -158,30 +132,17 @@ export default function WeekView({ current, events, tasks, onReload, onNavigate,
     e.preventDefault()
     e.stopPropagation()
     setDropCol(null)
-    const taskId =
-      e.dataTransfer.getData('application/task-id') ||
-      e.dataTransfer.getData('text/plain')
+    const taskId = e.dataTransfer.getData('application/task-id') || e.dataTransfer.getData('text/plain')
     if (!taskId) return
     const t = tasks.find((x) => x.id === taskId)
     if (!t) return
     const rect = e.currentTarget.getBoundingClientRect()
-    // rect.top already reflects scroll position; do NOT add scrollTop again
     const y = e.clientY - rect.top
     const dur = t.estimatedMinutes && t.estimatedMinutes > 0 ? t.estimatedMinutes : 60
     const startMin = clamp(Math.round((y / HOUR_H * 60) / SNAP_MIN) * SNAP_MIN, 0, 24 * 60 - dur)
     const start = dayStart(day) + startMin * 60000
-    await window.electronAPI.createEvent({
-      title: t.title,
-      start_at: start,
-      end_at: start + dur * 60000,
-      color: PRIORITY_COLOR[t.priority] ?? '#6366F1',
-      description: 'Time block'
-    })
-    // Auto-complete the task. For recurring tasks, toggle advances due_at to
-    // the next occurrence (storage handles this), so the routine carries on.
-    if (!t.done) {
-      await window.electronAPI.toggleTask(taskId)
-    }
+    await window.electronAPI.createEvent({ title: t.title, start_at: start, end_at: start + dur * 60000, color: PRIORITY_COLOR[t.priority] ?? '#6366F1', description: 'Time block' })
+    if (!t.done) await window.electronAPI.toggleTask(taskId)
     onReload()
   }, [tasks, onReload])
 
@@ -196,12 +157,16 @@ export default function WeekView({ current, events, tasks, onReload, onNavigate,
   useEffect(() => {
     const onMove = (e: MouseEvent) => {
       if (dragRef.current) {
-        const { ev, day, startY, origStart, origEnd } = dragRef.current
-        const dy = e.clientY - startY
-        const dMin = Math.round((dy / HOUR_H * 60) / SNAP_MIN) * SNAP_MIN
-        const dur = origEnd - origStart
-        const cStart = clamp(origStart + dMin * 60000, dayStart(day), dayStart(day) + 86400000 - dur)
-        setPreview({ id: ev.id, top: tsToY(cStart, day), height: (dur / 3600000) * HOUR_H })
+        const { ev, origDayIdx, offsetInEventPx } = dragRef.current
+        const targetIdx = dragTargetDayIdxRef.current >= 0 ? dragTargetDayIdxRef.current : origDayIdx
+        const targetDay = days[targetIdx] ?? days[0]
+        const scrollTop = scrollRef.current?.scrollTop ?? 0
+        const scrollAreaTop = scrollRef.current?.getBoundingClientRect().top ?? 0
+        const yInContent = e.clientY - scrollAreaTop + scrollTop - offsetInEventPx
+        const dur = ev.endAt - ev.startAt
+        const newStartMin = clamp(Math.round((yInContent / HOUR_H * 60) / SNAP_MIN) * SNAP_MIN, 0, 24 * 60 - Math.ceil(dur / 60000))
+        const newStart = dayStart(targetDay) + newStartMin * 60000
+        setPreview({ id: ev.id, dayIdx: targetIdx, top: tsToY(newStart, targetDay), height: (dur / 3600000) * HOUR_H })
       }
       if (resizeRef.current) {
         const { ev, day, startY, origEnd } = resizeRef.current
@@ -213,16 +178,20 @@ export default function WeekView({ current, events, tasks, onReload, onNavigate,
     }
     const onUp = async (e: MouseEvent) => {
       if (dragRef.current) {
-        const { ev, day, startY, origStart, origEnd } = dragRef.current
-        const dy = e.clientY - startY
-        const dMin = Math.round((dy / HOUR_H * 60) / SNAP_MIN) * SNAP_MIN
-        const dur = origEnd - origStart
-        const cStart = clamp(origStart + dMin * 60000, dayStart(day), dayStart(day) + 86400000 - dur)
-        dragRef.current = null; setPreview(null)
-        if (cStart !== origStart) {
-          // Real move happened — swallow the synthetic click that follows
+        const { ev, origDayIdx, offsetInEventPx } = dragRef.current
+        const targetIdx = dragTargetDayIdxRef.current >= 0 ? dragTargetDayIdxRef.current : origDayIdx
+        const targetDay = days[targetIdx] ?? days[0]
+        const scrollTop = scrollRef.current?.scrollTop ?? 0
+        const scrollAreaTop = scrollRef.current?.getBoundingClientRect().top ?? 0
+        const yInContent = e.clientY - scrollAreaTop + scrollTop - offsetInEventPx
+        const dur = ev.endAt - ev.startAt
+        const newStartMin = clamp(Math.round((yInContent / HOUR_H * 60) / SNAP_MIN) * SNAP_MIN, 0, 24 * 60 - Math.ceil(dur / 60000))
+        const newStart = dayStart(targetDay) + newStartMin * 60000
+        const newEnd = newStart + dur
+        dragRef.current = null; setPreview(null); dragTargetDayIdxRef.current = -1
+        if (newStart !== ev.startAt || targetIdx !== origDayIdx) {
           ignoreClickRef.current = true
-          await commitDrop(ev, cStart, cStart + dur)
+          await commitDrop(ev, newStart, newEnd)
         }
       }
       if (resizeRef.current) {
@@ -231,23 +200,17 @@ export default function WeekView({ current, events, tasks, onReload, onNavigate,
         const dMin = Math.round((dy / HOUR_H * 60) / SNAP_MIN) * SNAP_MIN
         const newEnd = clamp(origEnd + dMin * 60000, ev.startAt + 15 * 60000, dayStart(day) + 86400000)
         resizeRef.current = null; setResizePreview(null)
-        if (newEnd !== origEnd) {
-          ignoreClickRef.current = true
-          await commitDrop(ev, ev.startAt, newEnd)
-        }
+        if (newEnd !== origEnd) { ignoreClickRef.current = true; await commitDrop(ev, ev.startAt, newEnd) }
       }
     }
     document.addEventListener('mousemove', onMove); document.addEventListener('mouseup', onUp)
     return () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp) }
-  }, [commitDrop])
+  }, [commitDrop, days])
 
   const handleRecurConfirm = useCallback(async (mode: 'only' | 'future' | 'all') => {
     if (!recurModal) return
     if (recurModal.type === 'move' && recurModal.newStart !== undefined) {
-      await window.electronAPI.updateEventInstance({
-        originalId: recurModal.originalId, instanceDate: recurModal.instanceDate, mode,
-        overrides: { start_at: recurModal.newStart, end_at: recurModal.newEnd }
-      })
+      await window.electronAPI.updateEventInstance({ originalId: recurModal.originalId, instanceDate: recurModal.instanceDate, mode, overrides: { start_at: recurModal.newStart, end_at: recurModal.newEnd } })
     }
     setRecurModal(null); onReload()
   }, [recurModal, onReload])
@@ -256,7 +219,6 @@ export default function WeekView({ current, events, tasks, onReload, onNavigate,
   const selS = selectedDay ? dayStart(selectedDay) : 0
   const selE = selectedDay ? selS + 86400000 - 1 : 0
 
-  // Apply the multi-select filter chips (OR union).
   const filteredTasks = (() => {
     if (filters.size === 0) return []
     return tasks.filter((t) => {
@@ -267,12 +229,12 @@ export default function WeekView({ current, events, tasks, onReload, onNavigate,
       if (filters.has('completed')  && t.done) return true
       if (filters.has('inbox')      && !t.done && t.dueAt == null && !t.recurrence) return true
       return false
-    }).sort((a, b) => {
-      if (a.done !== b.done) return a.done ? 1 : -1
-      return (a.dueAt ?? Infinity) - (b.dueAt ?? Infinity)
-    })
+    }).sort((a, b) => { if (a.done !== b.done) return a.done ? 1 : -1; return (a.dueAt ?? Infinity) - (b.dueAt ?? Infinity) })
   })()
   const totalIncomplete = tasks.filter(t => !t.done).length
+
+  // The event being dragged (for cross-day preview rendering in other columns)
+  const draggingEvent = preview ? events.find(e => e.id === preview.id) : null
 
   return (
     <div className="flex flex-col h-full">
@@ -288,7 +250,6 @@ export default function WeekView({ current, events, tasks, onReload, onNavigate,
               <button onClick={() => {
                   onNavigate(day)
                   window.electronAPI.navigateToDate(day.getTime())
-                  // Toggle Selected filter target
                   if (selectedDay && sameDay(selectedDay, day)) onSelectDay?.(null)
                   else onSelectDay?.(day)
                 }}
@@ -317,19 +278,18 @@ export default function WeekView({ current, events, tasks, onReload, onNavigate,
             const dayEvs = events.filter(ev => ev.startAt >= dayStart(day) && ev.startAt <= dayStart(day) + 86400000 - 1)
             const layouts = layoutDayEvents(dayEvs)
             return (
-              <div key={colIdx} className={`flex-1 border-l border-ink-100 dark:border-ink-800/50 relative transition-colors ${dropCol === colIdx ? 'bg-accent-50 dark:bg-accent-500/10' : ''}`} style={{height:TOTAL_H}}
+              <div key={colIdx}
+                className={`flex-1 border-l border-ink-100 dark:border-ink-800/50 relative transition-colors ${dropCol === colIdx ? 'bg-accent-50 dark:bg-accent-500/10' : ''}`}
+                style={{height:TOTAL_H}}
+                onMouseEnter={() => { if (dragRef.current) dragTargetDayIdxRef.current = colIdx }}
                 onDragEnter={(e) => { e.preventDefault(); setDropCol(colIdx) }}
                 onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; setDropCol(colIdx) }}
-                onDragLeave={(e) => {
-                  // Only clear if leaving the column itself, not entering a child
-                  if (e.currentTarget.contains(e.relatedTarget as Node)) return
-                  setDropCol((c) => c === colIdx ? null : c)
-                }}
+                onDragLeave={(e) => { if (e.currentTarget.contains(e.relatedTarget as Node)) return; setDropCol((c) => c === colIdx ? null : c) }}
                 onDrop={(e) => handleTaskDrop(e, day)}>
                 {Array.from({length:24},(_,h)=>(
                   <div key={h} className="absolute left-0 right-0 border-t border-ink-100 dark:border-ink-800/40" style={{top:h*HOUR_H}} />
                 ))}
-                {/* Current-time line (only on today's column) */}
+                {/* Current-time line */}
                 {sameDay(day, new Date(nowTs)) && (() => {
                   const nowY = tsToY(nowTs, day)
                   return (
@@ -339,14 +299,26 @@ export default function WeekView({ current, events, tasks, onReload, onNavigate,
                     </div>
                   )
                 })()}
+                {/* Cross-day drag preview: ghost of the dragged event in the target column */}
+                {draggingEvent && preview!.dayIdx === colIdx && !dayEvs.find(e => e.id === draggingEvent.id) && (
+                  <div className="absolute rounded-lg text-white overflow-hidden pointer-events-none shadow-md z-30"
+                    style={{ top: preview!.top, height: Math.max(preview!.height, 22), left: 2, right: 4, backgroundColor: draggingEvent.color, opacity: 0.85 }}>
+                    <div className="px-2 pt-1">
+                      <p className="text-xs font-semibold truncate">{draggingEvent.title}</p>
+                      {preview!.height >= 38 && <p className="text-2xs opacity-85">{fmtTime(dayStart(day) + Math.round((preview!.top / HOUR_H) * 3600000))}</p>}
+                    </div>
+                  </div>
+                )}
                 {dayEvs.map(ev => {
                   const top = tsToY(ev.startAt, day)
                   const dur = ev.endAt - ev.startAt
                   const baseH = (dur/3600000)*HOUR_H
-                  const isP = preview?.id===ev.id, isR = resizePreview?.id===ev.id
-                  const dTop = isP ? preview!.top : top
-                  const dH = isR ? resizePreview!.height : isP ? preview!.height : baseH
-                  // Outlook-style side-by-side layout for overlapping events
+                  const isDraggingThis = preview?.id === ev.id
+                  const isSameCol = isDraggingThis && preview!.dayIdx === colIdx
+                  const isCrossCol = isDraggingThis && preview!.dayIdx !== colIdx
+                  const isR = resizePreview?.id===ev.id
+                  const dTop = isSameCol ? preview!.top : top
+                  const dH = isR ? resizePreview!.height : isSameCol ? preview!.height : baseH
                   const lyt = layouts.get(ev.id) ?? { col: 0, cols: 1 }
                   const leftPct = (lyt.col / lyt.cols) * 100
                   const widthPct = 100 / lyt.cols
@@ -354,18 +326,30 @@ export default function WeekView({ current, events, tasks, onReload, onNavigate,
                     <div key={ev.id} data-event-block
                       className="absolute rounded-lg text-white overflow-hidden group cursor-grab active:cursor-grabbing select-none shadow-sm hover:shadow-md transition-shadow"
                       style={{
-                        top: dTop, height: Math.max(dH, 22),
+                        top: dTop, height: Math.max(dH, MIN_EVENT_PX),
                         left: `calc(${leftPct}% + 2px)`,
                         width: `calc(${widthPct}% - 4px)`,
                         backgroundColor: ev.color,
-                        opacity: isP ? 0.85 : 1
+                        opacity: isCrossCol ? 0.25 : isSameCol ? 0.85 : 1,
+                        transition: isCrossCol ? 'none' : undefined
                       }}
                       onClick={e => {
                         e.stopPropagation()
                         if (ignoreClickRef.current) { ignoreClickRef.current = false; return }
                         setEditEvent(ev)
                       }}
-                      onMouseDown={e => { if (e.button !== 0) return; e.preventDefault(); dragRef.current = { ev, day, startY: e.clientY, origStart: ev.startAt, origEnd: ev.endAt }; setPreview({ id: ev.id, top, height: baseH }) }}>
+                      onMouseDown={e => {
+                        if (e.button !== 0) return
+                        e.preventDefault()
+                        const scrollTop = scrollRef.current?.scrollTop ?? 0
+                        const scrollAreaTop = scrollRef.current?.getBoundingClientRect().top ?? 0
+                        // Store how far from the event's top the user clicked, so the event
+                        // follows the cursor rather than snapping to its top edge.
+                        const offsetInEventPx = e.clientY - scrollAreaTop + scrollTop - top
+                        dragTargetDayIdxRef.current = colIdx
+                        dragRef.current = { ev, day, origDayIdx: colIdx, startY: e.clientY, origStart: ev.startAt, origEnd: ev.endAt, offsetInEventPx }
+                        setPreview({ id: ev.id, dayIdx: colIdx, top, height: baseH })
+                      }}>
                       <div className="px-2 pt-1">
                         <p className="text-xs font-semibold truncate">{ev.title}</p>
                         {baseH >= 38 && <p className="text-2xs opacity-85">{fmtTime(ev.startAt)} – {fmtTime(ev.endAt)}</p>}
@@ -383,7 +367,7 @@ export default function WeekView({ current, events, tasks, onReload, onNavigate,
         </div>
       </div>
 
-      {/* Outlook-style task panel */}
+      {/* Task panel resize handle */}
       {taskOpen && (
         <div className="h-1.5 bg-ink-100 dark:bg-ink-800 hover:bg-accent-200 dark:hover:bg-accent-500/40 cursor-row-resize flex-shrink-0 transition-colors"
           onMouseDown={onTaskResizeStart} />
@@ -411,21 +395,16 @@ export default function WeekView({ current, events, tasks, onReload, onNavigate,
 
         {taskOpen && (
           <div className="flex-1 overflow-y-auto">
-            {/* Filter chips (multi-select OR). Defaults: Today + Incomplete. Selected unlocks when a day in the header is clicked. */}
             <div className="flex flex-wrap items-center gap-1.5 px-5 py-2 border-b border-ink-100 dark:border-ink-800 sticky top-0 bg-white dark:bg-ink-900 z-10">
               {([
                 ['today',      'Today',
                   tasks.filter(t => t.dueAt != null && t.dueAt >= todayS && t.dueAt <= todayE).length],
                 ['selected',   selectedDay ? `Selected (${selectedDay.getMonth()+1}/${selectedDay.getDate()})` : 'Selected',
                   selectedDay ? tasks.filter(t => t.dueAt != null && t.dueAt >= selS && t.dueAt <= selE).length : 0],
-                ['incomplete', 'Incomplete',
-                  tasks.filter(t => !t.done && !t.recurrence).length],
-                ['overdue',    'Overdue',
-                  tasks.filter(t => !t.done && !t.recurrence && t.dueAt != null && t.dueAt < todayS).length],
-                ['completed',  'Completed',
-                  tasks.filter(t => t.done).length],
-                ['inbox',      'Inbox',
-                  tasks.filter(t => !t.done && t.dueAt == null && !t.recurrence).length],
+                ['incomplete', 'Incomplete', tasks.filter(t => !t.done && !t.recurrence).length],
+                ['overdue',    'Overdue',    tasks.filter(t => !t.done && !t.recurrence && t.dueAt != null && t.dueAt < todayS).length],
+                ['completed',  'Completed',  tasks.filter(t => t.done).length],
+                ['inbox',      'Inbox',      tasks.filter(t => !t.done && t.dueAt == null && !t.recurrence).length],
               ] as const).map(([id, label, count]) => {
                 const disabled = id === 'selected' && !selectedDay
                 const on = filters.has(id as TaskFilterId)
@@ -487,7 +466,6 @@ function PanelTaskRow({ task, overdue, today, onReload, onEdit }: {
     <div
       draggable={!task.done}
       onDragStart={(e) => {
-        // Set both MIME types so the drop target can read either reliably
         e.dataTransfer.setData('application/task-id', task.id)
         e.dataTransfer.setData('text/plain', task.id)
         e.dataTransfer.effectAllowed = 'copy'
@@ -531,8 +509,7 @@ function PanelTaskRow({ task, overdue, today, onReload, onEdit }: {
         task.done ? 'bg-green-50 dark:bg-green-500/15 text-green-600 dark:text-green-400' :
         task.priority==='urgent' ? 'bg-red-50 dark:bg-red-500/15 text-red-500' :
         task.priority==='low'    ? 'bg-ink-50 dark:bg-ink-900 text-ink-400' : 'bg-ink-100 dark:bg-ink-800 text-ink-500'}`}>
-        {task.done ? 'Done' :
-         task.priority==='urgent'?'Urgent':task.priority==='low'?'Low':'Normal'}
+        {task.done ? 'Done' : task.priority==='urgent'?'Urgent':task.priority==='low'?'Low':'Normal'}
       </span>
     </div>
   )

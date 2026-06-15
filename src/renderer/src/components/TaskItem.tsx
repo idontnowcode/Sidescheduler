@@ -81,6 +81,19 @@ export default function TaskItem({ task, dueBadge, overdue }: Props) {
     kind: 'task', mode: 'edit', task
   })
 
+  // Time-blocking: drop this task onto today's schedule as a timed event.
+  async function timeBlock() {
+    setMenu(false)
+    const start = new Date(); start.setHours(start.getHours() + 1, 0, 0, 0)
+    const dur = (task.estimatedMinutes && task.estimatedMinutes > 0) ? task.estimatedMinutes : 60
+    await window.electronAPI.createEvent({
+      title: task.title,
+      start_at: start.getTime(),
+      end_at: start.getTime() + dur * 60000,
+      projects: task.projects
+    })
+  }
+
   return (
     <div className={`flex items-start gap-2 group py-1.5 pr-1 rounded-lg hover:bg-ink-50 dark:hover:bg-ink-800/50 -mx-1 px-1 ${task.done ? 'opacity-50' : ''}`}>
       <button
@@ -162,6 +175,8 @@ export default function TaskItem({ task, dueBadge, overdue }: Props) {
             <MenuItem onClick={() => snoozeAt(snoozeToWeekend())}>This weekend</MenuItem>
             <MenuItem onClick={() => snooze(7)}>Move to next week</MenuItem>
             <MenuItem onClick={() => snooze(null)}>Clear due date</MenuItem>
+            <hr className="my-1 border-ink-100 dark:border-ink-800" />
+            <MenuItem onClick={timeBlock}>🕐 Time-block (next hour)</MenuItem>
             <hr className="my-1 border-ink-100 dark:border-ink-800" />
             <MenuItem danger onClick={() => { setMenu(false); remove(task.id) }}>Delete</MenuItem>
           </div>

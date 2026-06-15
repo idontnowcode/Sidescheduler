@@ -31,6 +31,10 @@ contextBridge.exposeInMainWorld('lightnote', {
   onSearchWebRefs: (cb) => ipcRenderer.on('lightnote:search-web-refs', (_, d) => cb(d)),
   openExternal: (url) => ipcRenderer.invoke('lightnote:open-external', { url }),
 
+  // AI: extract action items from a note (returns proposals; apply writes them)
+  extractActions: (text) => ipcRenderer.invoke('lightnote:extract-actions', { text }),
+  applyActions: (payload) => ipcRenderer.invoke('lightnote:apply-actions', payload),
+
   // 페이지 정리
   organizePage: (title, text) => ipcRenderer.invoke('lightnote:organize-page', { title, text }),
   onOrganizeChunk: (cb) => ipcRenderer.on('lightnote:organize-chunk', (_, d) => cb(d)),
@@ -45,4 +49,16 @@ contextBridge.exposeInMainWorld('lightnote', {
   // 에러
   onError: (cb) => ipcRenderer.on('lightnote:error', (_, d) => cb(d)),
   removeAllListeners: (channel) => ipcRenderer.removeAllListeners(channel),
+
+  // 노트 링크
+  getLinksByPage:   (pageId) => ipcRenderer.invoke('lightnote:links:by-page', { pageId }),
+  getLinkedItems:   (pageId) => ipcRenderer.invoke('lightnote:links:items-for-page', { pageId }),
+  addLink:          (pageId, notebookId, sectionId, kind, itemId) =>
+    ipcRenderer.invoke('lightnote:links:add', { pageId, notebookId, sectionId, kind, itemId }),
+  removeLink:       (pageId, kind, itemId) =>
+    ipcRenderer.invoke('lightnote:links:remove', { pageId, kind, itemId }),
+
+  // 페이지 탐색 (다른 창에서 open-page 시그널 수신)
+  onOpenPageById: (cb) => ipcRenderer.on('lightnote:open-page', (_, d) => cb(d)),
+  consumePendingOpen: () => ipcRenderer.invoke('lightnote:consume-pending-open'),
 })

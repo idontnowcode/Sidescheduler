@@ -11,6 +11,10 @@ planner.db
 
 # Electron build cache
 .vite/
+*.tsbuildinfo
+
+# E2E test artifacts (screenshots)
+scripts/e2e-*.png
 
 # Worktrees (never commit worktree contents)
 .worktrees/

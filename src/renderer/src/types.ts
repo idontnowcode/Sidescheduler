@@ -54,6 +54,16 @@ export interface NoteRow {
   updated_at: number
 }
 
+// ── LightNote page reference (returned by link IPC; used in planner note section) ─
+export interface LightnotePageRef {
+  pageId: string
+  notebookId: string
+  sectionId: string
+  title: string
+  notebookName?: string
+  sectionName?: string
+}
+
 // ── Note Links (LightNote page refs — kept for LightNote side integration) ─
 export interface PageRef {
   pageId: string
@@ -62,6 +72,15 @@ export interface PageRef {
   title: string
   notebookName: string
   sectionName: string
+}
+
+// ── Habits ────────────────────────────────────────────────────────────────
+export interface HabitRow {
+  id: string
+  title: string
+  color: string
+  created_at: number
+  checkins: number[]
 }
 
 // ── Focus Areas ───────────────────────────────────────────────────────────
@@ -108,6 +127,7 @@ export interface Task {
   focusAreaId?: string | null
   recurrence?: RecurrenceRule
   estimatedMinutes?: number
+  actualMinutes?: number
   subtasks?: Subtask[]
 }
 
@@ -135,8 +155,20 @@ export interface TaskRow {
   focus_area_id?: string | null
   recurrence?: string
   estimated_minutes?: number
+  actual_minutes?: number
   subtasks?: Subtask[]
   created_at: number; updated_at: number
+}
+
+export interface Insights {
+  rangeDays: number
+  completed: number
+  created: number
+  completionRate: number
+  focusMinutes: number
+  estimatedMinutes: number
+  byProject: { project: string; minutes: number; tasks: number }[]
+  daily: { date: number; completed: number; focusMinutes: number }[]
 }
 
 /** Reads either the new `projects` array or the legacy single `project` string. */
@@ -171,6 +203,7 @@ export function rowToTask(row: TaskRow): Task {
     focusAreaId: row.focus_area_id ?? null,
     recurrence: row.recurrence ? JSON.parse(row.recurrence) : undefined,
     estimatedMinutes: row.estimated_minutes,
+    actualMinutes: row.actual_minutes,
     subtasks: row.subtasks
   }
 }
@@ -206,8 +239,14 @@ declare global {
       expandWindow: () => void
       collapseWindow: () => void
       openDashboard: () => void
+      openDashboardView: (view: string) => void
+      consumePendingDashboardView: () => Promise<string | null>
+      onDashboardSetView: (cb: (view: string) => void) => () => void
       openPalette: () => void
       closePalette: () => void
+      openCapture: () => void
+      closeCapture: () => void
+      setSidebarHeight: (height: number) => void
       openEditor: (payload: EditorPayload) => void
       closeEditor: () => void
       getEditorPayload: () => Promise<EditorPayload | null>
@@ -251,11 +290,26 @@ declare global {
       createTask: (data: {
         title: string; due_at?: number | null; priority?: string;
         projects?: string[]; recurrence?: string; estimated_minutes?: number; subtasks?: Subtask[]
+        focus_area_id?: string | null
       }) => Promise<TaskRow>
       updateTask: (data: Partial<TaskRow> & { id: string }) => Promise<TaskRow>
       toggleTask: (id: string) => Promise<TaskRow>
       snoozeTask: (id: string, due_at: number | null) => Promise<TaskRow>
       deleteTask: (id: string) => Promise<void>
+      rolloverTasks: () => Promise<number>
+      addActualMinutes: (id: string, minutes: number) => Promise<TaskRow>
+
+      getInsights: (days?: number) => Promise<Insights>
+
+      listHabits: () => Promise<HabitRow[]>
+      createHabit: (data: { title: string; color?: string }) => Promise<HabitRow>
+      deleteHabit: (id: string) => Promise<void>
+      toggleHabit: (id: string, dayTs?: number) => Promise<HabitRow>
+
+      icsExportString: () => Promise<string>
+      icsImportString: (text: string) => Promise<number>
+      icsExportFile: () => Promise<{ saved: boolean; count: number; path?: string }>
+      icsImportFile: () => Promise<{ imported: number }>
 
       search: (query: string) => Promise<SearchResult>
 
@@ -274,6 +328,14 @@ declare global {
       // LightNote (embedded)
       lightnoteOpen: () => void
       lightnoteOpenPage: (pageId: string, notebookId: string, sectionId: string) => void
+
+      // LightNote page ↔ event/task linking
+      lightnoteListAllPages: () => Promise<LightnotePageRef[]>
+      lightnoteLinkedPages: (kind: string, itemId: string) => Promise<LightnotePageRef[]>
+      lightnoteLinkPage: (pageId: string, notebookId: string, sectionId: string, kind: string, itemId: string) => Promise<{ success: boolean }>
+      lightnoteUnlinkPage: (pageId: string, kind: string, itemId: string) => Promise<{ success: boolean }>
+      lightnoteCreateLinkedPage: (kind: string, itemId: string, title: string, meta?: string) => Promise<LightnotePageRef>
+      aiBrief: (kind: string, itemId: string) => Promise<{ text?: string; error?: string }>
 
       // Single-item lookups
       getEventById: (id: string) => Promise<EventRow | null>

@@ -11,14 +11,17 @@ interface LangState {
   init: () => void
 }
 
+// The UI is intentionally English-only: most of it is hardcoded English, so a
+// partial Korean translation looked inconsistent. The store is kept (callers
+// still reference it) but pinned to English; switching is disabled.
 export const useLangStore = create<LangState>((set) => ({
   lang: DEFAULT_LANG,
-  setLang: (lang) => {
-    try { localStorage.setItem(STORAGE_KEY, lang) } catch { /* ignore */ }
-    set({ lang })
+  setLang: () => {
+    try { localStorage.removeItem(STORAGE_KEY) } catch { /* ignore */ }
+    set({ lang: 'en' })
   },
   init: () => {
-    const raw = (() => { try { return localStorage.getItem(STORAGE_KEY) } catch { return null } })()
-    if (raw === 'en' || raw === 'ko') set({ lang: raw })
+    try { localStorage.removeItem(STORAGE_KEY) } catch { /* ignore */ }
+    set({ lang: 'en' })
   }
 }))

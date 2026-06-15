@@ -13,7 +13,7 @@ const DEFAULT: WindowSettings = {
   workStartHour: 9, workEndHour: 18, reminderEnabled: true
 }
 
-export const useSettingsStore = create<SettingsState>((set, get) => ({
+export const useSettingsStore = create<SettingsState>((set) => ({
   settings: DEFAULT,
   loaded: false,
 

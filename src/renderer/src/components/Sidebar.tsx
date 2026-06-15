@@ -1,6 +1,8 @@
+import { useEffect, useRef } from 'react'
 import { useToday } from '../hooks/useToday'
 import { useDateStore } from '../store/dateStore'
 import { useSettingsStore } from '../store/settingsStore'
+import { useFocusStore, focusDisplaySeconds } from '../store/focusStore'
 
 interface Props { onHover: () => void }
 
@@ -16,21 +18,40 @@ export default function Sidebar({ onHover }: Props) {
   const settings = useSettingsStore((s) => s.settings)
   const patch    = useSettingsStore((s) => s.patch)
 
+  const focus = useFocusStore()
+  const focusActive = focus.running || focus.elapsed > 0
+  const fDisp = focusDisplaySeconds(focus)
+  const fMin = Math.floor(fDisp / 60)
+  const fSec = String(fDisp % 60).padStart(2, '0')
+
+  // Auto-measure the strip's content height and tell main to size the collapsed
+  // window to it — no more magic numbers / clipping when content changes.
+  const rootRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const el = rootRef.current
+    if (!el) return
+    const report = () => window.electronAPI.setSidebarHeight(el.offsetHeight)
+    report()
+    const ro = new ResizeObserver(report)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+
   const w = settings.width
   const isLeft = settings.edge === 'left'
   const locked = settings.locked
 
   const iconSize = w === 32 ? 14 : w === 40 ? 16 : 19
   const btnSize  = w === 32 ? 24 : w === 40 ? 30 : 34
-  const sidebarH = w === 32 ? 165 : w === 52 ? 210 : 185  // matches main/index.ts
 
   return (
     <div
+      ref={rootRef}
       className="fixed top-0 flex flex-col items-center z-20 bg-white dark:bg-ink-900 border border-ink-200 dark:border-ink-800"
       style={{
-        width: w, height: sidebarH,
+        width: w,            // height auto-fits content so the timer never gets clipped
         [isLeft ? 'left' : 'right']: 0,
-        paddingTop: 0, paddingBottom: 6, gap: 5
+        paddingTop: 0, paddingBottom: 8, gap: 5
       }}
       onMouseEnter={onHover}
     >
@@ -72,7 +93,39 @@ export default function Sidebar({ onHover }: Props) {
         <CalendarIcon size={iconSize} />
       </IconBtn>
 
-      <div className="flex-1" />
+      {/* Notes (LightNote) */}
+      <IconBtn title="Notes" size={btnSize}
+        onClick={(e) => { e.stopPropagation(); window.electronAPI.lightnoteOpen() }}>
+        <NoteIcon size={iconSize} />
+      </IconBtn>
+
+      {/* Help & guide */}
+      <IconBtn title="Help & guide" size={btnSize}
+        onClick={(e) => { e.stopPropagation(); window.electronAPI.openDashboardView('help') }}>
+        <span style={{ fontSize: iconSize + 1, fontWeight: 700, lineHeight: 1 }}>?</span>
+      </IconBtn>
+
+
+      {/* Running focus timer — click to pause / resume */}
+      {focusActive && (
+        <>
+          <div className="w-5 h-px bg-ink-200 dark:bg-ink-700" />
+          <button
+            title={focus.running ? `Focus: ${fMin}:${fSec} — click to pause` : `Focus paused at ${fMin}:${fSec} — click to resume`}
+            onClick={(e) => { e.stopPropagation(); focus.running ? focus.pause() : focus.start() }}
+            style={{ ...NO_DRAG }}
+            className={`flex flex-col items-center justify-center leading-none rounded-lg px-1 py-0.5 transition-colors ${
+              focus.running
+                ? 'text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-500/15'
+                : 'text-ink-400 hover:bg-ink-100 dark:hover:bg-ink-800'
+            }`}
+          >
+            <span className="text-2xs leading-none mb-0.5">{focus.running ? '🎯' : '⏸'}</span>
+            <span className="text-sm font-mono font-bold tabular-nums leading-none">{String(fMin).padStart(2, '0')}</span>
+            <span className="text-2xs font-mono tabular-nums opacity-70 leading-none mt-0.5">{fSec}</span>
+          </button>
+        </>
+      )}
 
       {/* Lock toggle */}
       <button
@@ -147,6 +200,17 @@ function UnlockIcon({ size }: { size: number }) {
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
       <rect x="3" y="11" width="18" height="11" rx="2" />
       <path d="M7 11V7a5 5 0 0 1 9.9-1" />
+    </svg>
+  )
+}
+function NoteIcon({ size }: { size: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+      <polyline points="14 2 14 8 20 8" />
+      <line x1="16" y1="13" x2="8" y2="13" />
+      <line x1="16" y1="17" x2="8" y2="17" />
+      <line x1="10" y1="9" x2="8" y2="9" />
     </svg>
   )
 }

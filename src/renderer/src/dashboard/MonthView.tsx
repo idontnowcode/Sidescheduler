@@ -40,7 +40,7 @@ function tasksForDay(tasks: Task[], day: Date) {
   return tasks.filter(t => t.dueAt != null && t.dueAt >= dayStart(day) && t.dueAt <= dayEnd(day))
 }
 
-export default function MonthView({ current, events, tasks, onReload, onNavigate, onPickDay }: Props) {
+export default function MonthView({ current, events, tasks, onReload, onPickDay }: Props) {
   const today = new Date()
   const grid = buildGrid(current)
   const [dragging, setDragging] = useState<{ id: string; timeOffset: number } | null>(null)

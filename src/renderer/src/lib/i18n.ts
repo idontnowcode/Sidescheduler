@@ -14,6 +14,8 @@ const STR = {
   'tab.week':     { en: 'Week',     ko: '주간' },
   'tab.month':    { en: 'Month',    ko: '월간' },
   'tab.settings': { en: 'Settings', ko: '설정' },
+  'tab.review':   { en: 'Review',   ko: '리뷰' },
+  'tab.focus':    { en: 'Focus',    ko: '포커스' },
 
   // Header / quick actions
   'header.quickAdd': { en: 'Quick add', ko: '빠른 추가' },

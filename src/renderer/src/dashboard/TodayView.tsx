@@ -63,6 +63,35 @@ export default function TodayView({ events, allIncompleteTasks, onReload }: Prop
         </div>
       </div>
 
+      {/* Daily planning ritual: morning plan · evening review */}
+      {(() => {
+        const h = today.getHours()
+        const doneToday  = todayTasks.filter((t) => t.done).length
+        const totalToday = todayTasks.length
+        const morning = h < 12
+        const evening = h >= 17
+        return (
+          <div className="mb-6 rounded-xl border border-ink-100 dark:border-ink-800 px-4 py-3 flex items-center gap-3">
+            <span className="text-xl flex-shrink-0">{morning ? '🌅' : evening ? '🌙' : '☀️'}</span>
+            <div className="flex-1 text-sm text-ink-700 dark:text-ink-200">
+              {morning ? (
+                <span><b>Plan your day</b> — {todayEvents.length} events, {totalToday} tasks due{overdueTasks.length ? `, ${overdueTasks.length} overdue` : ''}.</span>
+              ) : evening ? (
+                <span><b>Evening review</b> — completed {doneToday} of {totalToday} tasks today.{overdueTasks.length ? ` ${overdueTasks.length} still overdue.` : ''}</span>
+              ) : (
+                <span><b>Today</b> — {todayEvents.length} events · {doneToday}/{totalToday} tasks done.</span>
+              )}
+            </div>
+            {overdueTasks.length > 0 && (
+              <button onClick={async () => { await window.electronAPI.rolloverTasks(); onReload() }}
+                className="text-xs font-medium text-red-500 bg-red-50 dark:bg-red-500/10 hover:bg-red-100 dark:hover:bg-red-500/20 rounded-lg px-2.5 py-1.5 transition-colors flex-shrink-0">
+                ↪ Roll over {overdueTasks.length}
+              </button>
+            )}
+          </div>
+        )
+      })()}
+
       {workload && <WorkloadCard w={workload} />}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">

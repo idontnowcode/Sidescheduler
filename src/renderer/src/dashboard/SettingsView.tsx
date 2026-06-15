@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import { WindowSettings, DisplayInfo } from '../types'
 import { useThemeStore, ThemeMode } from '../store/themeStore'
-import { useLangStore, Locale } from '../store/langStore'
 import { useT } from '../lib/i18n'
 
 export default function SettingsView() {
@@ -9,10 +8,9 @@ export default function SettingsView() {
   const [displays, setDisplays] = useState<DisplayInfo[]>([])
   const [autoStart, setAutoStart] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [icsMsg, setIcsMsg] = useState('')
   const themeMode = useThemeStore((s) => s.mode)
   const setThemeMode = useThemeStore((s) => s.setMode)
-  const lang = useLangStore((s) => s.lang)
-  const setLang = useLangStore((s) => s.setLang)
   const t = useT()
 
   useEffect(() => {
@@ -47,10 +45,28 @@ export default function SettingsView() {
     <div className="h-full overflow-y-auto px-8 py-6 max-w-3xl mx-auto space-y-8">
       <h1 className="text-2xl font-bold">{t('settings.title')}</h1>
 
-      <Section title={t('settings.language')} desc={t('settings.languageDesc')}>
-        <RadioRow value={lang}
-          options={[{ value: 'en', label: t('settings.langEnglish') }, { value: 'ko', label: t('settings.langKorean') }]}
-          onChange={(v) => setLang(v as Locale)} />
+      <Section title="Calendar (.ics)" desc="Import events from or export your events to a standard iCalendar file.">
+        <div className="flex items-center gap-2">
+          <button
+            onClick={async () => {
+              setIcsMsg('')
+              const r = await window.electronAPI.icsImportFile()
+              setIcsMsg(r.imported > 0 ? `Imported ${r.imported} event(s).` : 'No events imported.')
+            }}
+            className="btn btn-ghost text-sm border border-ink-200 dark:border-ink-700">
+            Import .ics
+          </button>
+          <button
+            onClick={async () => {
+              setIcsMsg('')
+              const r = await window.electronAPI.icsExportFile()
+              setIcsMsg(r.saved ? `Exported ${r.count} event(s).` : 'Export cancelled.')
+            }}
+            className="btn btn-ghost text-sm border border-ink-200 dark:border-ink-700">
+            Export .ics
+          </button>
+          {icsMsg && <span className="text-xs text-ink-500">{icsMsg}</span>}
+        </div>
       </Section>
 
       <Section title={t('settings.theme')} desc={t('settings.themeDesc')}>

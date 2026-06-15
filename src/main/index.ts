@@ -1,14 +1,22 @@
-import { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, screen, Display, Notification, safeStorage } from 'electron'
+import { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, screen, Display, Notification, safeStorage, dialog, globalShortcut } from 'electron'
 import { join } from 'path'
+import { readFileSync, writeFileSync } from 'fs'
 import { computeWorkload, buildReminderBody } from './workload'
+import { eventsToIcs, icsToEvents } from './ics'
 
 // LightNote IPC handlers — CJS module, copied to out/main/lightnote/ by the copyLightnoteCjs plugin
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const { registerIpcHandlers: registerLightNoteIpc } = require('./lightnote/ipc-handlers')
+// Shared link store (same singleton ipc-handlers.js init()s) — used to purge orphan
+// page links when an event/task is deleted in the planner.
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const linkStorage = require('./lightnote/link-storage')
 import {
   initDb,
   listEvents, createEvent, updateEvent, updateEventMove, updateEventInstance, deleteEvent, deleteEventInstance,
   listTasks, listAllIncompleteTasks, listAllTasks, createTask, updateTask, toggleTask, snoozeTask, deleteTask,
+  rolloverOverdueTasks, addActualMinutes, getInsights,
+  listHabits, createHabit, deleteHabit, toggleHabitCheckin,
   listProjects,
   listFocusAreas, createFocusArea, updateFocusArea, deleteFocusArea,
   getEventById, getTaskById,
@@ -25,6 +33,7 @@ let paletteWindow: BrowserWindow | null = null
 let editorWindow: BrowserWindow | null = null
 let noteEditorWindow: BrowserWindow | null = null
 let lightNoteWindow: BrowserWindow | null = null
+let pendingLightnoteOpenPage: { pageId: string; notebookId: string; sectionId: string } | null = null
 let paletteRequester: 'sidebar' | 'dashboard' = 'sidebar'
 let pendingEditorPayload: unknown = null
 let pendingNoteEditorPayload: unknown = null
@@ -35,11 +44,12 @@ let windowExpanded = false
 const EXPANDED_HEIGHT = 580   // height when panel is open
 const PANEL_W         = 300
 
-/** Sidebar collapsed height scales with width to fit icons */
+/** Collapsed sidebar height. The renderer measures its actual content height and
+ *  reports it via 'sidebar:set-height'; until then a width-based fallback is used. */
+let measuredSidebarH: number | null = null
 function sidebarHeight(width: number): number {
-  if (width === 32) return 232
-  if (width === 52) return 282
-  return 262  // 40px default
+  if (measuredSidebarH && measuredSidebarH > 0) return measuredSidebarH
+  return width === 32 ? 264 : width === 52 ? 324 : 300  // fallback before first measurement
 }
 
 // ── Display / bounds ──────────────────────────────────────────────────────
@@ -126,8 +136,14 @@ function createWindow(): void {
 }
 
 // ── Dashboard window ──────────────────────────────────────────────────────
-function openDashboard(): void {
-  if (dashboardWindow && !dashboardWindow.isDestroyed()) { dashboardWindow.focus(); return }
+let pendingDashboardView: string | null = null
+function openDashboard(view?: string): void {
+  if (view) pendingDashboardView = view
+  if (dashboardWindow && !dashboardWindow.isDestroyed()) {
+    dashboardWindow.focus()
+    if (view) dashboardWindow.webContents.send('dashboard:set-view', view)
+    return
+  }
   dashboardWindow = new BrowserWindow({
     width: 960, height: 700, minWidth: 800, minHeight: 560,
     title: 'Daily Sidebar Planner — Calendar',
@@ -153,7 +169,7 @@ function buildTrayMenu() {
     { label: 'Daily Sidebar Planner', enabled: false },
     { type: 'separator' },
     { label: 'Show Sidebar', click: () => mainWindow?.show() },
-    { label: 'Open Dashboard', click: openDashboard },
+    { label: 'Open Dashboard', click: () => openDashboard() },
     { type: 'separator' },
     {
       label: 'Launch at Startup', type: 'checkbox',
@@ -184,10 +200,11 @@ function createTray(): void {
   tray.on('click', () => mainWindow?.show())
 }
 
-/** Notify both data-bearing windows that something changed. */
+/** Notify all data-bearing windows that something changed. */
 function broadcastRefresh(): void {
   mainWindow?.webContents.send('palette:refresh')
   dashboardWindow?.webContents.send('palette:refresh')
+  editorWindow?.webContents.send('palette:refresh')
   scheduleEventReminders()   // event data may have changed → rebuild reminders
 }
 
@@ -200,7 +217,18 @@ ipcMain.on('window:collapse', () => {
   if (!mainWindow || !windowExpanded) return
   windowExpanded = false; applyBounds()
 })
-ipcMain.on('window:open-dashboard', openDashboard)
+// Renderer reports its measured strip height so the collapsed sidebar window
+// resizes to fit its content exactly (icons, timer, etc.) — no clipping.
+ipcMain.on('sidebar:set-height', (_e, h: number) => {
+  const r = Math.round(h)
+  if (r > 0 && r !== measuredSidebarH) {
+    measuredSidebarH = r
+    if (mainWindow && !windowExpanded) applyBounds()
+  }
+})
+ipcMain.on('window:open-dashboard', () => openDashboard())
+ipcMain.on('window:open-dashboard-view', (_e, view: string) => openDashboard(view))
+ipcMain.handle('dashboard:consume-pending-view', () => { const v = pendingDashboardView; pendingDashboardView = null; return v })
 ipcMain.on('navigate-date', (_e, { ts }: { ts: number }) => {
   mainWindow?.webContents.send('navigate-to-date', { ts })
 })
@@ -338,7 +366,18 @@ function openEditorWindow(payload: unknown): void {
     editorWindow.show()
     editorWindow.focus()
   })
-  editorWindow.on('blur', () => closeEditorWindow())
+  // Close on blur — but NOT when focus moved to the note-editor child window
+  // (opening a note from the editor must not dismiss the editor underneath it).
+  editorWindow.on('blur', () => {
+    setTimeout(() => {
+      if (noteEditorWindow && !noteEditorWindow.isDestroyed() && noteEditorWindow.isFocused()) return
+      if (editorWindow && !editorWindow.isDestroyed() && editorWindow.isFocused()) return
+      closeEditorWindow()
+    }, 120)
+  })
+  editorWindow.webContents.on('console-message', (_e, _level, message) => {
+    console.log(`[editor-renderer] ${message}`)
+  })
   editorWindow.on('closed', () => { editorWindow = null })
 }
 
@@ -408,6 +447,9 @@ function openNoteEditorWindow(payload: unknown): void {
     noteEditorWindow.show()
     noteEditorWindow.focus()
   })
+  noteEditorWindow.webContents.on('console-message', (_e, _level, message) => {
+    console.log(`[note-renderer] ${message}`)
+  })
   // Note editor stays open on blur (unlike event/task editor) — user needs time to write
   noteEditorWindow.on('closed', () => { noteEditorWindow = null })
 }
@@ -421,6 +463,38 @@ ipcMain.on('note-editor:open', (_e, payload: unknown) => openNoteEditorWindow(pa
 ipcMain.on('note-editor:close', () => closeNoteEditorWindow())
 ipcMain.handle('note-editor:get-pending', () => pendingNoteEditorPayload)
 ipcMain.on('note-editor:saved', () => { broadcastRefresh() })
+
+// ── Quick-capture window (global hotkey) ────────────────────────────────────
+let captureWindow: BrowserWindow | null = null
+function openCaptureWindow(): void {
+  if (captureWindow && !captureWindow.isDestroyed()) { captureWindow.show(); captureWindow.focus(); return }
+  const { workArea } = screen.getPrimaryDisplay()
+  const W = 560, H = 140
+  captureWindow = new BrowserWindow({
+    x: workArea.x + Math.floor((workArea.width - W) / 2),
+    y: workArea.y + Math.floor(workArea.height * 0.22),
+    width: W, height: H,
+    frame: false, transparent: true, alwaysOnTop: true, skipTaskbar: true,
+    resizable: false, hasShadow: false, show: false,
+    webPreferences: { preload: join(__dirname, '../preload/index.js'), contextIsolation: true, nodeIntegration: false, sandbox: false }
+  })
+  captureWindow.setAlwaysOnTop(true, 'screen-saver')
+  if (process.env.NODE_ENV === 'development' && process.env['ELECTRON_RENDERER_URL']) {
+    captureWindow.loadURL(process.env['ELECTRON_RENDERER_URL'] + '#capture')
+  } else {
+    captureWindow.loadFile(join(__dirname, '../renderer/index.html'), { hash: 'capture' })
+  }
+  captureWindow.once('ready-to-show', () => { captureWindow?.show(); captureWindow?.focus() })
+  // Dismiss on blur in normal use; keep open under E2E (no real OS focus there).
+  captureWindow.on('blur', () => { if (!process.env.DSP_TEST_DATA_DIR) closeCaptureWindow() })
+  captureWindow.on('closed', () => { captureWindow = null })
+}
+function closeCaptureWindow(): void {
+  if (captureWindow && !captureWindow.isDestroyed()) captureWindow.close()
+  captureWindow = null
+}
+ipcMain.on('capture:open', openCaptureWindow)
+ipcMain.on('capture:close', closeCaptureWindow)
 
 // ── IPC: Notes ────────────────────────────────────────────────────────────
 ipcMain.handle('db:notes:by-item', (_e, { kind, itemId }: { kind: 'event' | 'task'; itemId: string }) => listNotesByItem(kind, itemId))
@@ -463,8 +537,8 @@ ipcMain.handle('db:events:create',          (_e, data) => { const r = createEven
 ipcMain.handle('db:events:update',          (_e, data) => { const r = updateEvent(data);     broadcastRefresh(); return r })
 ipcMain.handle('db:events:move',            (_e, { id, start_at, end_at }: { id: string; start_at: number; end_at: number }) => { const r = updateEventMove(id, start_at, end_at); broadcastRefresh(); return r })
 ipcMain.handle('db:events:update-instance', (_e, data) => { updateEventInstance(data);       broadcastRefresh(); return null })
-ipcMain.handle('db:events:delete',          (_e, { id }: { id: string }) => { deleteEvent(id);            broadcastRefresh(); return null })
-ipcMain.handle('db:events:delete-instance', (_e, data) => { deleteEventInstance(data);       broadcastRefresh(); return null })
+ipcMain.handle('db:events:delete',          (_e, { id }: { id: string }) => { deleteEvent(id); linkStorage.removeItemLinks('event', id); broadcastRefresh(); return null })
+ipcMain.handle('db:events:delete-instance', (_e, data: { originalId: string; instanceDate: number; mode: 'only' | 'future' | 'all' }) => { deleteEventInstance(data); if (data.mode === 'all') linkStorage.removeItemLinks('event', data.originalId); broadcastRefresh(); return null })
 
 // ── IPC: Tasks ────────────────────────────────────────────────────────────
 ipcMain.handle('db:tasks:list',                (_e, { end }: { end: number }) => listTasks(end))
@@ -474,7 +548,41 @@ ipcMain.handle('db:tasks:create',              (_e, data) => { const r = createT
 ipcMain.handle('db:tasks:update',              (_e, data) => { const r = updateTask(data);              broadcastRefresh(); return r })
 ipcMain.handle('db:tasks:toggle',              (_e, { id }: { id: string }) => { const r = toggleTask(id);             broadcastRefresh(); return r })
 ipcMain.handle('db:tasks:snooze',              (_e, { id, due_at }: { id: string; due_at: number | null }) => { const r = snoozeTask(id, due_at); broadcastRefresh(); return r })
-ipcMain.handle('db:tasks:delete',              (_e, { id }: { id: string }) => { deleteTask(id);                       broadcastRefresh(); return null })
+ipcMain.handle('db:tasks:delete',              (_e, { id }: { id: string }) => { deleteTask(id); linkStorage.removeItemLinks('task', id); broadcastRefresh(); return null })
+ipcMain.handle('db:tasks:rollover',            () => { const n = rolloverOverdueTasks(); if (n > 0) broadcastRefresh(); return n })
+ipcMain.handle('db:tasks:add-actual',          (_e, { id, minutes }: { id: string; minutes: number }) => { const r = addActualMinutes(id, minutes); broadcastRefresh(); return r })
+ipcMain.handle('db:insights:get',              (_e, { days }: { days?: number } = {}) => getInsights(days))
+
+// ── IPC: Habits ───────────────────────────────────────────────────────────
+ipcMain.handle('db:habits:list',   () => listHabits())
+ipcMain.handle('db:habits:create', (_e, data: { title: string; color?: string }) => { const r = createHabit(data); broadcastRefresh(); return r })
+ipcMain.handle('db:habits:delete', (_e, { id }: { id: string }) => { deleteHabit(id); broadcastRefresh(); return null })
+ipcMain.handle('db:habits:toggle', (_e, { id, dayTs }: { id: string; dayTs?: number }) => { const r = toggleHabitCheckin(id, dayTs); broadcastRefresh(); return r })
+
+// ── IPC: ICS import/export ──────────────────────────────────────────────────
+const ICS_WINDOW_MS = 365 * 24 * 3600 * 1000 * 2
+ipcMain.handle('ics:export-string', () => eventsToIcs(listEvents(Date.now() - ICS_WINDOW_MS, Date.now() + ICS_WINDOW_MS)))
+ipcMain.handle('ics:import-string', (_e, { text }: { text: string }) => {
+  const parsed = icsToEvents(text)
+  for (const ev of parsed) createEvent(ev)
+  if (parsed.length) broadcastRefresh()
+  return parsed.length
+})
+ipcMain.handle('ics:export-file', async () => {
+  const res = await dialog.showSaveDialog({ title: 'Export calendar (.ics)', defaultPath: 'daily-sidebar-planner.ics', filters: [{ name: 'iCalendar', extensions: ['ics'] }] })
+  if (res.canceled || !res.filePath) return { saved: false, count: 0 }
+  const all = listEvents(Date.now() - ICS_WINDOW_MS, Date.now() + ICS_WINDOW_MS)
+  writeFileSync(res.filePath, eventsToIcs(all), 'utf-8')
+  return { saved: true, count: all.length, path: res.filePath }
+})
+ipcMain.handle('ics:import-file', async () => {
+  const res = await dialog.showOpenDialog({ title: 'Import calendar (.ics)', properties: ['openFile'], filters: [{ name: 'iCalendar', extensions: ['ics'] }] })
+  if (res.canceled || !res.filePaths[0]) return { imported: 0 }
+  const parsed = icsToEvents(readFileSync(res.filePaths[0], 'utf-8'))
+  for (const ev of parsed) createEvent(ev)
+  if (parsed.length) broadcastRefresh()
+  return { imported: parsed.length }
+})
 
 // ── IPC: Search ───────────────────────────────────────────────────────────
 ipcMain.handle('db:search', (_e, { query }: { query: string }) => searchAll(query))
@@ -573,7 +681,8 @@ function scheduleNextReminder(): void {
 
 // ── LightNote embedded window ─────────────────────────────────────────────
 // LightNote runs inside DSP's own Electron process — no external launcher.
-// Renderer HTML lives in resources/lightnote/; preload in out/preload/lightnote.js.
+// Renderer = React app via out/renderer/index.html#lightnote; preload = out/preload/lightnote.js.
+// (The legacy vanilla-JS UI under resources/lightnote/ is unused.)
 
 function openLightNoteWindow(): void {
   if (lightNoteWindow && !lightNoteWindow.isDestroyed()) {
@@ -611,8 +720,11 @@ function openLightNoteWindow(): void {
 ipcMain.on('lightnote:launch', openLightNoteWindow)
 
 ipcMain.on('lightnote:open-page', (_e, { pageId, notebookId, sectionId }) => {
+  // Stash the target so a freshly-created LightNote window can PULL it on mount —
+  // a one-shot send can race the renderer registering its listener and get lost.
+  pendingLightnoteOpenPage = { pageId, notebookId, sectionId }
   openLightNoteWindow()
-  // Wait for window ready then navigate
+  // Also push for an already-open window (its listener is live).
   const send = () => lightNoteWindow?.webContents.send('lightnote:open-page', { pageId, notebookId, sectionId })
   if (lightNoteWindow?.webContents.isLoading()) {
     lightNoteWindow.webContents.once('did-finish-load', send)
@@ -621,8 +733,12 @@ ipcMain.on('lightnote:open-page', (_e, { pageId, notebookId, sectionId }) => {
   }
 })
 
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const linkStorage = require('./lightnote/link-storage')
+// Renderer pulls (and clears) the pending open-page target once mounted.
+ipcMain.handle('lightnote:consume-pending-open', () => {
+  const p = pendingLightnoteOpenPage
+  pendingLightnoteOpenPage = null
+  return p
+})
 
 ipcMain.handle('lightnote:links:items-for-page', (_e, { pageId }) => {
   const links = linkStorage.getLinksByPage(pageId)
@@ -631,11 +747,11 @@ ipcMain.handle('lightnote:links:items-for-page', (_e, { pageId }) => {
     events: (links.linkedEvents as string[])
       .map((id: string) => getEventById(id))
       .filter(Boolean)
-      .map((e: ReturnType<typeof getEventById>) => ({ id: e!.id, title: e!.title, start_at: e!.start_at })),
+      .map((e: ReturnType<typeof getEventById>) => ({ id: e!.id, title: e!.title, start_at: e!.start_at, end_at: e!.end_at })),
     tasks: (links.linkedTasks as string[])
       .map((id: string) => getTaskById(id))
       .filter(Boolean)
-      .map((t: ReturnType<typeof getTaskById>) => ({ id: t!.id, title: t!.title, done: t!.done }))
+      .map((t: ReturnType<typeof getTaskById>) => ({ id: t!.id, title: t!.title, done: t!.done, due_at: t!.due_at }))
   }
 })
 
@@ -646,12 +762,62 @@ ipcMain.handle('app:set-login-item', (_e, { value }: { value: boolean }) => {
   tray?.setContextMenu(buildTrayMenu())
 })
 
+// ── AI scheduler context (passed into LightNote so its AI is calendar-aware) ─
+function buildScheduleDigest(): string {
+  const now = Date.now()
+  const DAY = 86400000
+  const evs = listEvents(now, now + 7 * DAY).slice(0, 20)
+  const tasks = listAllIncompleteTasks().slice(0, 20)
+  const dt = (ts: number) => new Date(ts).toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+  const d = (ts: number) => new Date(ts).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  const lines: string[] = [`Now: ${new Date(now).toLocaleString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}`]
+  if (evs.length) {
+    lines.push('Upcoming events (next 7 days):')
+    for (const e of evs) lines.push(`- ${e.title} @ ${dt(e.start_at)}${e.location ? ` @ ${e.location}` : ''}`)
+  }
+  if (tasks.length) {
+    lines.push('Open tasks:')
+    for (const t of tasks) lines.push(`- ${t.title}${t.due_at ? ` (due ${d(t.due_at)})` : ''} [${t.priority}]`)
+  }
+  return lines.join('\n')
+}
+function pageLinkContext(pageId: string): string {
+  const links = linkStorage.getLinksByPage(pageId)
+  if (!links) return ''
+  const parts: string[] = []
+  for (const id of (links.linkedEvents as string[])) { const e = getEventById(id); if (e) parts.push(`event "${e.title}" on ${new Date(e.start_at).toLocaleString()}`) }
+  for (const id of (links.linkedTasks as string[])) { const t = getTaskById(id); if (t) parts.push(`task "${t.title}"${t.due_at ? ` due ${new Date(t.due_at).toLocaleDateString()}` : ''}`) }
+  return parts.length ? `(This note is linked to: ${parts.join('; ')}.)` : ''
+}
+
 // ── App lifecycle ─────────────────────────────────────────────────────────
 app.whenReady().then(() => {
+  // Test isolation: when DSP_TEST_DATA_DIR is set, redirect ALL on-disk state
+  // (planner.json under userData + lightnote data under appData) into a temp dir
+  // so E2E runs never touch real user data. No-op in production.
+  if (process.env.DSP_TEST_DATA_DIR) {
+    const dir = process.env.DSP_TEST_DATA_DIR
+    try { app.setPath('appData', dir) } catch { /* ignore */ }
+    try { app.setPath('userData', join(dir, 'userData')) } catch { /* ignore */ }
+  }
   // Windows: required for Notification title/grouping to show app name
   app.setAppUserModelId('com.gcjang.daily-sidebar-planner')
   initDb()
-  registerLightNoteIpc(ipcMain, () => lightNoteWindow, safeStorage, null, app)
+  registerLightNoteIpc(ipcMain, () => lightNoteWindow, safeStorage, null, app, {
+    scheduleDigest: buildScheduleDigest,
+    pageLinks: pageLinkContext,
+    createTask: (data: Parameters<typeof createTask>[0]) => createTask(data),
+    createEvent: (data: Parameters<typeof createEvent>[0]) => createEvent(data),
+    refresh: () => broadcastRefresh(),
+    getItem: (kind: 'event' | 'task', id: string) => {
+      if (kind === 'event') {
+        const e = getEventById(id)
+        return e ? { title: e.title, start_at: e.start_at, end_at: e.end_at, location: e.location ?? undefined } : null
+      }
+      const t = getTaskById(id)
+      return t ? { title: t.title, due_at: t.due_at ?? undefined } : null
+    }
+  })
   createWindow()
   createTray()
   scheduleNextReminder()
@@ -659,6 +825,13 @@ app.whenReady().then(() => {
   // Re-scan event reminders every 15 min so instances beyond the 24h horizon
   // (and the next day's recurring ones) get picked up.
   setInterval(scheduleEventReminders, 15 * 60 * 1000)
+  // Global quick-capture hotkey: toggle a one-line natural-language capture box.
+  try {
+    globalShortcut.register('CommandOrControl+Shift+Space', () => {
+      if (captureWindow && !captureWindow.isDestroyed()) closeCaptureWindow()
+      else openCaptureWindow()
+    })
+  } catch { /* hotkey may be taken by another app */ }
 })
 app.on('window-all-closed', () => { /* keep alive in tray */ })
 app.on('second-instance',   () => mainWindow?.show())
@@ -667,3 +840,4 @@ app.on('before-quit',       () => {
   clearEventReminders()
   tray?.destroy(); tray = null
 })
+app.on('will-quit', () => { globalShortcut.unregisterAll() })

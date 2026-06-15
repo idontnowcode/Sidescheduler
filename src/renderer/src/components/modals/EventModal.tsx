@@ -176,15 +176,16 @@ export default function EventModal({ mode, event, defaultDate, defaultStartTime,
       onClick={fullWindow ? undefined : onClose}>
       <form onSubmit={submit} onClick={(e) => e.stopPropagation()}
         className={fullWindow
-          ? 'glass-panel w-screen h-screen border border-ink-200 dark:border-ink-800 overflow-y-auto flex flex-col'
+          ? 'glass-panel w-screen h-screen border border-ink-200 dark:border-ink-800 overflow-hidden flex flex-col'
           : 'glass-panel rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto border border-ink-200 dark:border-ink-800'}>
-        <div className={`px-5 py-4 border-b border-ink-100 dark:border-ink-800 flex items-center justify-between${fullWindow ? ' cursor-move select-none' : ''}`}
+        <div className={`flex-shrink-0 px-5 py-4 border-b border-ink-100 dark:border-ink-800 flex items-center justify-between${fullWindow ? ' cursor-move select-none' : ''}`}
           style={fullWindow ? { WebkitAppRegion: 'drag' } as any : undefined}>
           <h2 className="text-base font-semibold">{isEdit ? t('modal.editEvent') : t('modal.addEvent')}</h2>
           <button type="button" onClick={onClose} className="btn-ghost btn -mr-2"
             style={{ WebkitAppRegion: 'no-drag' } as any}>✕</button>
         </div>
 
+        <div className={fullWindow ? 'flex-1 overflow-y-auto min-h-0' : ''}>
         {conflicts.length > 0 && (
           <div className="mx-5 mt-4 -mb-1 px-3.5 py-2.5 rounded-lg bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 text-xs">
             <p className="font-medium text-amber-700 dark:text-amber-400 mb-1">
@@ -313,12 +314,18 @@ export default function EventModal({ mode, event, defaultDate, defaultStartTime,
             )}
           </div>
         </div>
+        </div>{/* end scrollable area */}
 
-        <div className="px-5 py-3 border-t border-ink-100 dark:border-ink-800">
-          <NoteLinksSection kind="event" itemId={event?.id ?? null} itemTitle={title} />
+        <div className="flex-shrink-0 px-5 py-3 border-t border-ink-100 dark:border-ink-800">
+          {/* Recurring instances share virtual ids (originalId__ts); link notes to the
+              stable series id so they survive instance edits/deletes and resolve back. */}
+          <NoteLinksSection kind="event"
+            itemId={(event?.isRecurringInstance && event?.originalId) ? event.originalId : (event?.id ?? null)}
+            itemTitle={title}
+            itemMeta={`📅 ${date}${start ? ` ${start}${end ? `–${end}` : ''}` : ''}`} />
         </div>
 
-        <div className="px-5 py-3 border-t border-ink-100 dark:border-ink-800 flex gap-2 justify-between">
+        <div className="flex-shrink-0 px-5 py-3 border-t border-ink-100 dark:border-ink-800 flex gap-2 justify-between">
           {isEdit ? (
             <button type="button" onClick={handleDelete}
               className="btn text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10">{t('verb.delete')}</button>

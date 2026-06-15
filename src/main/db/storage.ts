@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync, existsSync } from 'fs'
+import { readFileSync, writeFileSync, existsSync, renameSync, copyFileSync, unlinkSync } from 'fs'
 import { app } from 'electron'
 import { join } from 'path'
 import { randomUUID } from 'crypto'
@@ -62,6 +62,7 @@ export interface TaskRow {
   focus_area_id?: string | null
   recurrence?: string             // JSON RecurrenceRule (for repeating tasks)
   estimated_minutes?: number      // user-provided estimate
+  actual_minutes?: number         // accumulated focus-timer time
   subtasks?: Subtask[]            // checklist items
   created_at: number
   updated_at: number
@@ -77,7 +78,15 @@ export interface NoteRow {
   updated_at: number
 }
 
-interface DB { events: EventRow[]; tasks: TaskRow[]; focusAreas: FocusAreaRow[]; notes: NoteRow[] }
+export interface HabitRow {
+  id: string
+  title: string
+  color: string
+  created_at: number
+  checkins: number[]   // day-start timestamps the habit was completed
+}
+
+interface DB { events: EventRow[]; tasks: TaskRow[]; focusAreas: FocusAreaRow[]; notes: NoteRow[]; habits: HabitRow[] }
 
 // ── File I/O ──────────────────────────────────────────────────────────────
 let cache: DB | null = null
@@ -87,21 +96,42 @@ function dbPath(): string { return join(app.getPath('userData'), 'planner.json')
 function load(): DB {
   if (cache) return cache
   const p = dbPath()
-  const raw = existsSync(p)
-    ? (JSON.parse(readFileSync(p, 'utf-8')) as Partial<DB>)
-    : {}
+  let raw: Partial<DB> = {}
+  if (existsSync(p)) {
+    try {
+      raw = JSON.parse(readFileSync(p, 'utf-8')) as Partial<DB>
+    } catch (err) {
+      // Corrupt planner.json (e.g. legacy non-atomic write interrupted): preserve the
+      // bad file for recovery instead of overwriting it, then start from empty state.
+      console.error('[storage] planner.json is corrupt — backing up and starting fresh:', err)
+      try { copyFileSync(p, p + `.corrupt-${Date.now()}.bak`) } catch { /* ignore */ }
+      raw = {}
+    }
+  }
   cache = {
-    events: raw.events ?? [],
-    tasks: raw.tasks ?? [],
-    focusAreas: raw.focusAreas ?? [],
-    notes: raw.notes ?? []
+    events: Array.isArray(raw.events) ? raw.events : [],
+    tasks: Array.isArray(raw.tasks) ? raw.tasks : [],
+    focusAreas: Array.isArray(raw.focusAreas) ? raw.focusAreas : [],
+    notes: Array.isArray(raw.notes) ? raw.notes : [],
+    habits: Array.isArray(raw.habits) ? raw.habits : []
   }
   return cache
 }
 
 function persist(data: DB): void {
   cache = data
-  writeFileSync(dbPath(), JSON.stringify(data, null, 2), 'utf-8')
+  // Atomic write: serialize to a temp file then rename over the target so a crash
+  // mid-write can never leave planner.json (all events/tasks/notes) truncated.
+  const target = dbPath()
+  const tmp = target + '.tmp'
+  writeFileSync(tmp, JSON.stringify(data, null, 2), 'utf-8')
+  try {
+    renameSync(tmp, target)
+  } catch {
+    // Cross-device or locked target: fall back to copy then best-effort cleanup.
+    copyFileSync(tmp, target)
+    try { unlinkSync(tmp) } catch { /* ignore */ }
+  }
 }
 
 export function initDb(): void { load() }
@@ -176,7 +206,12 @@ export function listEvents(start: number, end: number): EventRow[] {
 }
 
 export function getEventById(id: string): EventRow | undefined {
-  return load().events.find(e => e.id === id)
+  const events = load().events
+  const direct = events.find(e => e.id === id)
+  if (direct) return direct
+  // Fall back to the series master for virtual recurring-instance ids (originalId__ts).
+  if (id.includes('__')) return events.find(e => e.id === id.split('__')[0])
+  return undefined
 }
 
 export function getTaskById(id: string): TaskRow | undefined {
@@ -306,9 +341,18 @@ export function deleteEventInstance(data: {
   persist(db)
 }
 
+/** Strip a deleted event/task id out of every note's link arrays (in place). */
+function purgeItemFromNotes(db: DB, kind: 'event' | 'task', itemId: string): void {
+  for (const n of db.notes ?? []) {
+    if (kind === 'event') n.linked_events = n.linked_events.filter(id => id !== itemId)
+    else n.linked_tasks = n.linked_tasks.filter(id => id !== itemId)
+  }
+}
+
 export function deleteEvent(id: string): void {
   const db = load()
   db.events = db.events.filter(e => e.id !== id)
+  purgeItemFromNotes(db, 'event', id)
   persist(db)
 }
 
@@ -403,7 +447,96 @@ export function snoozeTask(id: string, newDueAt: number | null): TaskRow {
 export function deleteTask(id: string): void {
   const db = load()
   db.tasks = db.tasks.filter(t => t.id !== id)
+  purgeItemFromNotes(db, 'task', id)
   persist(db)
+}
+
+/** Move all overdue, incomplete, non-recurring tasks to the start of today.
+ *  Returns how many were moved. */
+export function rolloverOverdueTasks(): number {
+  const db = load()
+  const today = dayStart(new Date())
+  let count = 0
+  for (const t of db.tasks) {
+    if (t.done === 0 && !t.recurrence && t.due_at != null && t.due_at < today) {
+      t.due_at = today
+      t.updated_at = Date.now()
+      count++
+    }
+  }
+  if (count > 0) persist(db)
+  return count
+}
+
+/** Accumulate focus-timer minutes onto a task's actual_minutes. */
+export function addActualMinutes(id: string, minutes: number): TaskRow {
+  const db = load()
+  const idx = db.tasks.findIndex(t => t.id === id)
+  if (idx === -1) throw new Error(`Task ${id} not found`)
+  const cur = db.tasks[idx]
+  db.tasks[idx] = {
+    ...cur,
+    actual_minutes: Math.round(((cur.actual_minutes ?? 0) + minutes) * 10) / 10,
+    updated_at: Date.now()
+  }
+  persist(db)
+  return db.tasks[idx]
+}
+
+/** Aggregate productivity stats over the last `days` days (default 7). */
+export function getInsights(days = 7): {
+  rangeDays: number
+  completed: number
+  created: number
+  completionRate: number
+  focusMinutes: number
+  estimatedMinutes: number
+  byProject: { project: string; minutes: number; tasks: number }[]
+  daily: { date: number; completed: number; focusMinutes: number }[]
+} {
+  const db = load()
+  const now = Date.now()
+  const from = dayStart(new Date(now - (days - 1) * 86400000))
+  const inRange = (ts?: number | null) => ts != null && ts >= from && ts <= now
+
+  const completedTasks = db.tasks.filter(t => t.done === 1 && inRange(t.updated_at))
+  const createdTasks   = db.tasks.filter(t => inRange(t.created_at))
+
+  let focusMinutes = 0, estimatedMinutes = 0
+  const projMap = new Map<string, { minutes: number; tasks: number }>()
+  for (const t of db.tasks) {
+    const mins = t.actual_minutes ?? 0
+    if (mins > 0) {
+      focusMinutes += mins
+      const projects = (t.projects?.length ? t.projects : (t.project ? [t.project] : ['(none)']))
+      for (const p of projects) {
+        const e = projMap.get(p) ?? { minutes: 0, tasks: 0 }
+        e.minutes += mins; e.tasks += 1; projMap.set(p, e)
+      }
+    }
+    if (inRange(t.updated_at)) estimatedMinutes += t.estimated_minutes ?? 0
+  }
+
+  const daily: { date: number; completed: number; focusMinutes: number }[] = []
+  for (let i = days - 1; i >= 0; i--) {
+    const d0 = dayStart(new Date(now - i * 86400000))
+    const d1 = d0 + 86400000 - 1
+    const completed = db.tasks.filter(t => t.done === 1 && t.updated_at >= d0 && t.updated_at <= d1).length
+    daily.push({ date: d0, completed, focusMinutes: 0 })
+  }
+
+  return {
+    rangeDays: days,
+    completed: completedTasks.length,
+    created: createdTasks.length,
+    completionRate: createdTasks.length ? Math.round((completedTasks.length / createdTasks.length) * 100) : 0,
+    focusMinutes: Math.round(focusMinutes),
+    estimatedMinutes,
+    byProject: [...projMap.entries()]
+      .map(([project, v]) => ({ project, minutes: Math.round(v.minutes), tasks: v.tasks }))
+      .sort((a, b) => b.minutes - a.minutes),
+    daily
+  }
 }
 
 // ── Projects ──────────────────────────────────────────────────────────────
@@ -470,7 +603,14 @@ export function updateNote(data: Partial<NoteRow> & { id: string }): NoteRow {
   const notes = db.notes ?? []
   const idx = notes.findIndex(n => n.id === data.id)
   if (idx === -1) throw new Error(`Note ${data.id} not found`)
-  notes[idx] = { ...notes[idx], ...data, updated_at: Date.now() }
+  // Whitelist editable fields: title/content only. Never let an update clobber
+  // id, created_at, or the link arrays (those are managed by link/unlink/delete).
+  notes[idx] = {
+    ...notes[idx],
+    ...(data.title   !== undefined ? { title: data.title }     : {}),
+    ...(data.content !== undefined ? { content: data.content } : {}),
+    updated_at: Date.now()
+  }
   persist({ ...db, notes })
   return notes[idx]
 }
@@ -507,6 +647,46 @@ export function unlinkNoteFromItem(noteId: string, kind: 'event' | 'task', itemI
   else n.linked_tasks = n.linked_tasks.filter(id => id !== itemId)
   n.updated_at = Date.now()
   persist({ ...db, notes })
+}
+
+// ── Habits ────────────────────────────────────────────────────────────────
+export function listHabits(): HabitRow[] {
+  return load().habits ?? []
+}
+
+export function createHabit(data: { title: string; color?: string }): HabitRow {
+  const db = load()
+  const habit: HabitRow = {
+    id: randomUUID(),
+    title: data.title.trim() || 'Untitled',
+    color: data.color ?? '#6366F1',
+    created_at: Date.now(),
+    checkins: []
+  }
+  const habits = db.habits ?? []
+  habits.push(habit)
+  persist({ ...db, habits })
+  return habit
+}
+
+export function deleteHabit(id: string): void {
+  const db = load()
+  persist({ ...db, habits: (db.habits ?? []).filter(h => h.id !== id) })
+}
+
+/** Toggle a habit's completion for a given day (defaults to today). */
+export function toggleHabitCheckin(id: string, dayTs?: number): HabitRow {
+  const db = load()
+  const habits = db.habits ?? []
+  const idx = habits.findIndex(h => h.id === id)
+  if (idx === -1) throw new Error(`Habit ${id} not found`)
+  const day = dayStart(new Date(dayTs ?? Date.now()))
+  const h = habits[idx]
+  h.checkins = h.checkins.includes(day)
+    ? h.checkins.filter(d => d !== day)
+    : [...h.checkins, day].sort((a, b) => a - b)
+  persist({ ...db, habits })
+  return h
 }
 
 // ── Search ────────────────────────────────────────────────────────────────

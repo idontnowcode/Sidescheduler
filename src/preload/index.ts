@@ -5,8 +5,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
   expandWindow:   () => ipcRenderer.send('window:expand'),
   collapseWindow: () => ipcRenderer.send('window:collapse'),
   openDashboard:  () => ipcRenderer.send('window:open-dashboard'),
+  openDashboardView: (view: string) => ipcRenderer.send('window:open-dashboard-view', view),
+  consumePendingDashboardView: () => ipcRenderer.invoke('dashboard:consume-pending-view'),
+  onDashboardSetView: (cb: (view: string) => void) => {
+    const h = (_: unknown, v: string) => cb(v)
+    ipcRenderer.on('dashboard:set-view', h)
+    return () => ipcRenderer.removeListener('dashboard:set-view', h)
+  },
   openPalette:    () => ipcRenderer.send('palette:open'),
   closePalette:   () => ipcRenderer.send('palette:close'),
+  openCapture:    () => ipcRenderer.send('capture:open'),
+  closeCapture:   () => ipcRenderer.send('capture:close'),
+  setSidebarHeight: (height: number) => ipcRenderer.send('sidebar:set-height', height),
   openEditor:     (payload: unknown) => ipcRenderer.send('editor:open', payload),
   closeEditor:    () => ipcRenderer.send('editor:close'),
   getEditorPayload: () => ipcRenderer.invoke('editor:get-pending'),
@@ -53,6 +63,23 @@ contextBridge.exposeInMainWorld('electronAPI', {
   toggleTask:             (id: string) => ipcRenderer.invoke('db:tasks:toggle', { id }),
   snoozeTask:             (id: string, due_at: number | null) => ipcRenderer.invoke('db:tasks:snooze', { id, due_at }),
   deleteTask:             (id: string) => ipcRenderer.invoke('db:tasks:delete', { id }),
+  rolloverTasks:          () => ipcRenderer.invoke('db:tasks:rollover'),
+  addActualMinutes:       (id: string, minutes: number) => ipcRenderer.invoke('db:tasks:add-actual', { id, minutes }),
+
+  // Insights
+  getInsights:            (days?: number) => ipcRenderer.invoke('db:insights:get', { days }),
+
+  // Habits
+  listHabits:   () => ipcRenderer.invoke('db:habits:list'),
+  createHabit:  (data: { title: string; color?: string }) => ipcRenderer.invoke('db:habits:create', data),
+  deleteHabit:  (id: string) => ipcRenderer.invoke('db:habits:delete', { id }),
+  toggleHabit:  (id: string, dayTs?: number) => ipcRenderer.invoke('db:habits:toggle', { id, dayTs }),
+
+  // ICS import/export
+  icsExportString: () => ipcRenderer.invoke('ics:export-string'),
+  icsImportString: (text: string) => ipcRenderer.invoke('ics:import-string', { text }),
+  icsExportFile:   () => ipcRenderer.invoke('ics:export-file'),
+  icsImportFile:   () => ipcRenderer.invoke('ics:import-file'),
 
   // Search
   search: (query: string) => ipcRenderer.invoke('db:search', { query }),
@@ -77,6 +104,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
   lightnoteOpen: () => ipcRenderer.send('lightnote:launch'),
   lightnoteOpenPage: (pageId: string, notebookId: string, sectionId: string) =>
     ipcRenderer.send('lightnote:open-page', { pageId, notebookId, sectionId }),
+
+  // LightNote page ↔ event/task linking (used by the planner's note section)
+  lightnoteListAllPages: () => ipcRenderer.invoke('lightnote:links:list-pages'),
+  lightnoteLinkedPages: (kind: string, itemId: string) =>
+    ipcRenderer.invoke('lightnote:links:by-item', { kind, itemId }),
+  lightnoteLinkPage: (pageId: string, notebookId: string, sectionId: string, kind: string, itemId: string) =>
+    ipcRenderer.invoke('lightnote:links:add', { pageId, notebookId, sectionId, kind, itemId }),
+  lightnoteUnlinkPage: (pageId: string, kind: string, itemId: string) =>
+    ipcRenderer.invoke('lightnote:links:remove', { pageId, kind, itemId }),
+  lightnoteCreateLinkedPage: (kind: string, itemId: string, title: string, meta?: string) =>
+    ipcRenderer.invoke('lightnote:links:create-page', { kind, itemId, title, meta }),
+  aiBrief: (kind: string, itemId: string) => ipcRenderer.invoke('lightnote:brief', { kind, itemId }),
 
   // Note Editor window
   openNoteEditor: (payload: unknown) => ipcRenderer.send('note-editor:open', payload),

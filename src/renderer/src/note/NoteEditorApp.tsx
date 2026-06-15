@@ -11,6 +11,7 @@ export default function NoteEditorApp() {
   const [title, setTitle]       = useState('')
   const [content, setContent]   = useState('')
   const [saving, setSaving]     = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
 
   // Linked items (edit mode)
   const [linkedEvents, setLinkedEvents] = useState<EventRow[]>([])
@@ -103,6 +104,7 @@ export default function NoteEditorApp() {
   const handleSave = async () => {
     if (!payload) return
     setSaving(true)
+    setSaveError(null)
     try {
       if (payload.mode === 'create') {
         await window.electronAPI.createNote({
@@ -117,6 +119,11 @@ export default function NoteEditorApp() {
       }
       window.electronAPI.notifyNoteEditorSaved()
       window.electronAPI.closeNoteEditor()
+    } catch (e) {
+      // Keep the window open so the user's text isn't lost; surface the failure.
+      // eslint-disable-next-line no-console
+      console.error('[NoteEditor] save failed', e)
+      setSaveError('Save failed — your text is kept. ' + String(e))
     } finally {
       setSaving(false)
     }
@@ -124,9 +131,16 @@ export default function NoteEditorApp() {
 
   const handleDelete = async () => {
     if (!note) return
-    await window.electronAPI.deleteNote(note.id)
-    window.electronAPI.notifyNoteEditorSaved()
-    window.electronAPI.closeNoteEditor()
+    setSaveError(null)
+    try {
+      await window.electronAPI.deleteNote(note.id)
+      window.electronAPI.notifyNoteEditorSaved()
+      window.electronAPI.closeNoteEditor()
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.error('[NoteEditor] delete failed', e)
+      setSaveError('Delete failed: ' + String(e))
+    }
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -280,6 +294,12 @@ export default function NoteEditorApp() {
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {saveError && (
+        <div className="flex-shrink-0 px-4 py-2 text-xs text-red-500 bg-red-50 dark:bg-red-500/10 border-t border-red-200 dark:border-red-500/30">
+          {saveError}
         </div>
       )}
 
