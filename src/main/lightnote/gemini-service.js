@@ -7,16 +7,23 @@ let genAI = null;
 let lastRequestTime = 0;
 let rateChain = Promise.resolve();
 
+// The app UI is English, but the user is Korean. All user-facing AI prose
+// (answers, organized notes, briefs) must be written in natural Korean,
+// regardless of the language of the notes, schedule, or question.
+const KOREAN_DIRECTIVE = `
+
+LANGUAGE: Always write your response in natural, fluent Korean (한국어), even when the notes, schedule, or question are in English. Keep proper nouns, code, URLs, and quoted source terms in their original form. Markdown formatting rules still apply.`;
+
 const SYSTEM_PROMPT = `You are a personal note assistant inside a scheduler app.
 Answer the user's question using ONLY the provided note pages and the schedule context.
 
 Rules:
 1. Bold key concepts, important numbers, and key sentences with **markdown**.
-2. If the answer is not in the notes/schedule, say "I couldn't find that in your notes." — do not invent.
-3. Cite each fact inline with the source number, e.g. "The goal is X [1]. Two people were hired [2]."
+2. If the answer is not in the notes/schedule, say "노트에서 해당 내용을 찾을 수 없습니다." — do not invent.
+3. Cite each fact inline with the source number, e.g. "목표는 X입니다 [1]. 두 명을 채용했습니다 [2]."
 4. Reuse the same number for the same source.
 5. When the question is about the calendar, use the schedule context (today's date, upcoming events, open tasks).
-6. Be concise and clear.`;
+6. Be concise and clear.${KOREAN_DIRECTIVE}`;
 
 const ORGANIZE_SYSTEM_PROMPT = `You are a note-organizing expert. Restructure messy notes so they are clear and easy to read.
 
@@ -27,7 +34,7 @@ Rules:
 4. Use - bullets for lists.
 5. Bold key keywords and important points with **markdown**.
 6. Remove redundancy and filler.
-7. Output Markdown only (no HTML).`;
+7. Output Markdown only (no HTML).${KOREAN_DIRECTIVE}`;
 
 const WEB_SEARCH_SYSTEM_PROMPT = `You are a personal AI assistant inside a scheduler app.
 Combine web search results with the user's personal notes and schedule for accurate, up-to-date answers.
@@ -36,7 +43,7 @@ Rules:
 1. Bold key concepts, important numbers, and key sentences with **markdown**.
 2. Cite each fact inline with a source number, e.g. [1], [2].
 3. When personal notes or schedule context are provided, use them alongside the web information.
-4. Be concise and clear.`;
+4. Be concise and clear.${KOREAN_DIRECTIVE}`;
 
 /** Append the current date so the model can resolve "today / tomorrow / this week". */
 function withDate(prompt) {
@@ -125,7 +132,7 @@ async function queryWithWebSearch(question, relevantFiles, onChunk, extraContext
       try { absorb((await result.response).candidates?.[0]?.groundingMetadata); } catch { /* ignore */ }
     }
     if (webSources.length === 0 && isGrounded) {
-      webSources = [{ title: 'Answer grounded in Google Search', url: '' }];
+      webSources = [{ title: 'Google 검색 기반 답변', url: '' }];
     }
 
     if (onChunk) onChunk({ text: '', done: true });
@@ -177,6 +184,7 @@ Rules:
 - Resolve relative dates ("tomorrow", "next Monday") using the current date. If a date is unknown, use null (tasks) or omit the event.
 - Only include clear action items actually present in the note. Do NOT invent.
 - At most 12 tasks and 12 events. Keep titles short.
+- Write task/event titles in the same language as the note (use Korean if the note is in Korean).
 - Output JSON only — no prose, no markdown fences.`;
 
 async function extractActions(text) {
@@ -212,7 +220,7 @@ Rules:
 2. Then 3-6 bullet talking points / prep steps drawn from the linked notes.
 3. If the notes contain open questions or action items, list them under "Open items".
 4. If no notes are provided, give a short, generic prep checklist appropriate for this kind of item.
-5. Use Markdown, bold key points, and keep it concise.`;
+5. Use Markdown, bold key points, and keep it concise.${KOREAN_DIRECTIVE}`;
 
 async function generateBrief(contextText) {
   if (!genAI) throw new Error('API_NOT_INITIALIZED');
@@ -267,4 +275,4 @@ function applyRateLimit() {
 
 function sleep(ms) { return new Promise((resolve) => setTimeout(resolve, ms)); }
 
-module.exports = { init, resetChat, queryWithFiles, queryWithWebSearch, organizeContent, extractActions, testApiKey };
+module.exports = { init, resetChat, queryWithFiles, queryWithWebSearch, organizeContent, extractActions, generateBrief, testApiKey };
