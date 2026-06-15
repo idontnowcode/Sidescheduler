@@ -205,6 +205,38 @@ html, body {
 }
 .sec-header:hover { background: var(--bg3); }
 .sec-header.selected { background: var(--bg4); }
+/* Drag-and-drop: highlight the folder the page is about to land in. */
+.sec-header.drop-target {
+  background: rgba(124, 111, 240, 0.22);
+  outline: 2px solid #7c6ff0;
+  outline-offset: -2px;
+}
+.sec-header.drop-target .sec-name { color: #fff; font-weight: 600; }
+.sec-children.drop-target {
+  background: rgba(124, 111, 240, 0.10);
+  border-left: 2px dashed #7c6ff0;
+  margin-left: 6px;
+}
+
+/* Quill size picker — Korean labels (overrides snow theme defaults) */
+.ql-snow .ql-picker.ql-size .ql-picker-label::before,
+.ql-snow .ql-picker.ql-size .ql-picker-item::before { content: '보통'; }
+.ql-snow .ql-picker.ql-size .ql-picker-label[data-value="small"]::before,
+.ql-snow .ql-picker.ql-size .ql-picker-item[data-value="small"]::before { content: '작게'; }
+.ql-snow .ql-picker.ql-size .ql-picker-label[data-value="large"]::before,
+.ql-snow .ql-picker.ql-size .ql-picker-item[data-value="large"]::before { content: '크게'; }
+.ql-snow .ql-picker.ql-size .ql-picker-label[data-value="huge"]::before,
+.ql-snow .ql-picker.ql-size .ql-picker-item[data-value="huge"]::before { content: '아주 크게'; }
+
+/* Heading picker — Korean labels */
+.ql-snow .ql-picker.ql-header .ql-picker-label::before,
+.ql-snow .ql-picker.ql-header .ql-picker-item::before { content: '본문'; }
+.ql-snow .ql-picker.ql-header .ql-picker-label[data-value="1"]::before,
+.ql-snow .ql-picker.ql-header .ql-picker-item[data-value="1"]::before { content: '제목 1'; }
+.ql-snow .ql-picker.ql-header .ql-picker-label[data-value="2"]::before,
+.ql-snow .ql-picker.ql-header .ql-picker-item[data-value="2"]::before { content: '제목 2'; }
+.ql-snow .ql-picker.ql-header .ql-picker-label[data-value="3"]::before,
+.ql-snow .ql-picker.ql-header .ql-picker-item[data-value="3"]::before { content: '제목 3'; }
 .sec-arrow {
   font-size: 9px;
   color: var(--text-dim);

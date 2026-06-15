@@ -187,6 +187,7 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage }, 
       modules: {
         toolbar: [
           [{ header: [1, 2, 3, false] }],
+          [{ size: ['small', false, 'large', 'huge'] }],
           ['bold', 'italic', 'underline', 'strike'],
           [{ color: [] }, { background: [] }],
           [{ list: 'ordered' }, { list: 'bullet' }],
@@ -217,6 +218,7 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage }, 
         '.ql-color': '글자 색 (Text color)',
         '.ql-background': '배경 색 (Highlight)',
         '.ql-header': '제목 스타일 (Heading)',
+        '.ql-size': '글자 크기 (Size)',
       }
       for (const [sel, label] of Object.entries(titles)) {
         tbContainer.querySelectorAll(sel).forEach(el => el.setAttribute('title', label))

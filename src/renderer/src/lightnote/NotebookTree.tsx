@@ -254,7 +254,18 @@ const NotebookTree = forwardRef<TreeHandle, Props>(({ selected, onPageSelect, on
             onClick={e => { e.stopPropagation(); createPageIn(nbId, sec.id, nbName, sec.name) }}>+</button>
         </div>
         {isOpen && (
-          <div className="sec-children">
+          <div
+            className={`sec-children${dropSec === sec.id ? ' drop-target' : ''}`}
+            // Treat the children area as part of this folder's drop zone, so
+            // hovering over an inner page still highlights the parent folder.
+            onDragOver={e => { if (dragPage && dragPage.secId !== sec.id) { e.preventDefault(); setDropSec(sec.id) } }}
+            onDragLeave={e => {
+              if (!(e.currentTarget as HTMLElement).contains(e.relatedTarget as Node)) {
+                setDropSec(prev => (prev === sec.id ? null : prev))
+              }
+            }}
+            onDrop={e => { e.preventDefault(); handleDropOnSec(nbId, sec.id) }}
+          >
             {sec.children?.map(child => renderSection(nbId, child, nbName, depth + 1))}
             {pages.map(page => (
               <div
