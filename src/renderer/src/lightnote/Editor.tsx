@@ -2,6 +2,16 @@ import { useState, useRef, useEffect, useCallback, forwardRef, useImperativeHand
 import Quill from 'quill'
 import type { PageRefLoc } from './types'
 
+// Replace Quill's default class-based size (small/large/huge) with an inline
+// font-size attributor so the toolbar can offer numeric sizes (10px..48px).
+// Register once at module load.
+const SIZE_LIST = ['10px', '12px', '14px', '16px', '18px', '20px', '24px', '32px', '48px']
+{
+  const SizeStyle = Quill.import('attributors/style/size') as unknown as { whitelist: string[] }
+  SizeStyle.whitelist = SIZE_LIST
+  Quill.register(SizeStyle as unknown as Parameters<typeof Quill.register>[0], true)
+}
+
 export interface EditorHandle {
   loadPage: (nbId: string, secId: string, pageId: string) => Promise<void>
   clearEditor: () => void
@@ -187,7 +197,7 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage }, 
       modules: {
         toolbar: [
           [{ header: [1, 2, 3, false] }],
-          [{ size: ['small', false, 'large', 'huge'] }],
+          [{ size: SIZE_LIST }],
           ['bold', 'italic', 'underline', 'strike'],
           [{ color: [] }, { background: [] }],
           [{ list: 'ordered' }, { list: 'bullet' }],
@@ -223,6 +233,17 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage }, 
       for (const [sel, label] of Object.entries(titles)) {
         tbContainer.querySelectorAll(sel).forEach(el => el.setAttribute('title', label))
       }
+      // Keep the editor's text selection visible while interacting with the
+      // toolbar. Without this, clicking a picker (size, color, header)
+      // moves focus to the toolbar control and the highlighted range
+      // appears to vanish (the format is still applied — selection just
+      // becomes invisible). preventDefault on mousedown stops the focus
+      // shift; the click event still fires so pickers open normally.
+      tbContainer.addEventListener('mousedown', (e: MouseEvent) => {
+        // Skip the actual <input> elements (link tooltip, etc.) which need focus
+        if ((e.target as HTMLElement)?.tagName === 'INPUT') return
+        e.preventDefault()
+      })
     }
 
     quill.on('text-change', () => {
