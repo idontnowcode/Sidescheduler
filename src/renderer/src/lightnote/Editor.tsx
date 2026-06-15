@@ -3,12 +3,18 @@ import Quill from 'quill'
 import type { PageRefLoc } from './types'
 
 // Replace Quill's default class-based size (small/large/huge) with an inline
-// font-size attributor so the toolbar can offer numeric sizes (10px..48px).
-// Register once at module load.
-const SIZE_LIST = ['10px', '12px', '14px', '16px', '18px', '20px', '24px', '32px', '48px']
+// font-size attributor so the toolbar can offer numeric px sizes.
+// Standard list mirrors Word / HWP / CKEditor: 1px steps up to 15, then
+// jumps at the larger end. Whitelist covers 6..150px so custom user input
+// (the input box at the bottom of the picker) can apply any value without
+// a runtime Quill.register call.
+const STANDARD_SIZES_PX = [6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 18, 20, 24, 28, 36, 48, 60, 72]
+const SIZE_LIST = STANDARD_SIZES_PX.map(n => `${n}px`)
+const FULL_SIZE_WHITELIST: string[] = []
+for (let i = 6; i <= 150; i++) FULL_SIZE_WHITELIST.push(`${i}px`)
 {
   const SizeStyle = Quill.import('attributors/style/size') as unknown as { whitelist: string[] }
-  SizeStyle.whitelist = SIZE_LIST
+  SizeStyle.whitelist = FULL_SIZE_WHITELIST
   Quill.register(SizeStyle as unknown as Parameters<typeof Quill.register>[0], true)
 }
 
@@ -244,6 +250,39 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage }, 
         if ((e.target as HTMLElement)?.tagName === 'INPUT') return
         e.preventDefault()
       })
+
+      // Append a custom-size input row to the bottom of the size picker so
+      // users can type any value in 6..150 px (the whitelist range), beyond
+      // the standard quick-pick options.
+      const sizePicker = tbContainer.querySelector('.ql-picker.ql-size')
+      const sizeOptions = sizePicker?.querySelector('.ql-picker-options')
+      if (sizeOptions) {
+        const row = document.createElement('div')
+        row.className = 'ql-size-custom-row'
+        row.innerHTML = `
+          <span class="ql-size-custom-label">직접 입력</span>
+          <input type="number" min="6" max="150" step="1" placeholder="px" />
+          <button type="button">적용</button>
+        `
+        const input = row.querySelector('input') as HTMLInputElement
+        const btn = row.querySelector('button') as HTMLButtonElement
+        const apply = () => {
+          const n = Math.round(parseFloat(input.value))
+          if (!n || n < 6 || n > 150) { input.focus(); return }
+          // mousedown preventDefault means we never lost the editor selection
+          quill.format('size', `${n}px`, 'user')
+          // Close the picker by removing the expanded class (Quill convention)
+          sizePicker?.classList.remove('ql-expanded')
+        }
+        input.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') { e.preventDefault(); apply() }
+          // Stop key events from bubbling to Quill so typing here doesn't
+          // also type into the editor.
+          e.stopPropagation()
+        })
+        btn.addEventListener('click', (e) => { e.preventDefault(); apply() })
+        sizeOptions.appendChild(row)
+      }
     }
 
     quill.on('text-change', () => {

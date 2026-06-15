@@ -43,9 +43,9 @@ const labels = await ln.evaluate(() => {
   picker.querySelector('.ql-picker-label').click()  // close
   return out
 })
-const expected = ['10', '12', '14', '16', '18', '20', '24', '32', '48']
+const expected = ['6', '7', '8', '9', '10', '11', '12', '13', '14', '15', '16', '18', '20', '24', '28', '36', '48', '60', '72']
 const found = labels.map(l => l.t)
-ok('size picker shows numeric labels 10..48', JSON.stringify(found) === JSON.stringify(expected), JSON.stringify(found))
+ok('size picker shows 6..72 with Word/CKEditor-style steps', JSON.stringify(found) === JSON.stringify(expected), JSON.stringify(found))
 
 // ── (2) Apply 24px to a selected word and confirm inline font-size ─────────
 const applied24 = await ln.evaluate(async () => {
@@ -107,6 +107,40 @@ const selPreserved = await ln.evaluate(async () => {
 })
 ok('selection text is preserved after opening size picker', selPreserved.after === selPreserved.before && selPreserved.before === 'selectme', JSON.stringify(selPreserved))
 ok('editor keeps focus while picker is open (no blur)', selPreserved.editorStillFocused, JSON.stringify(selPreserved))
+
+// ── (4) Custom-size input row applies an arbitrary px value ────────────────
+const custom = await ln.evaluate(async () => {
+  const root = document.querySelector('.ql-editor')
+  root.focus()
+  // type and select a line
+  const sel = window.getSelection()
+  const r1 = document.createRange(); r1.selectNodeContents(root); r1.collapse(false)
+  sel.removeAllRanges(); sel.addRange(r1)
+  document.execCommand('insertText', false, '\nCustom97')
+  await new Promise(r => setTimeout(r, 100))
+  const ps = root.querySelectorAll('p')
+  const last = ps[ps.length - 1]
+  const r2 = document.createRange(); r2.selectNodeContents(last)
+  sel.removeAllRanges(); sel.addRange(r2)
+  // open size picker
+  const picker = document.querySelector('.ql-toolbar .ql-size')
+  picker.querySelector('.ql-picker-label').click()
+  await new Promise(r => setTimeout(r, 100))
+  const customRow = picker.querySelector('.ql-size-custom-row')
+  const input = customRow.querySelector('input')
+  const btn = customRow.querySelector('button')
+  input.value = '97'
+  btn.click()
+  await new Promise(r => setTimeout(r, 250))
+  const applied = root.querySelector('[style*="font-size: 97px"]')
+  return {
+    rowPresent: !!customRow,
+    applied: !!applied,
+    snippet: applied?.outerHTML?.slice(0, 80),
+  }
+})
+ok('custom-input row is present in the size picker', custom.rowPresent)
+ok('typing "97" + clicking 적용 applies font-size:97px', custom.applied, custom.snippet || '')
 
 await app.close()
 const passed = results.filter(Boolean).length

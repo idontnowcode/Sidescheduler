@@ -218,38 +218,79 @@ html, body {
   margin-left: 6px;
 }
 
-/* Quill size picker — numeric labels (px values registered via SizeStyle whitelist) */
-.ql-snow .ql-picker.ql-size { width: 64px; }
+/* Quill size picker — numeric px labels (Word / HWP / CKEditor style)
+   Each item is labelled with its raw number; the preview item is rendered
+   at its actual size so users can eyeball before picking. The whitelist
+   covers 6..150px so the custom-input row at the bottom can apply any
+   value in that range. */
+.ql-snow .ql-picker.ql-size { width: 56px; }
+.ql-snow .ql-picker.ql-size .ql-picker-options { max-height: 320px; overflow-y: auto; }
 .ql-snow .ql-picker.ql-size .ql-picker-label::before,
-.ql-snow .ql-picker.ql-size .ql-picker-item::before { content: '14'; }
+.ql-snow .ql-picker.ql-size .ql-picker-item::before { content: attr(data-value); }
+.ql-snow .ql-picker.ql-size .ql-picker-label[data-value$="px"]::before,
+.ql-snow .ql-picker.ql-size .ql-picker-item[data-value$="px"]::before {
+  /* Trim the trailing "px" via a sibling rule per value below. */
+}
+/* Per-value label override: strip the "px" suffix so the picker shows just the number. */
+.ql-snow .ql-picker.ql-size .ql-picker-label[data-value="6px"]::before,
+.ql-snow .ql-picker.ql-size .ql-picker-item[data-value="6px"]::before { content: '6'; font-size: 8px; }
+.ql-snow .ql-picker.ql-size .ql-picker-label[data-value="7px"]::before,
+.ql-snow .ql-picker.ql-size .ql-picker-item[data-value="7px"]::before { content: '7'; font-size: 9px; }
+.ql-snow .ql-picker.ql-size .ql-picker-label[data-value="8px"]::before,
+.ql-snow .ql-picker.ql-size .ql-picker-item[data-value="8px"]::before { content: '8'; font-size: 10px; }
+.ql-snow .ql-picker.ql-size .ql-picker-label[data-value="9px"]::before,
+.ql-snow .ql-picker.ql-size .ql-picker-item[data-value="9px"]::before { content: '9'; font-size: 11px; }
 .ql-snow .ql-picker.ql-size .ql-picker-label[data-value="10px"]::before,
-.ql-snow .ql-picker.ql-size .ql-picker-item[data-value="10px"]::before { content: '10'; }
+.ql-snow .ql-picker.ql-size .ql-picker-item[data-value="10px"]::before { content: '10'; font-size: 12px; }
+.ql-snow .ql-picker.ql-size .ql-picker-label[data-value="11px"]::before,
+.ql-snow .ql-picker.ql-size .ql-picker-item[data-value="11px"]::before { content: '11'; font-size: 13px; }
 .ql-snow .ql-picker.ql-size .ql-picker-label[data-value="12px"]::before,
-.ql-snow .ql-picker.ql-size .ql-picker-item[data-value="12px"]::before { content: '12'; }
+.ql-snow .ql-picker.ql-size .ql-picker-item[data-value="12px"]::before { content: '12'; font-size: 14px; }
+.ql-snow .ql-picker.ql-size .ql-picker-label[data-value="13px"]::before,
+.ql-snow .ql-picker.ql-size .ql-picker-item[data-value="13px"]::before { content: '13'; font-size: 14px; }
 .ql-snow .ql-picker.ql-size .ql-picker-label[data-value="14px"]::before,
-.ql-snow .ql-picker.ql-size .ql-picker-item[data-value="14px"]::before { content: '14'; }
+.ql-snow .ql-picker.ql-size .ql-picker-item[data-value="14px"]::before { content: '14'; font-size: 14px; }
+.ql-snow .ql-picker.ql-size .ql-picker-label[data-value="15px"]::before,
+.ql-snow .ql-picker.ql-size .ql-picker-item[data-value="15px"]::before { content: '15'; font-size: 15px; }
 .ql-snow .ql-picker.ql-size .ql-picker-label[data-value="16px"]::before,
-.ql-snow .ql-picker.ql-size .ql-picker-item[data-value="16px"]::before { content: '16'; }
+.ql-snow .ql-picker.ql-size .ql-picker-item[data-value="16px"]::before { content: '16'; font-size: 16px; }
 .ql-snow .ql-picker.ql-size .ql-picker-label[data-value="18px"]::before,
-.ql-snow .ql-picker.ql-size .ql-picker-item[data-value="18px"]::before { content: '18'; }
+.ql-snow .ql-picker.ql-size .ql-picker-item[data-value="18px"]::before { content: '18'; font-size: 18px; }
 .ql-snow .ql-picker.ql-size .ql-picker-label[data-value="20px"]::before,
-.ql-snow .ql-picker.ql-size .ql-picker-item[data-value="20px"]::before { content: '20'; }
+.ql-snow .ql-picker.ql-size .ql-picker-item[data-value="20px"]::before { content: '20'; font-size: 20px; }
 .ql-snow .ql-picker.ql-size .ql-picker-label[data-value="24px"]::before,
-.ql-snow .ql-picker.ql-size .ql-picker-item[data-value="24px"]::before { content: '24'; }
-.ql-snow .ql-picker.ql-size .ql-picker-label[data-value="32px"]::before,
-.ql-snow .ql-picker.ql-size .ql-picker-item[data-value="32px"]::before { content: '32'; }
+.ql-snow .ql-picker.ql-size .ql-picker-item[data-value="24px"]::before { content: '24'; font-size: 22px; }
+.ql-snow .ql-picker.ql-size .ql-picker-label[data-value="28px"]::before,
+.ql-snow .ql-picker.ql-size .ql-picker-item[data-value="28px"]::before { content: '28'; font-size: 24px; }
+.ql-snow .ql-picker.ql-size .ql-picker-label[data-value="36px"]::before,
+.ql-snow .ql-picker.ql-size .ql-picker-item[data-value="36px"]::before { content: '36'; font-size: 26px; }
 .ql-snow .ql-picker.ql-size .ql-picker-label[data-value="48px"]::before,
-.ql-snow .ql-picker.ql-size .ql-picker-item[data-value="48px"]::before { content: '48'; }
-/* Make each preview item render at its own size so users can eyeball before picking */
-.ql-snow .ql-picker.ql-size .ql-picker-item[data-value="10px"]::before { font-size: 10px; }
-.ql-snow .ql-picker.ql-size .ql-picker-item[data-value="12px"]::before { font-size: 12px; }
-.ql-snow .ql-picker.ql-size .ql-picker-item[data-value="14px"]::before { font-size: 14px; }
-.ql-snow .ql-picker.ql-size .ql-picker-item[data-value="16px"]::before { font-size: 16px; }
-.ql-snow .ql-picker.ql-size .ql-picker-item[data-value="18px"]::before { font-size: 18px; }
-.ql-snow .ql-picker.ql-size .ql-picker-item[data-value="20px"]::before { font-size: 20px; }
-.ql-snow .ql-picker.ql-size .ql-picker-item[data-value="24px"]::before { font-size: 24px; }
-.ql-snow .ql-picker.ql-size .ql-picker-item[data-value="32px"]::before { font-size: 32px; }
-.ql-snow .ql-picker.ql-size .ql-picker-item[data-value="48px"]::before { font-size: 48px; }
+.ql-snow .ql-picker.ql-size .ql-picker-item[data-value="48px"]::before { content: '48'; font-size: 28px; }
+.ql-snow .ql-picker.ql-size .ql-picker-label[data-value="60px"]::before,
+.ql-snow .ql-picker.ql-size .ql-picker-item[data-value="60px"]::before { content: '60'; font-size: 28px; }
+.ql-snow .ql-picker.ql-size .ql-picker-label[data-value="72px"]::before,
+.ql-snow .ql-picker.ql-size .ql-picker-item[data-value="72px"]::before { content: '72'; font-size: 28px; }
+
+/* Custom-size input row appended at the bottom of the size picker. */
+.ql-size-custom-row {
+  display: flex; align-items: center; gap: 4px;
+  padding: 6px 4px; margin-top: 4px;
+  border-top: 1px solid var(--border, #ccc);
+}
+.ql-size-custom-row input {
+  width: 56px; height: 22px; padding: 2px 4px;
+  border: 1px solid var(--border, #ccc); border-radius: 3px;
+  background: var(--bg, #fff); color: var(--text, #000);
+  font-size: 12px;
+}
+.ql-size-custom-row button {
+  height: 22px; padding: 0 8px;
+  border: 1px solid #7c6ff0; background: #7c6ff0; color: #fff;
+  border-radius: 3px; font-size: 11px; cursor: pointer;
+}
+.ql-size-custom-row .ql-size-custom-label {
+  font-size: 10px; color: var(--text-dim, #888); white-space: nowrap;
+}
 
 /* Heading picker — Korean labels */
 .ql-snow .ql-picker.ql-header .ql-picker-label::before,
