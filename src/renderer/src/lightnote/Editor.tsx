@@ -195,6 +195,31 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage }, 
     })
     quillRef.current = quill
 
+    // Tooltips on toolbar buttons — Quill renders them without labels, so hovering
+    // a bare icon gives no hint. Add a Korean (English) title to each control.
+    const tbContainer = (quill.getModule('toolbar') as { container: HTMLElement }).container
+    if (tbContainer) {
+      const titles: Record<string, string> = {
+        '.ql-bold': '굵게 (Bold)',
+        '.ql-italic': '기울임 (Italic)',
+        '.ql-underline': '밑줄 (Underline)',
+        '.ql-strike': '취소선 (Strikethrough)',
+        '.ql-blockquote': '인용구 (Quote)',
+        '.ql-code-block': '코드 블록 (Code block)',
+        '.ql-link': '링크 (Link)',
+        '.ql-image': '이미지 (Image)',
+        '.ql-clean': '서식 지우기 (Clear formatting)',
+        '.ql-list[value="ordered"]': '번호 목록 (Numbered list)',
+        '.ql-list[value="bullet"]': '글머리 기호 (Bullet list)',
+        '.ql-color': '글자 색 (Text color)',
+        '.ql-background': '배경 색 (Highlight)',
+        '.ql-header': '제목 스타일 (Heading)',
+      }
+      for (const [sel, label] of Object.entries(titles)) {
+        tbContainer.querySelectorAll(sel).forEach(el => el.setAttribute('title', label))
+      }
+    }
+
     quill.on('text-change', () => {
       if (!currentPageRef.current) return
       isDirtyRef.current = true
