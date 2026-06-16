@@ -364,7 +364,31 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage }, 
     type Drag = { img: HTMLImageElement; startX: number; startY: number; moving: boolean }
     let imgDrag: Drag | null = null
     quill.root.addEventListener('mousedown', (e: MouseEvent) => {
-      const t = e.target
+      const t = e.target as HTMLElement
+      // Left click on a link → open immediately, prevent caret entering the
+      // link (which would trigger Quill's auto-tooltip). Right click falls
+      // through to the contextmenu handler below.
+      const a = t.closest?.('a') as HTMLAnchorElement | null
+      if (a && quill.root.contains(a) && e.button === 0) {
+        e.preventDefault()
+        e.stopImmediatePropagation()
+        const href = a.getAttribute('href')
+        if (href && /^(https?:|mailto:|tel:)/i.test(href)) {
+          window.lightnote.openExternal(href).catch(() => {})
+        }
+        // Even with preventDefault on mousedown, Quill's selection module
+        // can still place the caret inside the link via its own internal
+        // path → snow theme then auto-shows the tooltip on selection-change.
+        // Force-hide it (multiple ticks to catch any timing).
+        const hideTip = () => {
+          const tt = editorDivRef.current?.querySelector('.ql-tooltip') as HTMLElement | null
+          if (tt) tt.classList.add('ql-hidden')
+        }
+        setTimeout(hideTip, 0)
+        setTimeout(hideTip, 50)
+        setTimeout(hideTip, 200)
+        return
+      }
       if (!(t instanceof HTMLImageElement)) return
       // Prevent native image selection-drag so OUR drag logic takes over
       e.preventDefault()
@@ -460,19 +484,14 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage }, 
     }
     quill.root.addEventListener('click', (e) => {
       const t = e.target as HTMLElement
-      // Anchor click in the editor body: open the URL in the system browser.
-      // Inside Electron's renderer a plain <a href="..."> tries to navigate
-      // the current window — which loads the URL on top of the app. Catch it
-      // and hand the URL to the main process via shell.openExternal.
+      // mousedown already opened the URL externally for left-click anchors.
+      // Suppress this click event so Quill's selection handling doesn't
+      // place the caret inside the link and auto-show the tooltip.
       const a = t.closest('a') as HTMLAnchorElement | null
       if (a && quill.root.contains(a)) {
-        const href = a.getAttribute('href')
-        if (href && /^(https?:|mailto:|tel:)/i.test(href)) {
-          e.preventDefault()
-          e.stopImmediatePropagation()
-          window.lightnote.openExternal(href).catch(() => {})
-          return
-        }
+        e.preventDefault()
+        e.stopImmediatePropagation()
+        return
       }
       if (t.tagName === 'IMG') {
         resizeTargetRef.current = t as HTMLImageElement
@@ -480,6 +499,27 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage }, 
       } else {
         resizeTargetRef.current = null
         setResizeBox(null)
+      }
+    })
+
+    // Right-click a link → show Quill's tooltip (Visit URL / Edit / Remove).
+    // We place the caret at the start of the link, which triggers the snow
+    // theme's auto-show on selection-change.
+    quill.root.addEventListener('contextmenu', (e) => {
+      const t = e.target as HTMLElement
+      const a = t.closest('a') as HTMLAnchorElement | null
+      if (!a || !quill.root.contains(a)) return
+      e.preventDefault()
+      const blot = (Quill as unknown as { find: (n: Node) => unknown | null }).find(a)
+      if (blot) {
+        const idx = quill.getIndex(blot as unknown as Parameters<typeof quill.getIndex>[0])
+        quill.setSelection(idx, 0, 'user')
+      } else {
+        // Fallback: native range inside the anchor
+        const range = document.createRange()
+        range.selectNodeContents(a); range.collapse(true)
+        const sel = window.getSelection()
+        if (sel) { sel.removeAllRanges(); sel.addRange(range) }
       }
     })
 
