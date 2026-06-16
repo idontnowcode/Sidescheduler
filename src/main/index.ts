@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, screen, Display, Notification, safeStorage, dialog, globalShortcut } from 'electron'
+import { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, screen, Display, Notification, safeStorage, dialog, globalShortcut, shell } from 'electron'
 import { join } from 'path'
 import { readFileSync, writeFileSync } from 'fs'
 import { computeWorkload, buildReminderBody } from './workload'
@@ -802,6 +802,33 @@ app.whenReady().then(() => {
   }
   // Windows: required for Notification title/grouping to show app name
   app.setAppUserModelId('com.gcjang.daily-sidebar-planner')
+
+  // Block any in-app navigation to external URLs. Without this, an <a href>
+  // click in the renderer loads the URL on top of the React app (the user's
+  // "DSP 화면이 나옴" bug). Route http/https/mailto/tel to the system browser
+  // via shell.openExternal and let our own file:// / localhost dev assets
+  // navigate normally.
+  const EXTERNAL_RE = /^(https?:|mailto:|tel:)/i
+  const isInternal = (url: string) =>
+    url.startsWith('file://') || url.startsWith('http://localhost') || url.startsWith('http://127.0.0.1')
+  app.on('web-contents-created', (_e, contents) => {
+    contents.on('will-navigate', (ev, url) => {
+      if (isInternal(url)) return
+      if (EXTERNAL_RE.test(url)) {
+        ev.preventDefault()
+        shell.openExternal(url).catch(() => { /* ignore */ })
+      } else {
+        ev.preventDefault()
+      }
+    })
+    contents.setWindowOpenHandler(({ url }) => {
+      if (EXTERNAL_RE.test(url) && !isInternal(url)) {
+        shell.openExternal(url).catch(() => { /* ignore */ })
+      }
+      return { action: 'deny' }
+    })
+  })
+
   initDb()
   registerLightNoteIpc(ipcMain, () => lightNoteWindow, safeStorage, null, app, {
     scheduleDigest: buildScheduleDigest,

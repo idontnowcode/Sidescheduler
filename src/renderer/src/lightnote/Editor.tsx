@@ -338,71 +338,11 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage }, 
       }
     }, { capture: true })
 
-    // Internal image drag: when the user drags an existing editor image,
-    // mark the DataTransfer with our custom MIME type and the source index.
-    const INTERNAL_IMG = 'application/x-lightnote-image'
-    quill.root.addEventListener('dragstart', (e: DragEvent) => {
-      const t = e.target as HTMLElement
-      if (!(t instanceof HTMLImageElement)) return
-      const blot = (Quill as unknown as { find: (n: Node) => { domNode: Node } | null }).find(t)
-      if (!blot) return
-      const idx = quill.getIndex(blot as unknown as Parameters<typeof quill.getIndex>[0])
-      e.dataTransfer?.setData(INTERNAL_IMG, String(idx))
-      if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move'
-      // Clear the resize overlay while dragging
-      resizeTargetRef.current = null
-      setResizeBox(null)
-    })
-    // Allow drop for our internal drag (default contenteditable allows it for
-    // text but the explicit preventDefault on dragover keeps it consistent).
-    quill.root.addEventListener('dragover', (e: DragEvent) => {
-      if (e.dataTransfer?.types?.includes(INTERNAL_IMG)) {
-        e.preventDefault()
-        if (e.dataTransfer) e.dataTransfer.dropEffect = 'move'
-      }
-    })
-
+    // External file drop only (paste from OS). Internal image relocation is
+    // handled by the pointer-based drag logic below, not HTML5 drag-drop,
+    // because contenteditable's native image drag is unreliable across
+    // browsers / Electron versions.
     quill.root.addEventListener('drop', (e: DragEvent) => {
-      // 1) Internal image move?
-      const srcStr = e.dataTransfer?.getData(INTERNAL_IMG)
-      if (srcStr) {
-        e.preventDefault()
-        e.stopImmediatePropagation()
-        const srcIdx = parseInt(srcStr, 10)
-        if (isNaN(srcIdx)) return
-        // Resolve the drop point to a Quill index by setting the browser
-        // selection at the drop coords and reading it back.
-        const docAny = document as unknown as {
-          caretRangeFromPoint?: (x: number, y: number) => Range | null
-          caretPositionFromPoint?: (x: number, y: number) => { offsetNode: Node; offset: number } | null
-        }
-        let dropQuillIdx: number | null = null
-        if (docAny.caretRangeFromPoint) {
-          const r = docAny.caretRangeFromPoint(e.clientX, e.clientY)
-          if (r) {
-            const sel = window.getSelection()
-            if (sel) { sel.removeAllRanges(); sel.addRange(r) }
-            dropQuillIdx = quill.getSelection(true)?.index ?? null
-          }
-        }
-        if (dropQuillIdx == null) return
-        if (dropQuillIdx === srcIdx || dropQuillIdx === srcIdx + 1) return  // no-op
-        // Read the source image's delta op (src + width attribute)
-        const ops = quill.getContents(srcIdx, 1).ops || []
-        const op = ops[0] as { insert?: { image?: string }; attributes?: Record<string, string> } | undefined
-        const imgSrc = op?.insert?.image
-        if (!imgSrc) return
-        const imgAttrs = op.attributes || {}
-        quill.deleteText(srcIdx, 1, 'user')
-        const adjusted = srcIdx < dropQuillIdx ? dropQuillIdx - 1 : dropQuillIdx
-        quill.insertEmbed(adjusted, 'image', imgSrc, 'user')
-        for (const [k, v] of Object.entries(imgAttrs)) {
-          quill.formatText(adjusted, 1, k, v, 'user')
-        }
-        quill.setSelection(adjusted + 1, 0, 'user')
-        return
-      }
-      // 2) External file drop (paste from outside)
       const files = e.dataTransfer?.files
       if (!files || files.length === 0) return
       for (const file of files) {
@@ -414,6 +354,87 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage }, 
         }
       }
     }, { capture: true })
+
+    // ── Pointer-based image relocation ─────────────────────────────────────
+    // mousedown on an <img> starts tracking; if the pointer moves past a
+    // threshold we enter "dragging" mode and the caret follows the pointer
+    // to indicate the drop point; mouseup performs the cut-and-paste.
+    // A short click (no movement) is treated as a selection click and just
+    // shows the resize box (the previous click handler).
+    type Drag = { img: HTMLImageElement; startX: number; startY: number; moving: boolean }
+    let imgDrag: Drag | null = null
+    quill.root.addEventListener('mousedown', (e: MouseEvent) => {
+      const t = e.target
+      if (!(t instanceof HTMLImageElement)) return
+      // Prevent native image selection-drag so OUR drag logic takes over
+      e.preventDefault()
+      imgDrag = { img: t, startX: e.clientX, startY: e.clientY, moving: false }
+    })
+    quill.root.addEventListener('mousemove', (e: MouseEvent) => {
+      if (!imgDrag) return
+      const dx = e.clientX - imgDrag.startX
+      const dy = e.clientY - imgDrag.startY
+      if (!imgDrag.moving && Math.hypot(dx, dy) > 5) {
+        imgDrag.moving = true
+        // Hide the resize overlay while dragging
+        resizeTargetRef.current = null
+        setResizeBox(null)
+        document.body.style.cursor = 'grabbing'
+      }
+      if (imgDrag.moving) {
+        // Move the caret to the pointer so the user sees the drop position
+        const docAny = document as unknown as {
+          caretRangeFromPoint?: (x: number, y: number) => Range | null
+        }
+        const r = docAny.caretRangeFromPoint?.(e.clientX, e.clientY)
+        if (r) {
+          const sel = window.getSelection()
+          if (sel) { sel.removeAllRanges(); sel.addRange(r) }
+        }
+      }
+    })
+    const finishImgDrag = (e: MouseEvent) => {
+      if (!imgDrag) return
+      const drag = imgDrag
+      imgDrag = null
+      document.body.style.cursor = ''
+      if (!drag.moving) {
+        // Treat as a plain click: show the resize box. (Don't rely on the
+        // click event firing — we called preventDefault on mousedown.)
+        resizeTargetRef.current = drag.img
+        positionBoxOver(drag.img)
+        return
+      }
+      // It was a drag → cut-and-paste the image at the current caret.
+      const blot = (Quill as unknown as { find: (n: Node) => unknown | null }).find(drag.img)
+      if (!blot) return
+      const srcIdx = quill.getIndex(blot as unknown as Parameters<typeof quill.getIndex>[0])
+      // Resolve drop point one more time at the final pointer position
+      const docAny = document as unknown as { caretRangeFromPoint?: (x: number, y: number) => Range | null }
+      const r = docAny.caretRangeFromPoint?.(e.clientX, e.clientY)
+      if (r) {
+        const sel = window.getSelection()
+        if (sel) { sel.removeAllRanges(); sel.addRange(r) }
+      }
+      const dropIdx = quill.getSelection(true)?.index
+      if (dropIdx == null) return
+      if (dropIdx === srcIdx || dropIdx === srcIdx + 1) return  // no-op
+      const ops = quill.getContents(srcIdx, 1).ops || []
+      const op = ops[0] as { insert?: { image?: string }; attributes?: Record<string, string> } | undefined
+      const imgSrc = op?.insert?.image
+      if (!imgSrc) return
+      const attrs = op.attributes || {}
+      quill.deleteText(srcIdx, 1, 'user')
+      const adjusted = srcIdx < dropIdx ? dropIdx - 1 : dropIdx
+      quill.insertEmbed(adjusted, 'image', imgSrc, 'user')
+      for (const [k, v] of Object.entries(attrs)) {
+        quill.formatText(adjusted, 1, k, v, 'user')
+      }
+      quill.setSelection(adjusted + 1, 0, 'user')
+    }
+    // mouseup must be on document so the drop is registered even when the
+    // pointer leaves the editor.
+    document.addEventListener('mouseup', finishImgDrag)
 
     // ── Image resize: click an image to show a selection box with a corner
     //    handle; drag the handle to scale (aspect ratio preserved). The width
