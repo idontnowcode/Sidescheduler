@@ -338,7 +338,71 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage }, 
       }
     }, { capture: true })
 
+    // Internal image drag: when the user drags an existing editor image,
+    // mark the DataTransfer with our custom MIME type and the source index.
+    const INTERNAL_IMG = 'application/x-lightnote-image'
+    quill.root.addEventListener('dragstart', (e: DragEvent) => {
+      const t = e.target as HTMLElement
+      if (!(t instanceof HTMLImageElement)) return
+      const blot = (Quill as unknown as { find: (n: Node) => { domNode: Node } | null }).find(t)
+      if (!blot) return
+      const idx = quill.getIndex(blot as unknown as Parameters<typeof quill.getIndex>[0])
+      e.dataTransfer?.setData(INTERNAL_IMG, String(idx))
+      if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move'
+      // Clear the resize overlay while dragging
+      resizeTargetRef.current = null
+      setResizeBox(null)
+    })
+    // Allow drop for our internal drag (default contenteditable allows it for
+    // text but the explicit preventDefault on dragover keeps it consistent).
+    quill.root.addEventListener('dragover', (e: DragEvent) => {
+      if (e.dataTransfer?.types?.includes(INTERNAL_IMG)) {
+        e.preventDefault()
+        if (e.dataTransfer) e.dataTransfer.dropEffect = 'move'
+      }
+    })
+
     quill.root.addEventListener('drop', (e: DragEvent) => {
+      // 1) Internal image move?
+      const srcStr = e.dataTransfer?.getData(INTERNAL_IMG)
+      if (srcStr) {
+        e.preventDefault()
+        e.stopImmediatePropagation()
+        const srcIdx = parseInt(srcStr, 10)
+        if (isNaN(srcIdx)) return
+        // Resolve the drop point to a Quill index by setting the browser
+        // selection at the drop coords and reading it back.
+        const docAny = document as unknown as {
+          caretRangeFromPoint?: (x: number, y: number) => Range | null
+          caretPositionFromPoint?: (x: number, y: number) => { offsetNode: Node; offset: number } | null
+        }
+        let dropQuillIdx: number | null = null
+        if (docAny.caretRangeFromPoint) {
+          const r = docAny.caretRangeFromPoint(e.clientX, e.clientY)
+          if (r) {
+            const sel = window.getSelection()
+            if (sel) { sel.removeAllRanges(); sel.addRange(r) }
+            dropQuillIdx = quill.getSelection(true)?.index ?? null
+          }
+        }
+        if (dropQuillIdx == null) return
+        if (dropQuillIdx === srcIdx || dropQuillIdx === srcIdx + 1) return  // no-op
+        // Read the source image's delta op (src + width attribute)
+        const ops = quill.getContents(srcIdx, 1).ops || []
+        const op = ops[0] as { insert?: { image?: string }; attributes?: Record<string, string> } | undefined
+        const imgSrc = op?.insert?.image
+        if (!imgSrc) return
+        const imgAttrs = op.attributes || {}
+        quill.deleteText(srcIdx, 1, 'user')
+        const adjusted = srcIdx < dropQuillIdx ? dropQuillIdx - 1 : dropQuillIdx
+        quill.insertEmbed(adjusted, 'image', imgSrc, 'user')
+        for (const [k, v] of Object.entries(imgAttrs)) {
+          quill.formatText(adjusted, 1, k, v, 'user')
+        }
+        quill.setSelection(adjusted + 1, 0, 'user')
+        return
+      }
+      // 2) External file drop (paste from outside)
       const files = e.dataTransfer?.files
       if (!files || files.length === 0) return
       for (const file of files) {
@@ -356,12 +420,19 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage }, 
     //    is written to the <img width> attribute, which Quill's ImageBlot
     //    preserves in the delta — so it persists across saves.
     const positionBoxOver = (img: HTMLImageElement) => {
-      const root = quill.root
+      // The overlay box lives inside .quill-wrapper (the editor's positioned
+      // ancestor), so its (left, top) must be in WRAPPER-local coordinates.
+      // Convert from viewport coords by subtracting the wrapper's own rect —
+      // no scrollLeft/scrollTop, those are already baked into ir.left/top.
+      const wrapper = editorDivRef.current?.parentElement
+      if (!wrapper) return
       const ir = img.getBoundingClientRect()
-      const rr = root.getBoundingClientRect()
+      const wr = wrapper.getBoundingClientRect()
+      // Hide the box when the image is scrolled out of the wrapper viewport.
+      if (ir.bottom < wr.top || ir.top > wr.bottom) { setResizeBox(null); return }
       setResizeBox({
-        left: ir.left - rr.left + root.scrollLeft,
-        top: ir.top - rr.top + root.scrollTop,
+        left: ir.left - wr.left,
+        top: ir.top - wr.top,
         w: ir.width,
         h: ir.height,
       })
