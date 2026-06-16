@@ -439,6 +439,20 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage }, 
     }
     quill.root.addEventListener('click', (e) => {
       const t = e.target as HTMLElement
+      // Anchor click in the editor body: open the URL in the system browser.
+      // Inside Electron's renderer a plain <a href="..."> tries to navigate
+      // the current window — which loads the URL on top of the app. Catch it
+      // and hand the URL to the main process via shell.openExternal.
+      const a = t.closest('a') as HTMLAnchorElement | null
+      if (a && quill.root.contains(a)) {
+        const href = a.getAttribute('href')
+        if (href && /^(https?:|mailto:|tel:)/i.test(href)) {
+          e.preventDefault()
+          e.stopImmediatePropagation()
+          window.lightnote.openExternal(href).catch(() => {})
+          return
+        }
+      }
       if (t.tagName === 'IMG') {
         resizeTargetRef.current = t as HTMLImageElement
         positionBoxOver(t as HTMLImageElement)
@@ -447,6 +461,24 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage }, 
         setResizeBox(null)
       }
     })
+
+    // Quill's link tooltip renders "Visit URL: <a class=ql-preview>...".
+    // The tooltip lives inside .ql-container (not .ql-editor) so the editor
+    // click listener above never sees it. Catch tooltip clicks here too.
+    const containerEl = editorDivRef.current
+    if (containerEl) {
+      containerEl.addEventListener('click', (e) => {
+        const t = e.target as HTMLElement
+        const tt = t.closest('.ql-tooltip a.ql-preview') as HTMLAnchorElement | null
+        if (!tt) return
+        const href = tt.getAttribute('href')
+        if (href && /^(https?:|mailto:|tel:)/i.test(href)) {
+          e.preventDefault()
+          e.stopPropagation()
+          window.lightnote.openExternal(href).catch(() => {})
+        }
+      })
+    }
     // Keep the overlay glued to the image while typing / scrolling
     quill.on('editor-change', () => {
       const img = resizeTargetRef.current
