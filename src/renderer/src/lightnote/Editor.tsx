@@ -96,6 +96,21 @@ type LinkedItems = {
   tasks: { id: string; title: string; done: number; due_at?: number | null }[]
 }
 
+// Normalize an editor link href into something openExternal can launch.
+// Links typed without a scheme ("www.naver.com", "naver.com") would otherwise
+// be treated as relative paths and never open. Returns null for values we
+// shouldn't open (in-app anchors, javascript:, empty).
+function toExternalUrl(raw: string | null): string | null {
+  if (!raw) return null
+  const href = raw.trim()
+  if (!href || href.startsWith('#')) return null
+  if (/^(https?:|mailto:|tel:)/i.test(href)) return href
+  if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(href)) return `mailto:${href}`  // bare email
+  if (/^javascript:/i.test(href) || /^data:/i.test(href) || /^file:/i.test(href)) return null
+  // Anything else that looks like a domain/path → assume https
+  return `https://${href.replace(/^\/+/, '')}`
+}
+
 function fmtDate(ts: number) {
   const d = new Date(ts)
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
@@ -372,9 +387,9 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage }, 
       if (a && quill.root.contains(a) && e.button === 0) {
         e.preventDefault()
         e.stopImmediatePropagation()
-        const href = a.getAttribute('href')
-        if (href && /^(https?:|mailto:|tel:)/i.test(href)) {
-          window.lightnote.openExternal(href).catch(() => {})
+        const url = toExternalUrl(a.getAttribute('href'))
+        if (url) {
+          window.lightnote.openExternal(url).catch(() => {})
         }
         // Even with preventDefault on mousedown, Quill's selection module
         // can still place the caret inside the link via its own internal
@@ -532,11 +547,11 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage }, 
         const t = e.target as HTMLElement
         const tt = t.closest('.ql-tooltip a.ql-preview') as HTMLAnchorElement | null
         if (!tt) return
-        const href = tt.getAttribute('href')
-        if (href && /^(https?:|mailto:|tel:)/i.test(href)) {
+        const url = toExternalUrl(tt.getAttribute('href'))
+        if (url) {
           e.preventDefault()
           e.stopPropagation()
-          window.lightnote.openExternal(href).catch(() => {})
+          window.lightnote.openExternal(url).catch(() => {})
         }
       })
     }
