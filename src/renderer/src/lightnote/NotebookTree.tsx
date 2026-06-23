@@ -164,6 +164,18 @@ const NotebookTree = forwardRef<TreeHandle, Props>(({ selected, onPageSelect, on
     if (sectionId && pageId) { await window.lightnote.duplicatePage(notebookId, sectionId, pageId); await reload() }
   }, [ctxMenu, hideCtx, reload])
 
+  const [copiedFor, setCopiedFor] = useState<string | null>(null)
+  const handleCopyLink = useCallback(async () => {
+    if (!ctxMenu || ctxMenu.target.type !== 'page' || !ctxMenu.target.pageId) return
+    const pageId = ctxMenu.target.pageId
+    hideCtx()
+    try {
+      await window.lightnote.copyPageLink(pageId)   // writes lightnote://page/<id> to clipboard
+      setCopiedFor(pageId)
+      setTimeout(() => setCopiedFor(prev => (prev === pageId ? null : prev)), 1500)
+    } catch { /* ignore */ }
+  }, [ctxMenu, hideCtx])
+
   const handleDelete = useCallback(async () => {
     if (!ctxMenu) return
     hideCtx()
@@ -289,6 +301,15 @@ const NotebookTree = forwardRef<TreeHandle, Props>(({ selected, onPageSelect, on
 
   return (
     <div className="ln-sidebar" onClick={hideCtx}>
+      {copiedFor && (
+        <div style={{
+          position: 'fixed', bottom: '12px', left: '12px', zIndex: 2000,
+          background: '#7c6ff0', color: '#fff', fontSize: '12px',
+          padding: '6px 12px', borderRadius: '8px', boxShadow: '0 2px 10px rgba(0,0,0,.3)',
+        }}>
+          🔗 Link copied
+        </div>
+      )}
       <div className="sidebar-top">
         <span className="sidebar-label">Notebooks</span>
         <button className="icon-btn-sm" title="New notebook"
@@ -347,7 +368,10 @@ const NotebookTree = forwardRef<TreeHandle, Props>(({ selected, onPageSelect, on
         <div className="context-menu" style={{ left: ctxMenu.x, top: ctxMenu.y }} onClick={e => e.stopPropagation()}>
           <div className="ctx-item" onClick={handleRename}>Rename</div>
           {ctxMenu.target.type === 'page' && (
-            <div className="ctx-item" onClick={handleDuplicate}>📋 Duplicate</div>
+            <>
+              <div className="ctx-item" onClick={handleDuplicate}>📋 Duplicate</div>
+              <div className="ctx-item" onClick={handleCopyLink}>🔗 Copy link</div>
+            </>
           )}
           <div className="ctx-item ctx-danger" onClick={handleDelete}>Delete</div>
           {ctxMenu.target.type === 'section' && (

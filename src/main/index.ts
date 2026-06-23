@@ -1,5 +1,5 @@
-import { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, screen, Display, Notification, safeStorage, dialog, globalShortcut, shell } from 'electron'
-import { join } from 'path'
+import { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, screen, Display, Notification, safeStorage, dialog, globalShortcut, shell, clipboard } from 'electron'
+import { join, resolve } from 'path'
 import { readFileSync, writeFileSync } from 'fs'
 import { computeWorkload, buildReminderBody } from './workload'
 import { eventsToIcs, icsToEvents } from './ics'
@@ -11,6 +11,10 @@ const { registerIpcHandlers: registerLightNoteIpc } = require('./lightnote/ipc-h
 // page links when an event/task is deleted in the planner.
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const linkStorage = require('./lightnote/link-storage')
+// Same singleton ipc-handlers.js init()s with the data root — used to resolve
+// a page's notebook/section from just its id when opening a deep link.
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const noteStorage = require('./lightnote/note-storage')
 import {
   initDb,
   listEvents, createEvent, updateEvent, updateEventMove, updateEventInstance, deleteEvent, deleteEventInstance,
@@ -26,6 +30,32 @@ import {
 import { loadSettings, saveSettings, WindowSettings } from './settings'
 
 if (!app.requestSingleInstanceLock()) { app.quit(); process.exit(0) }
+
+// Custom URL scheme so each note has a clickable deep link
+// (lightnote://page/<pageId>) that can be pasted into Explorer, Word, etc.
+// Clicking it launches the app and opens that note.
+const DEEP_LINK_SCHEME = 'lightnote'
+if (process.defaultApp) {
+  // Dev: electron.exe needs the script path as an argument to round-trip the URL
+  if (process.argv.length >= 2) {
+    app.setAsDefaultProtocolClient(DEEP_LINK_SCHEME, process.execPath, [resolve(process.argv[1])])
+  }
+} else {
+  app.setAsDefaultProtocolClient(DEEP_LINK_SCHEME)
+}
+
+/** Extract a pageId from a lightnote:// URL. Accepts page/<id> or bare <id>. */
+function parseDeepLink(url: string): string | null {
+  if (!url || !url.toLowerCase().startsWith(`${DEEP_LINK_SCHEME}://`)) return null
+  const rest = url.slice(`${DEEP_LINK_SCHEME}://`.length).replace(/\/+$/, '')
+  const m = rest.match(/^(?:page\/)?([^/?#]+)/i)
+  return m ? decodeURIComponent(m[1]) : null
+}
+
+/** Find a lightnote:// URL among process args (Windows passes it via argv). */
+function deepLinkFromArgv(argv: string[]): string | null {
+  return argv.find((a) => a.toLowerCase().startsWith(`${DEEP_LINK_SCHEME}://`)) || null
+}
 
 let mainWindow: BrowserWindow | null = null
 let dashboardWindow: BrowserWindow | null = null
@@ -719,18 +749,44 @@ function openLightNoteWindow(): void {
 
 ipcMain.on('lightnote:launch', openLightNoteWindow)
 
-ipcMain.on('lightnote:open-page', (_e, { pageId, notebookId, sectionId }) => {
+function openLightNoteToPage(target: { pageId: string; notebookId: string; sectionId: string }): void {
   // Stash the target so a freshly-created LightNote window can PULL it on mount —
   // a one-shot send can race the renderer registering its listener and get lost.
-  pendingLightnoteOpenPage = { pageId, notebookId, sectionId }
+  pendingLightnoteOpenPage = target
   openLightNoteWindow()
   // Also push for an already-open window (its listener is live).
-  const send = () => lightNoteWindow?.webContents.send('lightnote:open-page', { pageId, notebookId, sectionId })
+  const send = () => lightNoteWindow?.webContents.send('lightnote:open-page', target)
   if (lightNoteWindow?.webContents.isLoading()) {
     lightNoteWindow.webContents.once('did-finish-load', send)
   } else {
     setTimeout(send, 100)
   }
+}
+
+ipcMain.on('lightnote:open-page', (_e, target) => openLightNoteToPage(target))
+
+// Resolve a deep link's pageId to its notebook/section, then open it.
+async function openLightNotePageById(pageId: string): Promise<boolean> {
+  try {
+    const loc = await noteStorage.findPageLocation(pageId)
+    if (!loc) return false
+    openLightNoteToPage({ pageId: loc.pageId, notebookId: loc.notebookId, sectionId: loc.sectionId })
+    return true
+  } catch { return false }
+}
+
+/** Handle a lightnote:// deep link from argv / open-url. */
+async function handleDeepLink(url: string | null): Promise<void> {
+  if (!url) return
+  const pageId = parseDeepLink(url)
+  if (pageId) await openLightNotePageById(pageId)
+}
+
+// Build the canonical deep link for a page and copy it to the clipboard.
+ipcMain.handle('lightnote:copy-page-link', (_e, { pageId }) => {
+  const url = `${DEEP_LINK_SCHEME}://page/${pageId}`
+  clipboard.writeText(url)
+  return url
 })
 
 // Renderer pulls (and clears) the pending open-page target once mounted.
@@ -859,9 +915,18 @@ app.whenReady().then(() => {
       else openCaptureWindow()
     })
   } catch { /* hotkey may be taken by another app */ }
+
+  // If the app was cold-launched via a lightnote:// deep link, the URL is in argv.
+  handleDeepLink(deepLinkFromArgv(process.argv))
 })
 app.on('window-all-closed', () => { /* keep alive in tray */ })
-app.on('second-instance',   () => mainWindow?.show())
+app.on('second-instance', (_e, argv) => {
+  mainWindow?.show()
+  // Windows/Linux deliver the deep link to the already-running instance here.
+  handleDeepLink(deepLinkFromArgv(argv))
+})
+// macOS delivers the deep link via this event.
+app.on('open-url', (e, url) => { e.preventDefault(); handleDeepLink(url) })
 app.on('before-quit',       () => {
   if (reminderTimer) { clearTimeout(reminderTimer); reminderTimer = null }
   clearEventReminders()

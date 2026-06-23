@@ -66,6 +66,7 @@ declare global {
       duplicatePage: (notebookId: string, sectionId: string, id: string) => Promise<Page>
       movePage: (srcNbId: string, srcSecId: string, pageId: string, dstNbId: string, dstSecId: string) => Promise<{ id?: string; error?: string }>
       listAllPages: () => Promise<PageRefLoc[]>
+      copyPageLink: (pageId: string) => Promise<string>
       getPageRefs: (pageId: string) => Promise<PageRefLoc[]>
       addPageRef: (a: string, b: string) => Promise<{ success: boolean }>
       removePageRef: (a: string, b: string) => Promise<{ success: boolean }>

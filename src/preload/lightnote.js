@@ -24,6 +24,9 @@ contextBridge.exposeInMainWorld('lightnote', {
   movePage: (srcNbId, srcSecId, pageId, dstNbId, dstSecId) => ipcRenderer.invoke('lightnote:move-page', { srcNbId, srcSecId, pageId, dstNbId, dstSecId }),
   listAllPages: () => ipcRenderer.invoke('lightnote:links:list-pages'),
 
+  // Deep link: copy lightnote://page/<id> for a page to the clipboard
+  copyPageLink: (pageId) => ipcRenderer.invoke('lightnote:copy-page-link', { pageId }),
+
   // Page ↔ page links
   getPageRefs: (pageId) => ipcRenderer.invoke('lightnote:page-refs:get', { pageId }),
   addPageRef: (a, b) => ipcRenderer.invoke('lightnote:page-refs:add', { a, b }),
