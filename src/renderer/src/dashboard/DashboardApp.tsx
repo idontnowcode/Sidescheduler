@@ -7,6 +7,7 @@ import WeeklyReview from './WeeklyReview'
 import FocusView from './FocusView'
 import InsightsView from './InsightsView'
 import HabitsView from './HabitsView'
+import TasksView from './TasksView'
 import HelpView from './HelpView'
 import EventModal from '../components/modals/EventModal'
 import TaskModal from '../components/modals/TaskModal'
@@ -15,7 +16,7 @@ import { useThemeStore } from '../store/themeStore'
 import { useLangStore } from '../store/langStore'
 import { useT } from '../lib/i18n'
 
-type ViewMode = 'today' | 'day' | 'month' | 'week' | 'settings' | 'review' | 'focus' | 'insights' | 'habits' | 'help'
+type ViewMode = 'today' | 'day' | 'month' | 'week' | 'settings' | 'review' | 'focus' | 'insights' | 'habits' | 'tasks' | 'help'
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June',
                 'July', 'August', 'September', 'October', 'November', 'December']
@@ -126,11 +127,12 @@ export default function DashboardApp() {
     view === 'focus' ? t('tab.focus') :
     view === 'insights' ? 'Insights' :
     view === 'habits' ? 'Habits' :
+    view === 'tasks' ? 'Tasks' :
     view === 'help' ? 'Help' :
     t('settings.title')
 
-  const showNav = view !== 'today' && view !== 'settings' && view !== 'focus' && view !== 'review' && view !== 'insights' && view !== 'habits' && view !== 'help'
-  const showItemActions = view !== 'settings' && view !== 'focus' && view !== 'insights' && view !== 'habits' && view !== 'help'
+  const showNav = view !== 'today' && view !== 'settings' && view !== 'focus' && view !== 'review' && view !== 'insights' && view !== 'habits' && view !== 'tasks' && view !== 'help'
+  const showItemActions = view !== 'settings' && view !== 'focus' && view !== 'insights' && view !== 'habits' && view !== 'tasks' && view !== 'help'
 
   return (
     <div className="h-screen flex flex-col surface select-none overflow-hidden">
@@ -142,7 +144,7 @@ export default function DashboardApp() {
           <div className="flex rounded-xl bg-ink-100 dark:bg-ink-800 p-0.5 flex-shrink-0">
             {([
               ['today', t('tab.today')], ['day', t('tab.day')], ['week', t('tab.week')],
-              ['month', t('tab.month')], ['review', t('tab.review')], ['focus', t('tab.focus')], ['insights', 'Insights'], ['habits', 'Habits'], ['help', 'Help'], ['settings', t('tab.settings')]
+              ['month', t('tab.month')], ['review', t('tab.review')], ['tasks', 'Tasks'], ['focus', t('tab.focus')], ['insights', 'Insights'], ['habits', 'Habits'], ['help', 'Help'], ['settings', t('tab.settings')]
             ] as const).map(([v, label]) => (
               <button key={v} onClick={() => setView(v)}
                 className={`px-3.5 py-1.5 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${
@@ -207,6 +209,7 @@ export default function DashboardApp() {
          : view === 'focus' ? <FocusView />
          : view === 'insights' ? <InsightsView />
          : view === 'habits' ? <HabitsView />
+         : view === 'tasks' ? <TasksView />
          : view === 'help' ? <HelpView />
          : view === 'today' ? <TodayView events={events} allIncompleteTasks={allIncompleteTasks} onReload={reload} />
          : view === 'review' ? (
