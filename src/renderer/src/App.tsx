@@ -7,6 +7,7 @@ import { useTaskStore } from './store/taskStore'
 import { useSettingsStore } from './store/settingsStore'
 import { useThemeStore } from './store/themeStore'
 import { useLangStore } from './store/langStore'
+import { useMidnightRollover } from './hooks/useMidnightRollover'
 
 export default function App() {
   const [isExpanded, setIsExpanded] = useState(false)
@@ -22,6 +23,14 @@ export default function App() {
 
   useEffect(() => { initTheme(); initLang(); loadSettings(); loadAll() }, [initTheme, initLang, loadSettings, loadAll])
   useEffect(() => { loadEvents(selectedStart, selectedEnd) }, [selectedStart, selectedEnd, loadEvents])
+
+  // When the calendar day rolls over while the app is left open, follow it:
+  // if the user is viewing "today", advance to the new day (also recomputes
+  // isToday). If they navigated elsewhere, leave their selection alone.
+  useMidnightRollover(() => {
+    const ds = useDateStore.getState()
+    if (ds.isToday) ds.goToToday()
+  })
 
   useEffect(() => {
     const unsub = window.electronAPI.onSettingsChanged(() => loadSettings())

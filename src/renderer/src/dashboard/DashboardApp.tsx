@@ -14,6 +14,7 @@ import TaskModal from '../components/modals/TaskModal'
 import { useDashboardData } from './useDashboardData'
 import { useThemeStore } from '../store/themeStore'
 import { useLangStore } from '../store/langStore'
+import { useMidnightRollover } from '../hooks/useMidnightRollover'
 import { useT } from '../lib/i18n'
 
 type ViewMode = 'today' | 'day' | 'month' | 'week' | 'settings' | 'review' | 'focus' | 'insights' | 'habits' | 'tasks' | 'help'
@@ -32,6 +33,8 @@ function weekEnd(d: Date)    { const s = weekStart(d); return new Date(s.getFull
 export default function DashboardApp() {
   const [view, setView] = useState<ViewMode>('today')
   const [current, setCurrent] = useState(() => new Date())
+  // Bumped at midnight to force `today`/range recomputation while open.
+  const [, setDayTick] = useState(0)
   // The day the user clicked in Week header or Month cell — drives the "Selected" task filter.
   const [selectedDay, setSelectedDay] = useState<Date | null>(null)
   const initTheme = useThemeStore((s) => s.init)
@@ -39,6 +42,14 @@ export default function DashboardApp() {
   const t = useT()
 
   useEffect(() => { initTheme(); initLang() }, [initTheme, initLang])
+
+  // Roll over at midnight while the dashboard stays open: recompute `today`
+  // (forces the range + reload) and, if the Today tab is active, snap to the
+  // new day.
+  useMidnightRollover(() => {
+    setDayTick((n) => n + 1)
+    setView((v) => { if (v === 'today') setCurrent(new Date()); return v })
+  })
 
   // Open a specific tab when launched via a deep-link (e.g. sidebar Help button).
   useEffect(() => {
