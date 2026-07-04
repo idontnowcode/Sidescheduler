@@ -233,15 +233,28 @@ const NotebookTree = forwardRef<TreeHandle, Props>(({ selected, onPageSelect, on
     const d = dragPage
     setDragPage(null)
     if (!d || (d.secId === secId)) return
-    await window.lightnote.movePage(d.nbId, d.secId, d.pageId, nbId, secId)
-    setExpandedSecs(prev => new Set([...prev, secId]))
-    await reload()
-    // Force-load both folders' pages — reload() closes over a possibly stale
-    // expandedSecs, so the moved page could otherwise stay invisible in the
-    // (newly expanded) target until the next manual toggle.
-    await loadPages(d.nbId, d.secId)
-    await loadPages(nbId, secId)
-  }, [dragPage, reload, loadPages])
+    try {
+      const res = await window.lightnote.movePage(d.nbId, d.secId, d.pageId, nbId, secId)
+      if (res?.error) { console.error('movePage failed:', res.error); return }
+      setExpandedSecs(prev => new Set([...prev, secId]))
+      await reload()
+      // Force-load both folders' pages — reload() closes over a possibly stale
+      // expandedSecs, so the moved page could otherwise stay invisible in the
+      // (newly expanded) target until the next manual toggle.
+      await loadPages(d.nbId, d.secId)
+      const dstPages = await loadPages(nbId, secId)
+      // If the moved page is the one open in the editor, re-point the editor at
+      // its new location so subsequent saves don't write back to the old folder.
+      if (selected.pageId === d.pageId) {
+        const nb = notebooks.find(n => n.id === nbId)
+        const sec = findSection(sectionsByNb[nbId] || [], secId)
+        const pg = dstPages.find(p => p.id === d.pageId)
+        onPageSelect(nbId, secId, d.pageId, `${nb?.name || ''} › ${sec?.name || ''} › ${pg?.title || ''}`)
+      }
+    } catch (e) {
+      console.error('movePage threw:', e)
+    }
+  }, [dragPage, reload, loadPages, selected, notebooks, sectionsByNb, onPageSelect])
 
   function renderSection(nbId: string, sec: Section, nbName: string, depth = 0): React.ReactNode {
     const isOpen = expandedSecs.has(sec.id)

@@ -223,7 +223,23 @@ async function movePage(srcNbId, srcSecId, pageId, dstNbId, dstSecId) {
   await writeJson(pagesPath(dstNbId, dstSecId), dstPages);
   await writeJson(pagesPath(srcNbId, srcSecId), srcPages.filter(p => p.id !== pageId));
   try { await fs.unlink(pageJsonPath(srcNbId, srcSecId, pageId)); } catch {}
-  try { await fs.rename(pageImagesDir(srcNbId, srcSecId, pageId), pageImagesDir(dstNbId, dstSecId, pageId)); } catch {}
+  // Move the page's images directory. rename() needs the destination PARENT
+  // (dstSec/pages/<pageId>) to already exist, otherwise it ENOENTs and the
+  // image is silently lost (and left orphaned at the source). Create the
+  // parent first, and fall back to recursive copy+remove for the cases where
+  // rename fails (cross-device, AV lock, etc.).
+  const srcImg = pageImagesDir(srcNbId, srcSecId, pageId);
+  const dstImg = pageImagesDir(dstNbId, dstSecId, pageId);
+  try {
+    await fs.access(srcImg);                                   // has an images dir?
+    await fs.mkdir(path.dirname(dstImg), { recursive: true }); // dstSec/pages/<pageId>
+    try {
+      await fs.rename(srcImg, dstImg);
+    } catch {
+      await fs.cp(srcImg, dstImg, { recursive: true });
+      await fs.rm(srcImg, { recursive: true, force: true });
+    }
+  } catch { /* page has no images — nothing to move */ }
   return { id: pageId };
 }
 
