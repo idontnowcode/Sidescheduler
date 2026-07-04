@@ -42,11 +42,12 @@ async function getNotebooks() {
   return (await readJson(notebooksPath())) || [];
 }
 
-async function createNotebook(name, color = '#5b5fc7') {
+async function createNotebook(name, color = '#5b5fc7', builtin = false) {
   const notebooks = await getNotebooks();
   const id = crypto.randomUUID();
   const now = Date.now();
   const notebook = { id, name, color, createdAt: now, updatedAt: now, order: notebooks.length };
+  if (builtin) notebook.builtin = true;
   notebooks.push(notebook);
   await writeJson(notebooksPath(), notebooks);
   await fs.mkdir(path.join(notebookDir(id), 'sections'), { recursive: true });
@@ -58,6 +59,7 @@ async function renameNotebook(id, name) {
   const notebooks = await getNotebooks();
   const nb = notebooks.find(n => n.id === id);
   if (!nb) return null;
+  if (nb.builtin) return nb; // fixed default PARA notebook — not renamable
   nb.name = name;
   nb.updatedAt = Date.now();
   await writeJson(notebooksPath(), notebooks);
@@ -66,6 +68,8 @@ async function renameNotebook(id, name) {
 
 async function deleteNotebook(id) {
   const notebooks = await getNotebooks();
+  const nb = notebooks.find(n => n.id === id);
+  if (nb && nb.builtin) return; // fixed default PARA notebook — not deletable
   await writeJson(notebooksPath(), notebooks.filter(n => n.id !== id));
   try { await fs.rm(notebookDir(id), { recursive: true, force: true }); } catch {}
 }
@@ -289,8 +293,41 @@ async function saveLastOpened(notebookId, sectionId, pageId) {
   await writeJson(settingsPath(), data);
 }
 
+// === DEFAULT (PARA) NOTEBOOKS =============================================
+// The PARA method notebooks are fixed built-ins: seeded once, not renamable or
+// deletable. They give every user a consistent top-level structure.
+const PARA_DEFAULTS = [
+  { name: 'Projects',  color: '#e8590c', intro: '# Projects\n\n지금 진행 중이고 마감이 있는 목표.\n- 명확한 결과와 기한이 있는 활동\n- 완료되면 Archives로 이동\n\n예: 앱 출시, 보고서 작성, 여행 준비' },
+  { name: 'Areas',     color: '#5b5fc7', intro: '# Areas\n\n지속적으로 관리하는 책임 영역 (마감 없음).\n- 꾸준히 유지해야 하는 기준이 있는 영역\n\n예: 건강, 재무, 커리어, 가족' },
+  { name: 'Resources', color: '#2f9e44', intro: '# Resources\n\n관심 주제·참고 자료 모음.\n- 나중에 쓸 수 있는 정보/템플릿/노하우\n\n예: 디자인 레퍼런스, 코드 스니펫, 아이디어' },
+  { name: 'Archives',  color: '#868e96', intro: '# Archives\n\n완료·비활성 항목 보관소.\n- 위 세 곳에서 더 이상 활성이 아닌 것들\n\n예: 끝난 프로젝트, 예전 관심사' },
+];
+
+function introToDelta(intro) {
+  return { ops: intro.split('\n').map(line => {
+    const h = line.match(/^# (.+)/);
+    if (h) return [{ insert: h[1] }, { insert: '\n', attributes: { header: 1 } }];
+    const b = line.match(/^- (.+)/);
+    if (b) return [{ insert: b[1] }, { insert: '\n', attributes: { list: 'bullet' } }];
+    return [{ insert: line + '\n' }];
+  }).flat() };
+}
+
+/** Create any missing PARA notebooks (by name). Safe to call on every launch. */
+async function ensureDefaultNotebooks() {
+  const existing = await getNotebooks();
+  const names = new Set(existing.map(n => n.name));
+  for (const p of PARA_DEFAULTS) {
+    if (names.has(p.name)) continue;
+    const nb = await createNotebook(p.name, p.color, true);
+    const sec = await createSection(nb.id, 'Overview', null);
+    const page = await createPage(nb.id, sec.id, `About ${p.name}`);
+    await savePage(nb.id, sec.id, page.id, introToDelta(p.intro), `About ${p.name}`);
+  }
+}
+
 module.exports = {
-  init, getNotebooks, createNotebook, renameNotebook, deleteNotebook,
+  init, ensureDefaultNotebooks, getNotebooks, createNotebook, renameNotebook, deleteNotebook,
   getSections, createSection, renameSection, deleteSection,
   getPages, createPage, loadPage, savePage, renamePage, deletePage,
   duplicatePage, movePage, findPageLocation,

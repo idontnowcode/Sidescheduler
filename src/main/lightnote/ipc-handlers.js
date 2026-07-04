@@ -23,6 +23,8 @@ function registerIpcHandlers(ipcMain, getWindow, safeStorage, dialog, app, sched
   imageHandler.init(DATA_ROOT);
   linkStorage.init(DATA_ROOT);
   storage.init(safeStorage);
+  // Seed the fixed PARA notebooks if they don't exist yet (built-in defaults).
+  noteStorage.ensureDefaultNotebooks().catch((e) => console.error('ensureDefaultNotebooks:', e));
 
   const existingKey = storage.loadApiKey();
   if (existingKey) geminiService.init(existingKey);
