@@ -142,6 +142,12 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage }, 
   const [resizeBox, setResizeBox] = useState<{ left: number; top: number; w: number; h: number } | null>(null)
   const resizeTargetRef = useRef<HTMLImageElement | null>(null)
 
+  // OneNote-style heading fold: which heading blocks are collapsed (view-only,
+  // never written to the delta). Recomputed on edits/scroll; cleared per page.
+  const foldedRef = useRef<Set<HTMLElement>>(new Set())
+  const [foldChevrons, setFoldChevrons] = useState<{ top: number; folded: boolean; el: HTMLElement }[]>([])
+  const recomputeFoldsRef = useRef<() => void>(() => {})
+
   const editorDivRef = useRef<HTMLDivElement>(null)
   const quillRef = useRef<Quill | null>(null)
   const saveTimerRef = useRef<ReturnType<typeof setTimeout>>()
@@ -156,7 +162,11 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage }, 
 
   // Load linked items (events/tasks) + related pages when the page changes
   useEffect(() => {
-    if (!currentPage) { setLinkedItems({ events: [], tasks: [] }); setRelatedPages([]); return }
+    // Folds are per-page and view-only — reset them when the page switches.
+    foldedRef.current.clear()
+    setFoldChevrons([])
+    const tid = setTimeout(() => recomputeFoldsRef.current(), 120)
+    if (!currentPage) { setLinkedItems({ events: [], tasks: [] }); setRelatedPages([]); return () => clearTimeout(tid) }
     window.lightnote.getLinkedItems?.(currentPage.pageId)
       .then((items: LinkedItems) => setLinkedItems(items))
       .catch(() => {})
@@ -555,15 +565,53 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage }, 
         }
       })
     }
+    // ── Heading fold: place a chevron next to any heading that has content
+    //    beneath it (up to the next heading of equal/higher level). Clicking
+    //    hides that content. Purely a view concern — the delta is untouched.
+    const levelOf = (el: Element): number =>
+      el.tagName === 'H1' ? 1 : el.tagName === 'H2' ? 2 : el.tagName === 'H3' ? 3 : 99
+    const recomputeFolds = () => {
+      const wrapper = editorDivRef.current?.parentElement
+      const root = quill.root
+      if (!wrapper) return
+      // Drop folds whose heading node no longer exists (edited away).
+      for (const h of [...foldedRef.current]) if (!h.isConnected) foldedRef.current.delete(h)
+      root.querySelectorAll('.ln-fold-hidden').forEach(n => n.classList.remove('ln-fold-hidden'))
+      const blocks = Array.from(root.children) as HTMLElement[]
+      const wr = wrapper.getBoundingClientRect()
+      const chevs: { top: number; folded: boolean; el: HTMLElement }[] = []
+      for (let i = 0; i < blocks.length; i++) {
+        const lvl = levelOf(blocks[i])
+        if (lvl === 99) continue
+        // Range of blocks belonging under this heading.
+        let j = i + 1, hasChild = false
+        for (; j < blocks.length; j++) { if (levelOf(blocks[j]) <= lvl) break; hasChild = true }
+        if (!hasChild) { foldedRef.current.delete(blocks[i]); continue }
+        const folded = foldedRef.current.has(blocks[i])
+        if (folded) for (let k = i + 1; k < j; k++) blocks[k].classList.add('ln-fold-hidden')
+        const br = blocks[i].getBoundingClientRect()
+        chevs.push({ top: br.top - wr.top + 4, folded, el: blocks[i] })
+      }
+      setFoldChevrons(chevs)
+    }
+    recomputeFoldsRef.current = recomputeFolds
+    let foldRaf = 0
+    const scheduleFolds = () => {
+      if (foldRaf) return
+      foldRaf = requestAnimationFrame(() => { foldRaf = 0; recomputeFolds() })
+    }
+
     // Keep the overlay glued to the image while typing / scrolling
     quill.on('editor-change', () => {
       const img = resizeTargetRef.current
       if (img && img.isConnected) positionBoxOver(img)
       else { resizeTargetRef.current = null; setResizeBox(null) }
+      scheduleFolds()
     })
     quill.root.addEventListener('scroll', () => {
       const img = resizeTargetRef.current
       if (img && img.isConnected) positionBoxOver(img)
+      scheduleFolds()
     })
 
     // Ctrl+S save
@@ -727,6 +775,29 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage }, 
         </div>
         <div className="quill-wrapper" style={{ position: 'relative' }}>
           <div ref={editorDivRef} />
+          {/* Heading fold chevrons — sit in the left gutter next to each heading
+              that has content beneath it. */}
+          {foldChevrons.map((c, i) => (
+            <button
+              key={i}
+              type="button"
+              title={c.folded ? '펼치기 (Expand)' : '접기 (Collapse)'}
+              onMouseDown={e => e.preventDefault()}
+              onClick={() => {
+                if (foldedRef.current.has(c.el)) foldedRef.current.delete(c.el)
+                else foldedRef.current.add(c.el)
+                recomputeFoldsRef.current()
+              }}
+              style={{
+                position: 'absolute', left: 0, top: c.top, zIndex: 4,
+                width: '15px', height: '18px', padding: 0, lineHeight: '18px',
+                border: 'none', background: 'transparent', cursor: 'pointer',
+                color: c.folded ? '#7c6ff0' : 'var(--text-dim, #999)', fontSize: '11px',
+              }}
+            >
+              {c.folded ? '▸' : '▾'}
+            </button>
+          ))}
           {resizeBox && (
             <>
               {/* Selection ring around the focused image */}
