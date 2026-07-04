@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, forwardRef, useImperativeHandle } from 'react'
+import { useState, useCallback, useEffect, useRef, forwardRef, useImperativeHandle } from 'react'
 import type { Notebook, Section, Page, Selected } from './types'
 
 interface ContextMenuState {
@@ -260,11 +260,17 @@ const NotebookTree = forwardRef<TreeHandle, Props>(({ selected, onPageSelect, on
   }, [ctxMenu, hideCtx, openInputModal, notebooks, sectionsByNb, createPageIn, reload])
 
   // ── Drag & drop: move a page onto another folder ──────────────────────────
+  // Guards against the drop event bubbling to ancestor drop zones and firing
+  // several concurrent moves (which used to read the same source and duplicate
+  // the page into every ancestor folder with the same id).
+  const movingRef = useRef(false)
   const handleDropOnSec = useCallback(async (nbId: string, secId: string) => {
     setDropSec(null)
     const d = dragPage
     setDragPage(null)
     if (!d || (d.secId === secId)) return
+    if (movingRef.current) return
+    movingRef.current = true
     try {
       const res = await window.lightnote.movePage(d.nbId, d.secId, d.pageId, nbId, secId)
       if (res?.error) { console.error('movePage failed:', res.error); return }
@@ -285,6 +291,8 @@ const NotebookTree = forwardRef<TreeHandle, Props>(({ selected, onPageSelect, on
       }
     } catch (e) {
       console.error('movePage threw:', e)
+    } finally {
+      movingRef.current = false
     }
   }, [dragPage, reload, loadPages, selected, notebooks, sectionsByNb, onPageSelect])
 
@@ -300,9 +308,9 @@ const NotebookTree = forwardRef<TreeHandle, Props>(({ selected, onPageSelect, on
           className={`sec-header${isSelected ? ' selected' : ''}${dropSec === sec.id ? ' drop-target' : ''}`}
           onClick={() => toggleSec(nbId, sec)}
           onContextMenu={e => showCtx(e, { type: 'section', notebookId: nbId, sectionId: sec.id })}
-          onDragOver={e => { if (dragPage) { e.preventDefault(); setDropSec(sec.id) } }}
+          onDragOver={e => { if (dragPage) { e.preventDefault(); e.stopPropagation(); setDropSec(sec.id) } }}
           onDragLeave={() => setDropSec(prev => (prev === sec.id ? null : prev))}
-          onDrop={e => { e.preventDefault(); handleDropOnSec(nbId, sec.id) }}
+          onDrop={e => { e.preventDefault(); e.stopPropagation(); handleDropOnSec(nbId, sec.id) }}
         >
           <span className={`sec-arrow${isOpen ? ' open' : ''}`}>▶</span>
           <span className="sec-icon">{hasChildren ? '📁' : '📂'}</span>
@@ -315,13 +323,13 @@ const NotebookTree = forwardRef<TreeHandle, Props>(({ selected, onPageSelect, on
             className={`sec-children${dropSec === sec.id ? ' drop-target' : ''}`}
             // Treat the children area as part of this folder's drop zone, so
             // hovering over an inner page still highlights the parent folder.
-            onDragOver={e => { if (dragPage && dragPage.secId !== sec.id) { e.preventDefault(); setDropSec(sec.id) } }}
+            onDragOver={e => { if (dragPage && dragPage.secId !== sec.id) { e.preventDefault(); e.stopPropagation(); setDropSec(sec.id) } }}
             onDragLeave={e => {
               if (!(e.currentTarget as HTMLElement).contains(e.relatedTarget as Node)) {
                 setDropSec(prev => (prev === sec.id ? null : prev))
               }
             }}
-            onDrop={e => { e.preventDefault(); handleDropOnSec(nbId, sec.id) }}
+            onDrop={e => { e.preventDefault(); e.stopPropagation(); handleDropOnSec(nbId, sec.id) }}
           >
             {sec.children?.map(child => renderSection(nbId, child, nbName, depth + 1))}
             {pages.map(page => (
