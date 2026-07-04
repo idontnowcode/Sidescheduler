@@ -164,6 +164,38 @@ const NotebookTree = forwardRef<TreeHandle, Props>(({ selected, onPageSelect, on
     if (sectionId && pageId) { await window.lightnote.duplicatePage(notebookId, sectionId, pageId); await reload() }
   }, [ctxMenu, hideCtx, reload])
 
+  // Seed the PARA method structure: 4 top-level notebooks, each with an
+  // Overview section + an intro page describing what belongs there.
+  const [seedingPara, setSeedingPara] = useState(false)
+  const handleSetupPara = useCallback(async () => {
+    if (seedingPara) return
+    setSeedingPara(true)
+    const PARA: { name: string; color: string; intro: string }[] = [
+      { name: 'Projects',  color: '#e8590c', intro: '# Projects\n\n지금 진행 중이고 마감이 있는 목표.\n- 명확한 결과와 기한이 있는 활동\n- 완료되면 Archives로 이동\n\n예: 앱 출시, 보고서 작성, 여행 준비' },
+      { name: 'Areas',     color: '#5b5fc7', intro: '# Areas\n\n지속적으로 관리하는 책임 영역 (마감 없음).\n- 꾸준히 유지해야 하는 기준이 있는 영역\n\n예: 건강, 재무, 커리어, 가족' },
+      { name: 'Resources', color: '#2f9e44', intro: '# Resources\n\n관심 주제·참고 자료 모음.\n- 나중에 쓸 수 있는 정보/템플릿/노하우\n\n예: 디자인 레퍼런스, 코드 스니펫, 아이디어' },
+      { name: 'Archives',  color: '#868e96', intro: '# Archives\n\n완료·비활성 항목 보관소.\n- 위 세 곳에서 더 이상 활성이 아닌 것들\n\n예: 끝난 프로젝트, 예전 관심사' },
+    ]
+    try {
+      for (const p of PARA) {
+        const nb = await window.lightnote.createNotebook(p.name, p.color)
+        const sec = await window.lightnote.createSection(nb.id, 'Overview', null)
+        const page = await window.lightnote.createPage(nb.id, sec.id, `About ${p.name}`)
+        const delta = { ops: p.intro.split('\n').map(line => {
+          const h = line.match(/^# (.+)/)
+          if (h) return [{ insert: h[1] }, { insert: '\n', attributes: { header: 1 } }]
+          const b = line.match(/^- (.+)/)
+          if (b) return [{ insert: b[1] }, { insert: '\n', attributes: { list: 'bullet' } }]
+          return [{ insert: line + '\n' }]
+        }).flat() }
+        await window.lightnote.savePage({ notebookId: nb.id, sectionId: sec.id, pageId: page.id, title: `About ${p.name}`, delta })
+      }
+      await reload()
+    } finally {
+      setSeedingPara(false)
+    }
+  }, [seedingPara, reload])
+
   const [copiedFor, setCopiedFor] = useState<string | null>(null)
   const handleCopyLink = useCallback(async () => {
     if (!ctxMenu || ctxMenu.target.type !== 'page' || !ctxMenu.target.pageId) return
@@ -325,20 +357,42 @@ const NotebookTree = forwardRef<TreeHandle, Props>(({ selected, onPageSelect, on
       )}
       <div className="sidebar-top">
         <span className="sidebar-label">Notebooks</span>
-        <button className="icon-btn-sm" title="New notebook"
-          onClick={e => {
-            e.stopPropagation()
-            openInputModal('New notebook name', '', async (val) => {
-              const color = COLORS[notebooks.length % COLORS.length]
-              await window.lightnote.createNotebook(val, color)
-              await reload()
-            })
-          }}>+</button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
+          <button className="icon-btn-sm" title="Set up PARA structure (adds Projects / Areas / Resources / Archives)"
+            onClick={e => { e.stopPropagation(); handleSetupPara() }} disabled={seedingPara}>✨</button>
+          <button className="icon-btn-sm" title="New notebook"
+            onClick={e => {
+              e.stopPropagation()
+              openInputModal('New notebook name', '', async (val) => {
+                const color = COLORS[notebooks.length % COLORS.length]
+                await window.lightnote.createNotebook(val, color)
+                await reload()
+              })
+            }}>+</button>
+        </div>
       </div>
 
       <div className="notebook-tree">
         {notebooks.length === 0 ? (
-          <div className="empty-hint">No notebooks yet.<br/>Use the + button to create one.</div>
+          <div className="empty-hint">
+            No notebooks yet.<br/>Use the + button to create one.
+            <div style={{ marginTop: '14px' }}>
+              <button
+                onClick={handleSetupPara}
+                disabled={seedingPara}
+                title="Create Projects / Areas / Resources / Archives notebooks"
+                style={{
+                  fontSize: '12px', padding: '7px 12px', borderRadius: '8px',
+                  border: '1px solid #7c6ff0', background: '#7c6ff0', color: '#fff',
+                  cursor: seedingPara ? 'default' : 'pointer', opacity: seedingPara ? 0.6 : 1,
+                }}>
+                {seedingPara ? 'Setting up…' : '✨ Set up PARA structure'}
+              </button>
+              <div style={{ marginTop: '6px', fontSize: '10px', color: 'var(--text-dim, #888)' }}>
+                Projects · Areas · Resources · Archives
+              </div>
+            </div>
+          </div>
         ) : (
           notebooks.map(nb => {
             const isOpen = expandedNbs.has(nb.id)
