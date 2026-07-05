@@ -264,6 +264,40 @@ const NotebookTree = forwardRef<TreeHandle, Props>(({ selected, onPageSelect, on
     }
   }, [dragPage, reload, loadPages, selected, notebooks, sectionsByNb, onPageSelect])
 
+  function renderNotebook(nb: Notebook): React.ReactNode {
+    const isOpen = expandedNbs.has(nb.id)
+    const sections = sectionsByNb[nb.id] || []
+    const isSelected = selected.notebookId === nb.id && !selected.sectionId
+    return (
+      <div key={nb.id}>
+        <div
+          className={`nb-header${isSelected ? ' selected' : ''}`}
+          onClick={() => toggleNb(nb.id)}
+          onContextMenu={e => showCtx(e, { type: 'notebook', notebookId: nb.id })}
+        >
+          <span className={`nb-arrow${isOpen ? ' open' : ''}`}>▶</span>
+          <span className="nb-color" style={{ background: nb.color }} />
+          <span className="nb-name">{nb.name}</span>
+          {nb.builtin && <span className="nb-pin" title="Fixed notebook">📌</span>}
+          <button className="icon-btn-sm nb-add-btn" title="Add folder"
+            onClick={e => {
+              e.stopPropagation()
+              openInputModal('New folder name', '', async (val) => {
+                await window.lightnote.createSection(nb.id, val, null)
+                setExpandedNbs(prev => new Set([...prev, nb.id]))
+                await reload()
+              })
+            }}>+</button>
+        </div>
+        {isOpen && (
+          <div className="nb-sections">
+            {sections.map(sec => renderSection(nb.id, sec, nb.name))}
+          </div>
+        )}
+      </div>
+    )
+  }
+
   function renderSection(nbId: string, sec: Section, nbName: string, depth = 0): React.ReactNode {
     const isOpen = expandedSecs.has(sec.id)
     const hasChildren = (sec.children?.length ?? 0) > 0
@@ -347,41 +381,21 @@ const NotebookTree = forwardRef<TreeHandle, Props>(({ selected, onPageSelect, on
       <div className="notebook-tree">
         {notebooks.length === 0 ? (
           <div className="empty-hint">Loading…</div>
-        ) : (
-          notebooks.map(nb => {
-            const isOpen = expandedNbs.has(nb.id)
-            const sections = sectionsByNb[nb.id] || []
-            const isSelected = selected.notebookId === nb.id && !selected.sectionId
-
-            return (
-              <div key={nb.id}>
-                <div
-                  className={`nb-header${isSelected ? ' selected' : ''}`}
-                  onClick={() => toggleNb(nb.id)}
-                  onContextMenu={e => showCtx(e, { type: 'notebook', notebookId: nb.id })}
-                >
-                  <span className={`nb-arrow${isOpen ? ' open' : ''}`}>▶</span>
-                  <span className="nb-color" style={{ background: nb.color }} />
-                  <span className="nb-name">{nb.name}</span>
-                  <button className="icon-btn-sm nb-add-btn" title="Add folder"
-                    onClick={e => {
-                      e.stopPropagation()
-                      openInputModal('New folder name', '', async (val) => {
-                        await window.lightnote.createSection(nb.id, val, null)
-                        setExpandedNbs(prev => new Set([...prev, nb.id]))
-                        await reload()
-                      })
-                    }}>+</button>
-                </div>
-                {isOpen && (
-                  <div className="nb-sections">
-                    {sections.map(sec => renderSection(nb.id, sec, nb.name))}
-                  </div>
-                )}
-              </div>
-            )
-          })
-        )}
+        ) : (() => {
+          // PARA (built-in) notebooks pinned to the top in canonical order,
+          // then a divider, then the user's own notebooks.
+          const paraOrder = ['Projects', 'Areas', 'Resources', 'Archives']
+          const para = notebooks.filter(n => n.builtin)
+            .sort((a, b) => paraOrder.indexOf(a.name) - paraOrder.indexOf(b.name))
+          const userNbs = notebooks.filter(n => !n.builtin)
+          return (
+            <>
+              {para.map(renderNotebook)}
+              {para.length > 0 && userNbs.length > 0 && <div className="nb-divider" />}
+              {userNbs.map(renderNotebook)}
+            </>
+          )
+        })()}
       </div>
 
       {/* Context menu */}

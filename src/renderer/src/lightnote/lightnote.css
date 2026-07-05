@@ -162,6 +162,13 @@ html, body {
 }
 .nb-header:hover { background: var(--bg3); }
 .nb-header.selected { background: var(--bg4); }
+/* Divider between the fixed PARA notebooks and the user's own notebooks. */
+.nb-divider {
+  height: 1px;
+  background: var(--border, #3c3c3c);
+  margin: 6px 10px;
+}
+.nb-pin { font-size: 9px; opacity: 0.55; margin-left: 2px; }
 .nb-arrow {
   font-size: 9px;
   color: var(--text-dim);
