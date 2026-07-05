@@ -313,10 +313,12 @@ function introToDelta(intro) {
   }).flat() };
 }
 
-/** Create any missing PARA notebooks (by name). Safe to call on every launch. */
+/** Ensure the PARA notebooks exist AND are flagged as fixed built-ins.
+ *  Safe to call on every launch. Also upgrades legacy PARA notebooks that were
+ *  created before the built-in flag existed, so they become non-deletable too. */
 async function ensureDefaultNotebooks() {
-  const existing = await getNotebooks();
-  const names = new Set(existing.map(n => n.name));
+  // 1) Create any missing PARA notebooks (with intro pages).
+  const names = new Set((await getNotebooks()).map(n => n.name));
   for (const p of PARA_DEFAULTS) {
     if (names.has(p.name)) continue;
     const nb = await createNotebook(p.name, p.color, true);
@@ -324,6 +326,14 @@ async function ensureDefaultNotebooks() {
     const page = await createPage(nb.id, sec.id, `About ${p.name}`);
     await savePage(nb.id, sec.id, page.id, introToDelta(p.intro), `About ${p.name}`);
   }
+  // 2) Upgrade any PARA-named notebook (incl. pre-existing ones) to built-in.
+  const paraNames = new Set(PARA_DEFAULTS.map(p => p.name));
+  const all = await getNotebooks();
+  let mutated = false;
+  for (const nb of all) {
+    if (paraNames.has(nb.name) && !nb.builtin) { nb.builtin = true; mutated = true; }
+  }
+  if (mutated) await writeJson(notebooksPath(), all);
 }
 
 // === CLEANUP: de-duplicate pages that share the same id ====================
