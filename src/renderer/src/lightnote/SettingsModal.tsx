@@ -70,6 +70,27 @@ export default function SettingsModal({ onClose }: Props) {
   const [keyStatus, setKeyStatus] = useState<{ text: string; ok: boolean | null }>({ text: '', ok: null })
   const [isSaving, setIsSaving] = useState(false)
   const [isTesting, setIsTesting] = useState(false)
+  const [dedupStatus, setDedupStatus] = useState('')
+  const [deduping, setDeduping] = useState(false)
+
+  const handleDedup = useCallback(async () => {
+    if (deduping) return
+    setDeduping(true)
+    setDedupStatus('정리 중…')
+    try {
+      const r = await window.lightnote.dedupPages()
+      const total = r.removed + r.separated
+      if (total === 0) setDedupStatus('중복 페이지가 없습니다.')
+      else {
+        setDedupStatus(`정리 완료: 중복 ${r.removed}개 제거${r.separated ? `, ${r.separated}개 분리` : ''}. 새로고침합니다…`)
+        setTimeout(() => window.location.reload(), 1400)
+      }
+    } catch {
+      setDedupStatus('정리 실패. 다시 시도해주세요.')
+    } finally {
+      setDeduping(false)
+    }
+  }, [deduping])
 
   const handleTheme = useCallback((key: string) => {
     applyTheme(key)
@@ -187,6 +208,22 @@ export default function SettingsModal({ onClose }: Props) {
             </button>
           ))}
         </div>
+
+        <div className="settings-divider" />
+
+        <div className="settings-section-title">Maintenance</div>
+        <button
+          type="button"
+          onClick={handleDedup}
+          disabled={deduping}
+          style={{
+            fontSize: '12px', padding: '7px 12px', borderRadius: '8px',
+            border: '1px solid var(--border, #444)', background: 'transparent',
+            color: 'var(--text, #ccc)', cursor: deduping ? 'default' : 'pointer',
+          }}>
+          🧹 중복 페이지 정리 (Fix duplicated pages)
+        </button>
+        {dedupStatus && <div style={{ marginTop: '6px', fontSize: '11px', color: 'var(--text-dim, #888)' }}>{dedupStatus}</div>}
 
         <div className="settings-divider" />
 

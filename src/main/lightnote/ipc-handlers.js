@@ -44,6 +44,13 @@ function registerIpcHandlers(ipcMain, getWindow, safeStorage, dialog, app, sched
     return { success: true };
   });
 
+  // One-off cleanup for pages duplicated by the old move bug (shared ids).
+  ipcMain.handle('lightnote:dedup-pages', async () => {
+    const r = await noteStorage.deduplicatePages();
+    noteIndexer.clearCache();
+    return r;
+  });
+
   // === 섹션 ===
   ipcMain.handle('lightnote:get-sections', async (_, { notebookId }) =>
     noteStorage.getSections(notebookId));

@@ -68,6 +68,7 @@ declare global {
       movePage: (srcNbId: string, srcSecId: string, pageId: string, dstNbId: string, dstSecId: string) => Promise<{ id?: string; error?: string }>
       listAllPages: () => Promise<PageRefLoc[]>
       copyPageLink: (pageId: string) => Promise<string>
+      dedupPages: () => Promise<{ removed: number; separated: number }>
       getPageRefs: (pageId: string) => Promise<PageRefLoc[]>
       addPageRef: (a: string, b: string) => Promise<{ success: boolean }>
       removePageRef: (a: string, b: string) => Promise<{ success: boolean }>

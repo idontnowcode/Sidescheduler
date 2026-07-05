@@ -27,6 +27,9 @@ contextBridge.exposeInMainWorld('lightnote', {
   // Deep link: copy lightnote://page/<id> for a page to the clipboard
   copyPageLink: (pageId) => ipcRenderer.invoke('lightnote:copy-page-link', { pageId }),
 
+  // Maintenance: de-duplicate pages that share the same id (old move bug)
+  dedupPages: () => ipcRenderer.invoke('lightnote:dedup-pages'),
+
   // Page ↔ page links
   getPageRefs: (pageId) => ipcRenderer.invoke('lightnote:page-refs:get', { pageId }),
   addPageRef: (a, b) => ipcRenderer.invoke('lightnote:page-refs:add', { a, b }),

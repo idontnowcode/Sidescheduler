@@ -326,8 +326,61 @@ async function ensureDefaultNotebooks() {
   }
 }
 
+// === CLEANUP: de-duplicate pages that share the same id ====================
+// A past move bug could write the same page id into several sections. The tree
+// keys selection by page id, so clicking one highlighted them all. This scans
+// for ids present in more than one place and resolves them: identical copies
+// are removed (keep the first); copies whose content differs are given a fresh
+// id so they become independent pages (non-destructive).
+async function deduplicatePages() {
+  const nbs = await getNotebooks();
+  const seen = new Map(); // id -> [{ nbId, secId }]
+  for (const nb of nbs) {
+    for (const sec of await getSections(nb.id)) {
+      const pages = await getPages(nb.id, sec.id);
+      // Collapse duplicate id entries WITHIN this section's meta first.
+      const uniq = []; const local = new Set();
+      for (const p of pages) { if (local.has(p.id)) continue; local.add(p.id); uniq.push(p); }
+      if (uniq.length !== pages.length) await writeJson(pagesPath(nb.id, sec.id), uniq);
+      for (const p of uniq) {
+        if (!seen.has(p.id)) seen.set(p.id, []);
+        seen.get(p.id).push({ nbId: nb.id, secId: sec.id });
+      }
+    }
+  }
+  let removed = 0, separated = 0;
+  for (const [id, locs] of seen) {
+    if (locs.length <= 1) continue;
+    const keep = locs[0];
+    const keepData = await readJson(pageJsonPath(keep.nbId, keep.secId, id));
+    for (let i = 1; i < locs.length; i++) {
+      const { nbId, secId } = locs[i];
+      const data = await readJson(pageJsonPath(nbId, secId, id));
+      const identical = JSON.stringify(data?.delta) === JSON.stringify(keepData?.delta);
+      if (identical) {
+        await deletePage(nbId, secId, id);
+        removed++;
+      } else {
+        // Re-id this copy so it stands on its own.
+        const pages = await getPages(nbId, secId);
+        const meta = pages.find(p => p.id === id);
+        if (data && meta) {
+          const newId = crypto.randomUUID();
+          meta.id = newId;
+          await writeJson(pagesPath(nbId, secId), pages);
+          await writeJson(pageJsonPath(nbId, secId, newId), { ...data, id: newId });
+          try { await fs.unlink(pageJsonPath(nbId, secId, id)); } catch {}
+          try { await fs.rename(pageImagesDir(nbId, secId, id), pageImagesDir(nbId, secId, newId)); } catch {}
+          separated++;
+        }
+      }
+    }
+  }
+  return { removed, separated };
+}
+
 module.exports = {
-  init, ensureDefaultNotebooks, getNotebooks, createNotebook, renameNotebook, deleteNotebook,
+  init, ensureDefaultNotebooks, deduplicatePages, getNotebooks, createNotebook, renameNotebook, deleteNotebook,
   getSections, createSection, renameSection, deleteSection,
   getPages, createPage, loadPage, savePage, renamePage, deletePage,
   duplicatePage, movePage, findPageLocation,
