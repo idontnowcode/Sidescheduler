@@ -33,11 +33,30 @@ export function applyAccent(key: string) {
   localStorage.setItem('lightnote-accent', key)
 }
 
+// Editor font families. The `stack` is applied to the note editor via the
+// --ln-font CSS variable; the label doubles as the preview.
+const FONTS = {
+  sans:      { label: 'Sans (기본)', stack: "'Inter', 'Pretendard', 'Segoe UI', system-ui, sans-serif" },
+  serif:     { label: 'Serif',       stack: "Georgia, 'Times New Roman', 'Nanum Myeongjo', serif" },
+  mono:      { label: 'Mono',        stack: "'JetBrains Mono', 'Consolas', 'Courier New', monospace" },
+  rounded:   { label: 'Rounded',     stack: "'Segoe UI', 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif" },
+  system:    { label: 'System',      stack: "system-ui, -apple-system, 'Malgun Gothic', sans-serif" },
+}
+
+export function applyFont(key: string) {
+  const font = FONTS[key as keyof typeof FONTS]
+  if (!font) return
+  document.documentElement.style.setProperty('--ln-font', font.stack)
+  localStorage.setItem('lightnote-font', key)
+}
+
 export function initAppearance() {
   const t = localStorage.getItem('lightnote-theme')
   const a = localStorage.getItem('lightnote-accent')
+  const f = localStorage.getItem('lightnote-font')
   if (t) applyTheme(t)
   if (a) applyAccent(a)
+  applyFont(f || 'sans')
 }
 
 interface Props { onClose: () => void }
@@ -45,6 +64,7 @@ interface Props { onClose: () => void }
 export default function SettingsModal({ onClose }: Props) {
   const [currentTheme, setCurrentTheme] = useState(localStorage.getItem('lightnote-theme') || 'dark')
   const [currentAccent, setCurrentAccent] = useState(localStorage.getItem('lightnote-accent') || 'blue')
+  const [currentFont, setCurrentFont] = useState(localStorage.getItem('lightnote-font') || 'sans')
   const [apiKey, setApiKey] = useState('')
   const [showKey, setShowKey] = useState(false)
   const [keyStatus, setKeyStatus] = useState<{ text: string; ok: boolean | null }>({ text: '', ok: null })
@@ -54,6 +74,11 @@ export default function SettingsModal({ onClose }: Props) {
   const handleTheme = useCallback((key: string) => {
     applyTheme(key)
     setCurrentTheme(key)
+  }, [])
+
+  const handleFont = useCallback((key: string) => {
+    applyFont(key)
+    setCurrentFont(key)
   }, [])
 
   const handleAccent = useCallback((key: string) => {
@@ -138,6 +163,28 @@ export default function SettingsModal({ onClose }: Props) {
               style={{ background: accent.color }}
               title={accent.label}
               onClick={() => handleAccent(key)} />
+          ))}
+        </div>
+
+        <div className="settings-divider" />
+
+        <div className="settings-section-title">Editor font</div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+          {Object.entries(FONTS).map(([key, font]) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => handleFont(key)}
+              style={{
+                fontFamily: font.stack, fontSize: '13px', padding: '6px 12px',
+                borderRadius: '8px', cursor: 'pointer',
+                border: currentFont === key ? '1px solid var(--accent, #7c6ff0)' : '1px solid var(--border, #444)',
+                background: currentFont === key ? 'var(--accent, #7c6ff0)' : 'transparent',
+                color: currentFont === key ? '#fff' : 'var(--text, #ccc)',
+              }}
+            >
+              {font.label}
+            </button>
           ))}
         </div>
 

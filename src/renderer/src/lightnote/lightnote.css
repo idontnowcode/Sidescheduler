@@ -221,6 +221,9 @@ html, body {
 /* Heading fold (OneNote-style): blocks collapsed under a folded heading. */
 .ql-editor .ln-fold-hidden { display: none; }
 
+/* User-selectable editor font (Settings → Editor font). */
+.ql-editor { font-family: var(--ln-font, 'Inter', system-ui, sans-serif); }
+
 /* Quill size picker — numeric px labels (Word / HWP / CKEditor style)
    Each item is labelled with its raw number; the preview item is rendered
    at its actual size so users can eyeball before picking. The whitelist
