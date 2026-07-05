@@ -291,6 +291,17 @@ html, body {
 .ql-snow .ql-picker.ql-size .ql-picker-item[data-value="60px"]::before { content: '60'; font-size: 28px; }
 .ql-snow .ql-picker.ql-size .ql-picker-label[data-value="72px"]::before,
 .ql-snow .ql-picker.ql-size .ql-picker-item[data-value="72px"]::before { content: '72'; font-size: 28px; }
+/* The collapsed toolbar label always shows the number at a normal, consistent
+   size (only the dropdown ITEMS preview the actual size). Keeps the toolbar
+   row height stable so the icons stay aligned. */
+.ql-snow .ql-picker.ql-size .ql-picker-label::before { font-size: 13px !important; line-height: 22px; }
+
+/* Consistent toolbar layout: flex row, vertically centred, even spacing. */
+.ql-toolbar.ql-snow { display: flex; flex-wrap: wrap; align-items: center; row-gap: 3px; }
+.ql-toolbar.ql-snow .ql-formats { display: inline-flex; align-items: center; margin-right: 8px; height: 24px; }
+.ql-toolbar.ql-snow .ql-formats:last-child { margin-right: 0; }
+.ql-toolbar.ql-snow .ql-picker { height: 24px; }
+.ql-toolbar.ql-snow button { display: inline-flex; align-items: center; justify-content: center; }
 
 /* Custom-size input row appended at the bottom of the size picker. */
 .ql-size-custom-row {
