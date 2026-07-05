@@ -51,6 +51,8 @@ const NotebookTree = forwardRef<TreeHandle, Props>(({ selected, onPageSelect, on
   const [dragPage, setDragPage] = useState<{ nbId: string; secId: string; pageId: string } | null>(null)
   const [dragNb, setDragNb] = useState<string | null>(null)
   const [dropNb, setDropNb] = useState<string | null>(null)
+  const [dropMode, setDropMode] = useState<'reorder' | 'into' | null>(null)
+  const [dragSec, setDragSec] = useState<{ nbId: string; secId: string } | null>(null)
   const [dropSec, setDropSec] = useState<string | null>(null)
 
   const loadNotebooks = useCallback(async () => {
@@ -300,14 +302,23 @@ const NotebookTree = forwardRef<TreeHandle, Props>(({ selected, onPageSelect, on
     return (
       <div key={nb.id}>
         <div
-          className={`nb-header${isSelected ? ' selected' : ''}${dropNb === nb.id ? ' drop-target' : ''}`}
+          className={`nb-header${isSelected ? ' selected' : ''}${
+            dropNb === nb.id ? (dropMode === 'into' ? ' drop-target' : ' nb-drop-line') : ''}`}
           // User notebooks can be dragged to reorder. PARA (builtin) are fixed.
+          // A dragged FOLDER can be dropped onto any notebook (incl. PARA) to
+          // move it to that notebook's top level.
           draggable={!nb.builtin}
           onDragStart={e => { if (!nb.builtin) { e.stopPropagation(); setDragNb(nb.id) } }}
-          onDragEnd={() => { setDragNb(null); setDropNb(null) }}
-          onDragOver={e => { if (dragNb && !nb.builtin && dragNb !== nb.id) { e.preventDefault(); e.stopPropagation(); setDropNb(nb.id) } }}
+          onDragEnd={() => { setDragNb(null); setDropNb(null); setDropMode(null) }}
+          onDragOver={e => {
+            if (dragNb && !nb.builtin && dragNb !== nb.id) { e.preventDefault(); e.stopPropagation(); setDropNb(nb.id); setDropMode('reorder') }
+            else if (dragSec) { e.preventDefault(); e.stopPropagation(); setDropNb(nb.id); setDropMode('into') }
+          }}
           onDragLeave={() => setDropNb(prev => (prev === nb.id ? null : prev))}
-          onDrop={e => { if (dragNb && !nb.builtin) { e.preventDefault(); e.stopPropagation(); handleReorderNb(nb.id) } }}
+          onDrop={e => {
+            if (dragSec) { e.preventDefault(); e.stopPropagation(); handleMoveSectionToNbRoot(nb.id) }
+            else if (dragNb && !nb.builtin) { e.preventDefault(); e.stopPropagation(); handleReorderNb(nb.id) }
+          }}
           onClick={() => toggleNb(nb.id)}
           onContextMenu={e => showCtx(e, { type: 'notebook', notebookId: nb.id })}
         >
@@ -335,6 +346,35 @@ const NotebookTree = forwardRef<TreeHandle, Props>(({ selected, onPageSelect, on
     )
   }
 
+  // Move a folder (and its subfolders/pages) under another folder.
+  const handleMoveSectionToSec = useCallback(async (dstNbId: string, dstSecId: string) => {
+    const d = dragSec
+    setDragSec(null); setDropSec(null)
+    if (!d || d.secId === dstSecId || movingRef.current) return
+    movingRef.current = true
+    try {
+      const res = await window.lightnote.moveSection(d.nbId, d.secId, dstNbId, dstSecId)
+      if (res?.error) { console.error('moveSection failed:', res.error); return }
+      setExpandedNbs(prev => new Set([...prev, dstNbId]))
+      setExpandedSecs(prev => new Set([...prev, dstSecId]))
+      await reload()
+    } catch (e) { console.error('moveSection threw:', e) } finally { movingRef.current = false }
+  }, [dragSec, reload])
+
+  // Move a folder to a notebook's top level.
+  const handleMoveSectionToNbRoot = useCallback(async (dstNbId: string) => {
+    const d = dragSec
+    setDragSec(null); setDropNb(null)
+    if (!d || movingRef.current) return
+    movingRef.current = true
+    try {
+      const res = await window.lightnote.moveSection(d.nbId, d.secId, dstNbId, null)
+      if (res?.error) { console.error('moveSection failed:', res.error); return }
+      setExpandedNbs(prev => new Set([...prev, dstNbId]))
+      await reload()
+    } catch (e) { console.error('moveSection threw:', e) } finally { movingRef.current = false }
+  }, [dragSec, reload])
+
   function renderSection(nbId: string, sec: Section, nbName: string, depth = 0): React.ReactNode {
     const isOpen = expandedSecs.has(sec.id)
     const hasChildren = (sec.children?.length ?? 0) > 0
@@ -345,11 +385,21 @@ const NotebookTree = forwardRef<TreeHandle, Props>(({ selected, onPageSelect, on
       <div key={sec.id} style={{ paddingLeft: depth > 0 ? 12 : 0 }}>
         <div
           className={`sec-header${isSelected ? ' selected' : ''}${dropSec === sec.id ? ' drop-target' : ''}`}
+          draggable
+          onDragStart={e => { e.stopPropagation(); setDragSec({ nbId, secId: sec.id }) }}
+          onDragEnd={() => { setDragSec(null); setDropSec(null) }}
           onClick={() => toggleSec(nbId, sec)}
           onContextMenu={e => showCtx(e, { type: 'section', notebookId: nbId, sectionId: sec.id })}
-          onDragOver={e => { if (dragPage) { e.preventDefault(); e.stopPropagation(); setDropSec(sec.id) } }}
+          onDragOver={e => {
+            if (dragPage) { e.preventDefault(); e.stopPropagation(); setDropSec(sec.id) }
+            else if (dragSec && dragSec.secId !== sec.id) { e.preventDefault(); e.stopPropagation(); setDropSec(sec.id) }
+          }}
           onDragLeave={() => setDropSec(prev => (prev === sec.id ? null : prev))}
-          onDrop={e => { e.preventDefault(); e.stopPropagation(); handleDropOnSec(nbId, sec.id) }}
+          onDrop={e => {
+            e.preventDefault(); e.stopPropagation()
+            if (dragSec) handleMoveSectionToSec(nbId, sec.id)
+            else handleDropOnSec(nbId, sec.id)
+          }}
         >
           <span className={`sec-arrow${isOpen ? ' open' : ''}`}>▶</span>
           <span className="sec-icon">{hasChildren ? '📁' : '📂'}</span>

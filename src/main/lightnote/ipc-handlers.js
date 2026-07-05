@@ -104,6 +104,12 @@ function registerIpcHandlers(ipcMain, getWindow, safeStorage, dialog, app, sched
   ipcMain.handle('lightnote:duplicate-page', async (_, { notebookId, sectionId, id }) =>
     noteStorage.duplicatePage(notebookId, sectionId, id));
 
+  ipcMain.handle('lightnote:move-section', async (_, { srcNbId, secId, dstNbId, dstParentId }) => {
+    const r = await noteStorage.moveSection(srcNbId, secId, dstNbId, dstParentId);
+    noteIndexer.clearCache();
+    return r || { error: 'MOVE_FAILED' };
+  });
+
   ipcMain.handle('lightnote:move-page', async (_, { srcNbId, srcSecId, pageId, dstNbId, dstSecId }) => {
     const r = await noteStorage.movePage(srcNbId, srcSecId, pageId, dstNbId, dstSecId);
     if (r) noteIndexer.invalidateCache(pageId);

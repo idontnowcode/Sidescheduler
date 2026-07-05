@@ -169,6 +169,14 @@ html, body {
   margin: 6px 10px;
 }
 .nb-pin { font-size: 9px; opacity: 0.55; margin-left: 2px; }
+/* Notebook reorder: solid insertion line drawn at the top of the target row. */
+.nb-header.nb-drop-line { box-shadow: inset 0 3px 0 -1px #7c6ff0; }
+/* Folder dropped onto a notebook → move to its top level. */
+.nb-header.drop-target {
+  background: rgba(124, 111, 240, 0.22);
+  outline: 2px solid #7c6ff0;
+  outline-offset: -2px;
+}
 .nb-arrow {
   font-size: 9px;
   color: var(--text-dim);

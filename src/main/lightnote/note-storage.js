@@ -148,6 +148,60 @@ async function deleteSection(notebookId, id) {
   }
 }
 
+/** Collect a section id + all its descendant section ids. */
+function collectSubtree(sections, rootId) {
+  const ids = new Set([rootId]);
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const s of sections) {
+      if (s.parentId && ids.has(s.parentId) && !ids.has(s.id)) { ids.add(s.id); changed = true; }
+    }
+  }
+  return ids;
+}
+
+/**
+ * Move a folder (section) — with all its subfolders and pages — to a new home:
+ * another notebook's root (dstParentId = null) or under another section.
+ * Same-notebook moves just re-parent; cross-notebook moves also relocate the
+ * section directories. Refuses to move a folder into itself or a descendant.
+ */
+async function moveSection(srcNbId, secId, dstNbId, dstParentId) {
+  const srcSecs = await getSections(srcNbId);
+  const root = srcSecs.find(s => s.id === secId);
+  if (!root) return null;
+
+  if (srcNbId === dstNbId) {
+    const subIds = collectSubtree(srcSecs, secId);
+    if (dstParentId && subIds.has(dstParentId)) return { error: 'CYCLE' };
+    if ((root.parentId || null) === (dstParentId || null)) return { success: true };
+    root.parentId = dstParentId || null;
+    root.updatedAt = Date.now();
+    await writeJson(sectionsPath(srcNbId), srcSecs);
+    return { success: true };
+  }
+
+  // Cross-notebook: move the whole subtree's meta + directories.
+  const subIds = collectSubtree(srcSecs, secId);
+  const dstSecs = await getSections(dstNbId);
+  const moving = srcSecs.filter(s => subIds.has(s.id));
+  const remaining = srcSecs.filter(s => !subIds.has(s.id));
+  moving.forEach(s => { if (s.id === secId) { s.parentId = dstParentId || null; s.updatedAt = Date.now(); } });
+  await writeJson(sectionsPath(srcNbId), remaining);
+  await writeJson(sectionsPath(dstNbId), [...dstSecs, ...moving]);
+  for (const s of moving) {
+    const from = sectionDir(srcNbId, s.id);
+    const to = sectionDir(dstNbId, s.id);
+    try {
+      await fs.mkdir(path.dirname(to), { recursive: true });
+      try { await fs.rename(from, to); }
+      catch { await fs.cp(from, to, { recursive: true }); await fs.rm(from, { recursive: true, force: true }); }
+    } catch { /* best effort */ }
+  }
+  return { success: true };
+}
+
 // === PAGES ===
 function pagesPath(notebookId, sectionId) { return path.join(sectionDir(notebookId, sectionId), 'pages.json'); }
 function pageJsonPath(notebookId, sectionId, pageId) { return path.join(sectionDir(notebookId, sectionId), 'pages', pageId + '.json'); }
@@ -412,7 +466,7 @@ async function deduplicatePages() {
 module.exports = {
   init, ensureDefaultNotebooks, deduplicatePages, getNotebooks, createNotebook, renameNotebook, deleteNotebook,
   setNotebookPinned, reorderNotebooks,
-  getSections, createSection, renameSection, deleteSection,
+  getSections, createSection, renameSection, deleteSection, moveSection,
   getPages, createPage, loadPage, savePage, renamePage, deletePage,
   duplicatePage, movePage, findPageLocation,
   getPageRefs, addPageRef, removePageRef,
