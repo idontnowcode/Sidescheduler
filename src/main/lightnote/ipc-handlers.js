@@ -38,6 +38,12 @@ function registerIpcHandlers(ipcMain, getWindow, safeStorage, dialog, app, sched
   ipcMain.handle('lightnote:rename-notebook', async (_, { id, name }) =>
     noteStorage.renameNotebook(id, name));
 
+  ipcMain.handle('lightnote:pin-notebook', async (_, { id, pinned }) =>
+    noteStorage.setNotebookPinned(id, pinned));
+
+  ipcMain.handle('lightnote:reorder-notebooks', async (_, { ids }) =>
+    noteStorage.reorderNotebooks(ids));
+
   ipcMain.handle('lightnote:delete-notebook', async (_, { id }) => {
     await noteStorage.deleteNotebook(id);
     noteIndexer.clearCache();

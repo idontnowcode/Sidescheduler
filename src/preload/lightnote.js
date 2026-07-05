@@ -5,6 +5,8 @@ contextBridge.exposeInMainWorld('lightnote', {
   getNotebooks: () => ipcRenderer.invoke('lightnote:get-notebooks'),
   createNotebook: (name, color) => ipcRenderer.invoke('lightnote:create-notebook', { name, color }),
   renameNotebook: (id, name) => ipcRenderer.invoke('lightnote:rename-notebook', { id, name }),
+  pinNotebook: (id, pinned) => ipcRenderer.invoke('lightnote:pin-notebook', { id, pinned }),
+  reorderNotebooks: (ids) => ipcRenderer.invoke('lightnote:reorder-notebooks', { ids }),
   deleteNotebook: (id) => ipcRenderer.invoke('lightnote:delete-notebook', { id }),
 
   // 섹션

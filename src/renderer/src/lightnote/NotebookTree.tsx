@@ -49,6 +49,8 @@ const NotebookTree = forwardRef<TreeHandle, Props>(({ selected, onPageSelect, on
   const [inputModal, setInputModal] = useState<InputModalState | null>(null)
   const [inputValue, setInputValue] = useState('')
   const [dragPage, setDragPage] = useState<{ nbId: string; secId: string; pageId: string } | null>(null)
+  const [dragNb, setDragNb] = useState<string | null>(null)
+  const [dropNb, setDropNb] = useState<string | null>(null)
   const [dropSec, setDropSec] = useState<string | null>(null)
 
   const loadNotebooks = useCallback(async () => {
@@ -264,6 +266,33 @@ const NotebookTree = forwardRef<TreeHandle, Props>(({ selected, onPageSelect, on
     }
   }, [dragPage, reload, loadPages, selected, notebooks, sectionsByNb, onPageSelect])
 
+  // User notebooks in display order: pinned first, then by stored order.
+  const userNotebooks = notebooks.filter(n => !n.builtin)
+    .sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0) || (a.order ?? 0) - (b.order ?? 0))
+
+  const handleTogglePin = useCallback(async () => {
+    if (!ctxMenu || ctxMenu.target.type !== 'notebook') return
+    const id = ctxMenu.target.notebookId
+    hideCtx()
+    const nb = notebooks.find(n => n.id === id)
+    if (!nb || nb.builtin) return
+    await window.lightnote.pinNotebook(id, !nb.pinned)
+    await reload()
+  }, [ctxMenu, hideCtx, notebooks, reload])
+
+  const handleReorderNb = useCallback(async (targetId: string) => {
+    setDropNb(null)
+    const srcId = dragNb
+    setDragNb(null)
+    if (!srcId || srcId === targetId) return
+    const ids = userNotebooks.map(n => n.id).filter(id => id !== srcId)
+    const at = ids.indexOf(targetId)
+    if (at < 0) return
+    ids.splice(at, 0, srcId)   // insert before the target
+    await window.lightnote.reorderNotebooks(ids)
+    await reload()
+  }, [dragNb, userNotebooks, reload])
+
   function renderNotebook(nb: Notebook): React.ReactNode {
     const isOpen = expandedNbs.has(nb.id)
     const sections = sectionsByNb[nb.id] || []
@@ -271,7 +300,14 @@ const NotebookTree = forwardRef<TreeHandle, Props>(({ selected, onPageSelect, on
     return (
       <div key={nb.id}>
         <div
-          className={`nb-header${isSelected ? ' selected' : ''}`}
+          className={`nb-header${isSelected ? ' selected' : ''}${dropNb === nb.id ? ' drop-target' : ''}`}
+          // User notebooks can be dragged to reorder. PARA (builtin) are fixed.
+          draggable={!nb.builtin}
+          onDragStart={e => { if (!nb.builtin) { e.stopPropagation(); setDragNb(nb.id) } }}
+          onDragEnd={() => { setDragNb(null); setDropNb(null) }}
+          onDragOver={e => { if (dragNb && !nb.builtin && dragNb !== nb.id) { e.preventDefault(); e.stopPropagation(); setDropNb(nb.id) } }}
+          onDragLeave={() => setDropNb(prev => (prev === nb.id ? null : prev))}
+          onDrop={e => { if (dragNb && !nb.builtin) { e.preventDefault(); e.stopPropagation(); handleReorderNb(nb.id) } }}
           onClick={() => toggleNb(nb.id)}
           onContextMenu={e => showCtx(e, { type: 'notebook', notebookId: nb.id })}
         >
@@ -279,6 +315,7 @@ const NotebookTree = forwardRef<TreeHandle, Props>(({ selected, onPageSelect, on
           <span className="nb-color" style={{ background: nb.color }} />
           <span className="nb-name">{nb.name}</span>
           {nb.builtin && <span className="nb-pin" title="Fixed notebook">📌</span>}
+          {!nb.builtin && nb.pinned && <span className="nb-pin" title="Pinned">📍</span>}
           <button className="icon-btn-sm nb-add-btn" title="Add folder"
             onClick={e => {
               e.stopPropagation()
@@ -387,12 +424,11 @@ const NotebookTree = forwardRef<TreeHandle, Props>(({ selected, onPageSelect, on
           const paraOrder = ['Projects', 'Areas', 'Resources', 'Archives']
           const para = notebooks.filter(n => n.builtin)
             .sort((a, b) => paraOrder.indexOf(a.name) - paraOrder.indexOf(b.name))
-          const userNbs = notebooks.filter(n => !n.builtin)
           return (
             <>
               {para.map(renderNotebook)}
-              {para.length > 0 && userNbs.length > 0 && <div className="nb-divider" />}
-              {userNbs.map(renderNotebook)}
+              {para.length > 0 && userNotebooks.length > 0 && <div className="nb-divider" />}
+              {userNotebooks.map(renderNotebook)}
             </>
           )
         })()}
@@ -423,6 +459,11 @@ const NotebookTree = forwardRef<TreeHandle, Props>(({ selected, onPageSelect, on
           {ctxMenu.target.type === 'notebook' && (
             <>
               <div className="ctx-sep" />
+              {!isBuiltinNb && (
+                <div className="ctx-item" onClick={handleTogglePin}>
+                  {notebooks.find(n => n.id === ctxMenu.target.notebookId)?.pinned ? '📍 상단 고정 해제' : '📍 상단 고정'}
+                </div>
+              )}
               <div className="ctx-item" onClick={handleAddChild}>Add folder</div>
             </>
           )}

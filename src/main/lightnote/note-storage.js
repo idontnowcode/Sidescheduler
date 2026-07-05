@@ -66,6 +66,26 @@ async function renameNotebook(id, name) {
   return nb;
 }
 
+/** Pin/unpin a user notebook so it sorts to the top of the user group. */
+async function setNotebookPinned(id, pinned) {
+  const notebooks = await getNotebooks();
+  const nb = notebooks.find(n => n.id === id);
+  if (!nb || nb.builtin) return nb || null; // built-ins are already pinned to top
+  if (pinned) nb.pinned = true; else delete nb.pinned;
+  nb.updatedAt = Date.now();
+  await writeJson(notebooksPath(), notebooks);
+  return nb;
+}
+
+/** Apply a new display order to user notebooks (ids in desired order). */
+async function reorderNotebooks(ids) {
+  const notebooks = await getNotebooks();
+  const orderMap = new Map(ids.map((id, i) => [id, i]));
+  for (const nb of notebooks) if (orderMap.has(nb.id)) nb.order = orderMap.get(nb.id);
+  await writeJson(notebooksPath(), notebooks);
+  return { success: true };
+}
+
 async function deleteNotebook(id) {
   const notebooks = await getNotebooks();
   const nb = notebooks.find(n => n.id === id);
@@ -391,6 +411,7 @@ async function deduplicatePages() {
 
 module.exports = {
   init, ensureDefaultNotebooks, deduplicatePages, getNotebooks, createNotebook, renameNotebook, deleteNotebook,
+  setNotebookPinned, reorderNotebooks,
   getSections, createSection, renameSection, deleteSection,
   getPages, createPage, loadPage, savePage, renamePage, deletePage,
   duplicatePage, movePage, findPageLocation,

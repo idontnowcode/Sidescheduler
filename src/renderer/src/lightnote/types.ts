@@ -3,6 +3,8 @@ export interface Notebook {
   name: string
   color: string
   builtin?: boolean
+  pinned?: boolean
+  order?: number
 }
 
 export interface Section {
@@ -53,6 +55,8 @@ declare global {
       getNotebooks: () => Promise<Notebook[]>
       createNotebook: (name: string, color: string) => Promise<Notebook>
       renameNotebook: (id: string, name: string) => Promise<Notebook>
+      pinNotebook: (id: string, pinned: boolean) => Promise<Notebook | null>
+      reorderNotebooks: (ids: string[]) => Promise<{ success: boolean }>
       deleteNotebook: (id: string) => Promise<void>
       getSections: (notebookId: string) => Promise<Section[]>
       createSection: (notebookId: string, name: string, parentId: string | null) => Promise<Section>
