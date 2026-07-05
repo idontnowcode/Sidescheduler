@@ -145,7 +145,8 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage }, 
   // OneNote-style heading fold: which heading blocks are collapsed (view-only,
   // never written to the delta). Recomputed on edits/scroll; cleared per page.
   const foldedRef = useRef<Set<HTMLElement>>(new Set())
-  const [foldChevrons, setFoldChevrons] = useState<{ top: number; folded: boolean; el: HTMLElement }[]>([])
+  const [foldChevrons, setFoldChevrons] = useState<{ top: number; left: number; height: number; folded: boolean; el: HTMLElement }[]>([])
+  const [foldHoverY, setFoldHoverY] = useState<number | null>(null)
   const recomputeFoldsRef = useRef<() => void>(() => {})
 
   const editorDivRef = useRef<HTMLDivElement>(null)
@@ -570,27 +571,52 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage }, 
     //    hides that content. Purely a view concern — the delta is untouched.
     const levelOf = (el: Element): number =>
       el.tagName === 'H1' ? 1 : el.tagName === 'H2' ? 2 : el.tagName === 'H3' ? 3 : 99
+    const indentOf = (li: Element): number =>
+      parseInt((li.className.match(/ql-indent-(\d+)/) || [])[1] || '0', 10)
+    type Chev = { top: number; left: number; height: number; folded: boolean; el: HTMLElement }
     const recomputeFolds = () => {
       const wrapper = editorDivRef.current?.parentElement
       const root = quill.root
       if (!wrapper) return
-      // Drop folds whose heading node no longer exists (edited away).
+      // Drop folds whose node no longer exists (edited away).
       for (const h of [...foldedRef.current]) if (!h.isConnected) foldedRef.current.delete(h)
       root.querySelectorAll('.ln-fold-hidden').forEach(n => n.classList.remove('ln-fold-hidden'))
-      const blocks = Array.from(root.children) as HTMLElement[]
       const wr = wrapper.getBoundingClientRect()
-      const chevs: { top: number; folded: boolean; el: HTMLElement }[] = []
+      const chevs: Chev[] = []
+      const pushChev = (el: HTMLElement, gutter: number) => {
+        const br = el.getBoundingClientRect()
+        chevs.push({
+          top: br.top - wr.top + 3,
+          left: Math.max(0, br.left - wr.left - gutter),
+          height: Math.min(br.height, 34),
+          folded: foldedRef.current.has(el),
+          el,
+        })
+      }
+      const blocks = Array.from(root.children) as HTMLElement[]
       for (let i = 0; i < blocks.length; i++) {
-        const lvl = levelOf(blocks[i])
+        const b = blocks[i]
+        // ── Lists: fold a list item that has deeper-indented items under it ──
+        if (b.tagName === 'OL' || b.tagName === 'UL') {
+          const items = Array.from(b.children).filter(el => el.tagName === 'LI') as HTMLElement[]
+          for (let x = 0; x < items.length; x++) {
+            const ind = indentOf(items[x])
+            let y = x + 1, hasChild = false
+            for (; y < items.length; y++) { if (indentOf(items[y]) <= ind) break; hasChild = true }
+            if (!hasChild) { foldedRef.current.delete(items[x]); continue }
+            if (foldedRef.current.has(items[x])) for (let k = x + 1; k < y; k++) items[k].classList.add('ln-fold-hidden')
+            pushChev(items[x], 16)
+          }
+          continue
+        }
+        // ── Headings: fold blocks until the next heading of equal/higher level ──
+        const lvl = levelOf(b)
         if (lvl === 99) continue
-        // Range of blocks belonging under this heading.
         let j = i + 1, hasChild = false
         for (; j < blocks.length; j++) { if (levelOf(blocks[j]) <= lvl) break; hasChild = true }
-        if (!hasChild) { foldedRef.current.delete(blocks[i]); continue }
-        const folded = foldedRef.current.has(blocks[i])
-        if (folded) for (let k = i + 1; k < j; k++) blocks[k].classList.add('ln-fold-hidden')
-        const br = blocks[i].getBoundingClientRect()
-        chevs.push({ top: br.top - wr.top + 4, folded, el: blocks[i] })
+        if (!hasChild) { foldedRef.current.delete(b); continue }
+        if (foldedRef.current.has(b)) for (let k = i + 1; k < j; k++) blocks[k].classList.add('ln-fold-hidden')
+        pushChev(b, 17)
       }
       setFoldChevrons(chevs)
     }
@@ -773,31 +799,50 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage }, 
             </span>
           </div>
         </div>
-        <div className="quill-wrapper" style={{ position: 'relative' }}>
+        <div
+          className="quill-wrapper"
+          style={{ position: 'relative' }}
+          onMouseMove={e => {
+            const wr = e.currentTarget.getBoundingClientRect()
+            setFoldHoverY(e.clientY - wr.top)
+          }}
+          onMouseLeave={() => setFoldHoverY(null)}
+        >
           <div ref={editorDivRef} />
-          {/* Heading fold chevrons — sit in the left gutter next to each heading
-              that has content beneath it. */}
-          {foldChevrons.map((c, i) => (
-            <button
-              key={i}
-              type="button"
-              title={c.folded ? '펼치기 (Expand)' : '접기 (Collapse)'}
-              onMouseDown={e => e.preventDefault()}
-              onClick={() => {
-                if (foldedRef.current.has(c.el)) foldedRef.current.delete(c.el)
-                else foldedRef.current.add(c.el)
-                recomputeFoldsRef.current()
-              }}
-              style={{
-                position: 'absolute', left: 0, top: c.top, zIndex: 4,
-                width: '15px', height: '18px', padding: 0, lineHeight: '18px',
-                border: 'none', background: 'transparent', cursor: 'pointer',
-                color: c.folded ? '#7c6ff0' : 'var(--text-dim, #999)', fontSize: '11px',
-              }}
-            >
-              {c.folded ? '▸' : '▾'}
-            </button>
-          ))}
+          {/* Fold chevrons — one per heading/list-item that has content beneath
+              it. OneNote-style: revealed on hover of that row (folded ones stay
+              visible so they can be reopened). */}
+          {foldChevrons.map((c, i) => {
+            const revealed = c.folded || (foldHoverY != null && foldHoverY >= c.top - 6 && foldHoverY <= c.top + c.height)
+            return (
+              <button
+                key={i}
+                type="button"
+                title={c.folded ? '펼치기 (Expand)' : '접기 (Collapse)'}
+                onMouseDown={e => e.preventDefault()}
+                onClick={() => {
+                  if (foldedRef.current.has(c.el)) foldedRef.current.delete(c.el)
+                  else foldedRef.current.add(c.el)
+                  recomputeFoldsRef.current()
+                }}
+                style={{
+                  position: 'absolute', left: c.left, top: c.top, zIndex: 4,
+                  width: '20px', height: '22px', padding: 0, lineHeight: '22px',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  border: 'none', borderRadius: '5px', cursor: 'pointer',
+                  background: c.folded ? 'rgba(124,111,240,0.14)' : 'transparent',
+                  color: c.folded ? '#7c6ff0' : 'var(--text-dim, #999)',
+                  fontSize: '14px',
+                  opacity: revealed ? 1 : 0,
+                  transition: 'opacity 120ms',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(124,111,240,0.14)' }}
+                onMouseLeave={e => { if (!c.folded) e.currentTarget.style.background = 'transparent' }}
+              >
+                {c.folded ? '▸' : '▾'}
+              </button>
+            )
+          })}
           {resizeBox && (
             <>
               {/* Selection ring around the focused image */}
