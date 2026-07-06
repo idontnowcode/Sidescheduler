@@ -14,6 +14,7 @@ contextBridge.exposeInMainWorld('lightnote', {
   createSection: (notebookId, name, parentId) => ipcRenderer.invoke('lightnote:create-section', { notebookId, name, parentId }),
   renameSection: (notebookId, id, name) => ipcRenderer.invoke('lightnote:rename-section', { notebookId, id, name }),
   moveSection: (srcNbId, secId, dstNbId, dstParentId) => ipcRenderer.invoke('lightnote:move-section', { srcNbId, secId, dstNbId, dstParentId }),
+  reorderSection: (nbId, secId, refSecId, placeAfter) => ipcRenderer.invoke('lightnote:reorder-section', { nbId, secId, refSecId, placeAfter }),
   deleteSection: (notebookId, id) => ipcRenderer.invoke('lightnote:delete-section', { notebookId, id }),
 
   // 페이지

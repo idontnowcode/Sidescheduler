@@ -28,6 +28,9 @@ function buildSectionTree(sections: Section[]): Section[] {
     if (s.parentId && map[s.parentId]) map[s.parentId].children!.push(map[s.id])
     else roots.push(map[s.id])
   })
+  const byOrder = (a: Section, b: Section) => (a.order ?? 0) - (b.order ?? 0)
+  const sortRec = (list: Section[]) => { list.sort(byOrder); list.forEach(s => s.children && sortRec(s.children)) }
+  sortRec(roots)
   return roots
 }
 
@@ -54,6 +57,8 @@ const NotebookTree = forwardRef<TreeHandle, Props>(({ selected, onPageSelect, on
   const [dropMode, setDropMode] = useState<'reorder' | 'into' | null>(null)
   const [dragSec, setDragSec] = useState<{ nbId: string; secId: string } | null>(null)
   const [dropSec, setDropSec] = useState<string | null>(null)
+  // For folder drag: where relative to the hovered folder we'd land.
+  const [dropSecPos, setDropSecPos] = useState<{ id: string; pos: 'before' | 'into' | 'after' } | null>(null)
 
   const loadNotebooks = useCallback(async () => {
     const nbs = await window.lightnote.getNotebooks()
@@ -361,6 +366,19 @@ const NotebookTree = forwardRef<TreeHandle, Props>(({ selected, onPageSelect, on
     } catch (e) { console.error('moveSection threw:', e) } finally { movingRef.current = false }
   }, [dragSec, reload])
 
+  // Reorder a folder within a sibling list (position change, not nesting).
+  const handleReorderSection = useCallback(async (nbId: string, refSecId: string, placeAfter: boolean) => {
+    const d = dragSec
+    setDragSec(null); setDropSec(null); setDropSecPos(null)
+    if (!d || d.secId === refSecId || movingRef.current) return
+    movingRef.current = true
+    try {
+      const res = await window.lightnote.reorderSection(nbId, d.secId, refSecId, placeAfter)
+      if (res?.error) { console.error('reorderSection failed:', res.error); return }
+      await reload()
+    } catch (e) { console.error('reorderSection threw:', e) } finally { movingRef.current = false }
+  }, [dragSec, reload])
+
   // Move a folder to a notebook's top level.
   const handleMoveSectionToNbRoot = useCallback(async (dstNbId: string) => {
     const d = dragSec
@@ -384,21 +402,36 @@ const NotebookTree = forwardRef<TreeHandle, Props>(({ selected, onPageSelect, on
     return (
       <div key={sec.id} style={{ paddingLeft: depth > 0 ? 12 : 0 }}>
         <div
-          className={`sec-header${isSelected ? ' selected' : ''}${dropSec === sec.id ? ' drop-target' : ''}`}
+          className={`sec-header${isSelected ? ' selected' : ''}${
+            dropSec === sec.id ? ' drop-target' : ''}${
+            dropSecPos?.id === sec.id ? ` drop-${dropSecPos.pos}` : ''}`}
           draggable
           onDragStart={e => { e.stopPropagation(); setDragSec({ nbId, secId: sec.id }) }}
-          onDragEnd={() => { setDragSec(null); setDropSec(null) }}
+          onDragEnd={() => { setDragSec(null); setDropSec(null); setDropSecPos(null) }}
           onClick={() => toggleSec(nbId, sec)}
           onContextMenu={e => showCtx(e, { type: 'section', notebookId: nbId, sectionId: sec.id })}
           onDragOver={e => {
             if (dragPage) { e.preventDefault(); e.stopPropagation(); setDropSec(sec.id) }
-            else if (dragSec && dragSec.secId !== sec.id) { e.preventDefault(); e.stopPropagation(); setDropSec(sec.id) }
+            else if (dragSec && dragSec.secId !== sec.id) {
+              e.preventDefault(); e.stopPropagation()
+              // Top third → drop before, bottom third → after (reorder in the
+              // same notebook), middle → nest inside. Cross-notebook always nests.
+              const r = (e.currentTarget as HTMLElement).getBoundingClientRect()
+              const y = e.clientY - r.top
+              let pos: 'before' | 'into' | 'after' = 'into'
+              if (dragSec.nbId === nbId) pos = y < r.height * 0.3 ? 'before' : y > r.height * 0.7 ? 'after' : 'into'
+              setDropSecPos({ id: sec.id, pos })
+              setDropSec(pos === 'into' ? sec.id : null)
+            }
           }}
-          onDragLeave={() => setDropSec(prev => (prev === sec.id ? null : prev))}
+          onDragLeave={() => { setDropSec(prev => (prev === sec.id ? null : prev)); setDropSecPos(prev => (prev?.id === sec.id ? null : prev)) }}
           onDrop={e => {
             e.preventDefault(); e.stopPropagation()
-            if (dragSec) handleMoveSectionToSec(nbId, sec.id)
-            else handleDropOnSec(nbId, sec.id)
+            if (dragSec) {
+              const pos = dropSecPos?.id === sec.id ? dropSecPos.pos : 'into'
+              if (pos === 'into') handleMoveSectionToSec(nbId, sec.id)
+              else handleReorderSection(nbId, sec.id, pos === 'after')
+            } else handleDropOnSec(nbId, sec.id)
           }}
         >
           <span className={`sec-arrow${isOpen ? ' open' : ''}`}>▶</span>

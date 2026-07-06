@@ -11,6 +11,7 @@ export interface Section {
   id: string
   name: string
   parentId: string | null
+  order?: number
   children?: Section[]
 }
 
@@ -62,6 +63,7 @@ declare global {
       createSection: (notebookId: string, name: string, parentId: string | null) => Promise<Section>
       renameSection: (notebookId: string, id: string, name: string) => Promise<Section>
       moveSection: (srcNbId: string, secId: string, dstNbId: string, dstParentId: string | null) => Promise<{ success?: boolean; error?: string }>
+      reorderSection: (nbId: string, secId: string, refSecId: string, placeAfter: boolean) => Promise<{ success?: boolean; error?: string }>
       deleteSection: (notebookId: string, id: string) => Promise<void>
       getPages: (notebookId: string, sectionId: string) => Promise<Page[]>
       createPage: (notebookId: string, sectionId: string, title: string) => Promise<Page>

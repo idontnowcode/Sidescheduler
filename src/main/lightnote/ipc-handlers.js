@@ -110,6 +110,9 @@ function registerIpcHandlers(ipcMain, getWindow, safeStorage, dialog, app, sched
     return r || { error: 'MOVE_FAILED' };
   });
 
+  ipcMain.handle('lightnote:reorder-section', async (_, { nbId, secId, refSecId, placeAfter }) =>
+    (await noteStorage.reorderSection(nbId, secId, refSecId, placeAfter)) || { error: 'REORDER_FAILED' });
+
   ipcMain.handle('lightnote:move-page', async (_, { srcNbId, srcSecId, pageId, dstNbId, dstSecId }) => {
     const r = await noteStorage.movePage(srcNbId, srcSecId, pageId, dstNbId, dstSecId);
     if (r) noteIndexer.invalidateCache(pageId);

@@ -148,6 +148,29 @@ async function deleteSection(notebookId, id) {
   }
 }
 
+/**
+ * Reorder a folder within a sibling list: place `secId` right before/after
+ * `refSecId` at the same level (ref's parent), and renumber that group's order.
+ * Same notebook only. Refuses if ref is a descendant of the moving folder.
+ */
+async function reorderSection(nbId, secId, refSecId, placeAfter) {
+  const secs = await getSections(nbId);
+  const moving = secs.find(s => s.id === secId);
+  const ref = secs.find(s => s.id === refSecId);
+  if (!moving || !ref || secId === refSecId) return null;
+  if (collectSubtree(secs, secId).has(refSecId)) return { error: 'CYCLE' };
+  const parentId = ref.parentId || null;
+  moving.parentId = parentId;
+  moving.updatedAt = Date.now();
+  // Rebuild the sibling order for this level.
+  const siblings = secs.filter(s => (s.parentId || null) === parentId && s.id !== secId);
+  const idx = siblings.findIndex(s => s.id === refSecId);
+  siblings.splice(placeAfter ? idx + 1 : idx, 0, moving);
+  siblings.forEach((s, i) => { s.order = i; });
+  await writeJson(sectionsPath(nbId), secs);
+  return { success: true };
+}
+
 /** Collect a section id + all its descendant section ids. */
 function collectSubtree(sections, rootId) {
   const ids = new Set([rootId]);
@@ -466,7 +489,7 @@ async function deduplicatePages() {
 module.exports = {
   init, ensureDefaultNotebooks, deduplicatePages, getNotebooks, createNotebook, renameNotebook, deleteNotebook,
   setNotebookPinned, reorderNotebooks,
-  getSections, createSection, renameSection, deleteSection, moveSection,
+  getSections, createSection, renameSection, deleteSection, moveSection, reorderSection,
   getPages, createPage, loadPage, savePage, renamePage, deletePage,
   duplicatePage, movePage, findPageLocation,
   getPageRefs, addPageRef, removePageRef,
