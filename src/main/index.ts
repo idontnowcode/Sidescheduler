@@ -91,31 +91,54 @@ function getDisplayForSettings(s: WindowSettings): Display {
   return screen.getPrimaryDisplay()
 }
 
-function calcBounds(expanded: boolean): { x: number; y: number; width: number; height: number } {
+// The collapsed strip must never move when the panel opens — so instead of
+// re-centering the taller expanded window (which made a bottom-docked sidebar
+// jump to the middle), we keep the strip pinned and open the panel toward
+// whichever side has room. `anchor` tells the renderer which end the strip
+// sits on (top → panel opens downward, bottom → panel opens upward).
+let sidebarAnchor: 'top' | 'bottom' = 'top'
+
+function calcBounds(expanded: boolean): { x: number; y: number; width: number; height: number; anchor: 'top' | 'bottom' } {
   const s = loadSettings()
   const display = getDisplayForSettings(s)
   const wa = display.workArea
   const sidebarW = s.width
   const sH = sidebarHeight(sidebarW)
-  const totalW = expanded ? sidebarW + PANEL_W : sidebarW
-  const totalH = expanded ? EXPANDED_HEIGHT : sH
 
-  const x = s.edge === 'right'
-    ? wa.x + wa.width - totalW
-    : wa.x
-
-  // Default Y = vertically centered on work area
+  // Where the collapsed strip sits (its top, in screen coords).
   const defaultY = wa.y + Math.max(0, Math.floor((wa.height - sH) / 2))
   const baseY = s.customY != null ? wa.y + s.customY : defaultY
-  // Clamp so window stays inside work area
-  const y = Math.max(wa.y, Math.min(wa.y + wa.height - totalH, baseY))
+  const stripTop = Math.max(wa.y, Math.min(wa.y + wa.height - sH, baseY))
 
-  return { x, y, width: totalW, height: totalH }
+  if (!expanded) {
+    const x = s.edge === 'right' ? wa.x + wa.width - sidebarW : wa.x
+    return { x, y: stripTop, width: sidebarW, height: sH, anchor: 'top' }
+  }
+
+  const totalW = sidebarW + PANEL_W
+  const x = s.edge === 'right' ? wa.x + wa.width - totalW : wa.x
+  const h = Math.min(EXPANDED_HEIGHT, wa.height)
+  const roomBelow = (wa.y + wa.height) - stripTop   // from strip top downward
+  const roomAbove = (stripTop + sH) - wa.y          // from strip bottom upward
+
+  let y: number, anchor: 'top' | 'bottom', height: number
+  if (roomBelow >= h) { anchor = 'top'; y = stripTop; height = h }
+  else if (roomAbove >= h) { anchor = 'bottom'; y = (stripTop + sH) - h; height = h }
+  else if (roomBelow >= roomAbove) { anchor = 'top'; y = stripTop; height = roomBelow }
+  else { anchor = 'bottom'; y = wa.y; height = roomAbove }
+
+  // Strip screen position is identical in both states:
+  //  anchor 'top'    → strip at window top    → screen y = y            = stripTop
+  //  anchor 'bottom' → strip at window bottom → screen y = y+height-sH  = stripTop
+  return { x, y, width: totalW, height, anchor }
 }
 
 function applyBounds() {
   if (!mainWindow) return
-  mainWindow.setBounds(calcBounds(windowExpanded))
+  const b = calcBounds(windowExpanded)
+  sidebarAnchor = b.anchor
+  mainWindow.setBounds({ x: b.x, y: b.y, width: b.width, height: b.height })
+  mainWindow.webContents.send('sidebar:anchor', b.anchor)
 }
 
 function applyMovable() {

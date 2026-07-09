@@ -4,7 +4,7 @@ import { useDateStore } from '../store/dateStore'
 import { useSettingsStore } from '../store/settingsStore'
 import { useFocusStore, focusDisplaySeconds } from '../store/focusStore'
 
-interface Props { onHover: () => void }
+interface Props { onHover: () => void; anchor?: 'top' | 'bottom' }
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
@@ -12,7 +12,7 @@ const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'S
 const DRAG_REGION = { WebkitAppRegion: 'drag' } as React.CSSProperties
 const NO_DRAG = { WebkitAppRegion: 'no-drag' } as React.CSSProperties
 
-export default function Sidebar({ onHover }: Props) {
+export default function Sidebar({ onHover, anchor = 'top' }: Props) {
   const { now } = useToday()
   const { goToToday, isToday } = useDateStore()
   const settings = useSettingsStore((s) => s.settings)
@@ -47,10 +47,12 @@ export default function Sidebar({ onHover }: Props) {
   return (
     <div
       ref={rootRef}
-      className="fixed top-0 flex flex-col items-center z-20 bg-white dark:bg-ink-900 border border-ink-200 dark:border-ink-800"
+      className="fixed flex flex-col items-center z-20 bg-white dark:bg-ink-900 border border-ink-200 dark:border-ink-800"
       style={{
         width: w,            // height auto-fits content so the timer never gets clipped
         [isLeft ? 'left' : 'right']: 0,
+        // Pin the strip to the end the panel opens away from, so it never moves.
+        ...(anchor === 'bottom' ? { bottom: 0 } : { top: 0 }),
         paddingTop: 0, paddingBottom: 8, gap: 5
       }}
       onMouseEnter={onHover}

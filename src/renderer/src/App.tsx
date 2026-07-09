@@ -11,6 +11,9 @@ import { useMidnightRollover } from './hooks/useMidnightRollover'
 
 export default function App() {
   const [isExpanded, setIsExpanded] = useState(false)
+  // Which end the strip is pinned to (main decides based on room); the panel
+  // opens away from it so the strip never moves on expand.
+  const [anchor, setAnchor] = useState<'top' | 'bottom'>('top')
   const collapseTimer = useRef<ReturnType<typeof setTimeout>>()
 
   const { selectedStart, selectedEnd } = useDateStore()
@@ -36,6 +39,11 @@ export default function App() {
     const unsub = window.electronAPI.onSettingsChanged(() => loadSettings())
     return unsub
   }, [loadSettings])
+
+  useEffect(() => {
+    const unsub = window.electronAPI.onSidebarAnchor?.((a) => setAnchor(a))
+    return unsub
+  }, [])
 
   useEffect(() => {
     const unsub = window.electronAPI.onNavigateToDate((ts) => {
@@ -126,7 +134,7 @@ export default function App() {
       onMouseEnter={expand}
       onMouseLeave={collapse}>
       <Panel isExpanded={isExpanded} sidebarW={settings.width} edge={settings.edge} />
-      <Sidebar onHover={expand} />
+      <Sidebar onHover={expand} anchor={anchor} />
     </div>
   )
 }
