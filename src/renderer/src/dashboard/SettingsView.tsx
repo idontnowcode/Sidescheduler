@@ -97,6 +97,20 @@ export default function SettingsView() {
         </p>
       </Section>
 
+      <Section title="Peek Mode (Focus)" desc="Let clicks and scrolling pass straight through the sidebar so it never blocks the content behind it.">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm font-medium">Click-through until hotkey</p>
+            <p className="text-xs text-ink-400 mt-0.5">
+              The sidebar stays visible but dimmed and ignores the mouse. Press{' '}
+              <kbd className="font-mono px-1.5 py-0.5 bg-ink-100 dark:bg-ink-800 rounded-md">Ctrl+Shift+S</kbd>{' '}
+              to wake it, click what you need, then it returns to pass-through.
+            </p>
+          </div>
+          <Toggle checked={!!settings.clickThrough} onChange={() => update({ clickThrough: !settings.clickThrough })} />
+        </div>
+      </Section>
+
       <Section title="Sidebar Width" desc="Collapsed width">
         <RadioRow value={String(settings.width)}
           options={[

@@ -146,6 +146,22 @@ function applyMovable() {
   mainWindow.setMovable(!loadSettings().locked)
 }
 
+// "Peek mode": the sidebar stays visible but lets clicks/scroll pass through to
+// whatever is behind it, until the user presses the toggle hotkey. peekActive
+// is the runtime override that makes it interactive again.
+let peekActive = false
+function applyMouseMode() {
+  if (!mainWindow) return
+  const peek = !!loadSettings().clickThrough
+  if (peek && !peekActive) {
+    mainWindow.setIgnoreMouseEvents(true) // fully click-through; no hover/expand until the hotkey
+    mainWindow.webContents.send('sidebar:peek', { enabled: true, active: false })
+  } else {
+    mainWindow.setIgnoreMouseEvents(false)
+    mainWindow.webContents.send('sidebar:peek', { enabled: peek, active: peek ? peekActive : false })
+  }
+}
+
 // ── Sidebar window ────────────────────────────────────────────────────────
 function createWindow(): void {
   mainWindow = new BrowserWindow({
@@ -167,6 +183,7 @@ function createWindow(): void {
     mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
   }
 
+  mainWindow.webContents.once('did-finish-load', () => applyMouseMode())
   mainWindow.on('blur', () => mainWindow?.setAlwaysOnTop(true, 'screen-saver'))
 
   // Persist Y after user drags the window
@@ -566,8 +583,10 @@ ipcMain.handle('db:tasks:get',  (_e, { id }: { id: string }) => getTaskById(id) 
 ipcMain.handle('settings:get', () => loadSettings())
 ipcMain.handle('settings:set', (_e, patch: Partial<WindowSettings>) => {
   const next = saveSettings(patch)
+  if ('clickThrough' in patch) peekActive = false // reset override when toggling the mode
   applyBounds()
   applyMovable()
+  applyMouseMode()
   mainWindow?.webContents.send('settings:changed', next)
   // Reschedule reminders if work hours / toggle changed
   if ('reminderEnabled' in patch || 'workStartHour' in patch || 'workEndHour' in patch) {
@@ -936,6 +955,17 @@ app.whenReady().then(() => {
     globalShortcut.register('CommandOrControl+Shift+Space', () => {
       if (captureWindow && !captureWindow.isDestroyed()) closeCaptureWindow()
       else openCaptureWindow()
+    })
+  } catch { /* hotkey may be taken by another app */ }
+
+  // Peek mode: toggle the sidebar between click-through and interactive.
+  try {
+    globalShortcut.register('CommandOrControl+Shift+S', () => {
+      if (!loadSettings().clickThrough) return // only meaningful when peek mode is on
+      peekActive = !peekActive
+      applyMouseMode()
+      if (peekActive) mainWindow?.show()
+      else if (windowExpanded) { windowExpanded = false; applyBounds() } // collapse when leaving interactive
     })
   } catch { /* hotkey may be taken by another app */ }
 

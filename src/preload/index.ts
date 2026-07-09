@@ -40,6 +40,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onNavigateToDate:   (cb: (ts: number) => void) => { const h = (_: unknown, { ts }: { ts: number }) => cb(ts); ipcRenderer.on('navigate-to-date', h); return () => ipcRenderer.removeListener('navigate-to-date', h) },
   onSettingsChanged:  (cb: (next: unknown) => void) => { const h = (_: unknown, next: unknown) => cb(next); ipcRenderer.on('settings:changed', h); return () => ipcRenderer.removeListener('settings:changed', h) },
   onSidebarAnchor:    (cb: (a: 'top' | 'bottom') => void) => { const h = (_: unknown, a: 'top' | 'bottom') => cb(a); ipcRenderer.on('sidebar:anchor', h); return () => ipcRenderer.removeListener('sidebar:anchor', h) },
+  onSidebarPeek:      (cb: (s: { enabled: boolean; active: boolean }) => void) => { const h = (_: unknown, s: { enabled: boolean; active: boolean }) => cb(s); ipcRenderer.on('sidebar:peek', h); return () => ipcRenderer.removeListener('sidebar:peek', h) },
 
   // Window settings
   getSettings:  () => ipcRenderer.invoke('settings:get'),

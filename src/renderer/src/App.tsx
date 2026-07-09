@@ -14,6 +14,9 @@ export default function App() {
   // Which end the strip is pinned to (main decides based on room); the panel
   // opens away from it so the strip never moves on expand.
   const [anchor, setAnchor] = useState<'top' | 'bottom'>('top')
+  // Peek mode: click-through until the hotkey activates it. `peekDimmed` is true
+  // while enabled-but-inactive so the strip shows it's in pass-through state.
+  const [peekDimmed, setPeekDimmed] = useState(false)
   const collapseTimer = useRef<ReturnType<typeof setTimeout>>()
 
   const { selectedStart, selectedEnd } = useDateStore()
@@ -42,6 +45,11 @@ export default function App() {
 
   useEffect(() => {
     const unsub = window.electronAPI.onSidebarAnchor?.((a) => setAnchor(a))
+    return unsub
+  }, [])
+
+  useEffect(() => {
+    const unsub = window.electronAPI.onSidebarPeek?.((s) => setPeekDimmed(s.enabled && !s.active))
     return unsub
   }, [])
 
@@ -134,7 +142,7 @@ export default function App() {
       onMouseEnter={expand}
       onMouseLeave={collapse}>
       <Panel isExpanded={isExpanded} sidebarW={settings.width} edge={settings.edge} />
-      <Sidebar onHover={expand} anchor={anchor} />
+      <Sidebar onHover={expand} anchor={anchor} dimmed={peekDimmed} />
     </div>
   )
 }

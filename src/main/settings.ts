@@ -11,6 +11,7 @@ export interface WindowSettings {
   displayId?: number        // electron screen.Display.id
   width: 32 | 40 | 52       // collapsed sidebar width
   locked: boolean           // when true, sidebar cannot be dragged
+  clickThrough?: boolean    // "peek mode": visible but click-through until the hotkey enables it
   // ── Work hours + reminders ──
   workStartHour: number     // 0-23, start of the work day
   workEndHour: number       // 0-23, end of the work day

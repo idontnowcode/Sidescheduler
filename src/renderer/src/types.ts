@@ -5,6 +5,7 @@ export interface WindowSettings {
   displayId?: number
   width: 32 | 40 | 52
   locked: boolean
+  clickThrough?: boolean
   workStartHour: number
   workEndHour: number
   reminderEnabled: boolean

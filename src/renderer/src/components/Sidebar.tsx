@@ -4,7 +4,7 @@ import { useDateStore } from '../store/dateStore'
 import { useSettingsStore } from '../store/settingsStore'
 import { useFocusStore, focusDisplaySeconds } from '../store/focusStore'
 
-interface Props { onHover: () => void; anchor?: 'top' | 'bottom' }
+interface Props { onHover: () => void; anchor?: 'top' | 'bottom'; dimmed?: boolean }
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
@@ -12,7 +12,7 @@ const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'S
 const DRAG_REGION = { WebkitAppRegion: 'drag' } as React.CSSProperties
 const NO_DRAG = { WebkitAppRegion: 'no-drag' } as React.CSSProperties
 
-export default function Sidebar({ onHover, anchor = 'top' }: Props) {
+export default function Sidebar({ onHover, anchor = 'top', dimmed = false }: Props) {
   const { now } = useToday()
   const { goToToday, isToday } = useDateStore()
   const settings = useSettingsStore((s) => s.settings)
@@ -53,8 +53,13 @@ export default function Sidebar({ onHover, anchor = 'top' }: Props) {
         [isLeft ? 'left' : 'right']: 0,
         // Pin the strip to the end the panel opens away from, so it never moves.
         ...(anchor === 'bottom' ? { bottom: 0 } : { top: 0 }),
-        paddingTop: 0, paddingBottom: 8, gap: 5
+        paddingTop: 0, paddingBottom: 8, gap: 5,
+        // Peek mode enabled-but-inactive: dim the strip so it reads as "pass-through".
+        // (The window itself is click-through in this state; the hotkey wakes it.)
+        opacity: dimmed ? 0.4 : 1,
+        transition: 'opacity 150ms ease'
       }}
+      title={dimmed ? 'Peek mode: press Ctrl+Shift+S to activate the sidebar' : undefined}
       onMouseEnter={onHover}
     >
       {/* Tiny drag-handle strip only at the very top (no-drag on the rest of
