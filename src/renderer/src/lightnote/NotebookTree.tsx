@@ -59,6 +59,14 @@ const NotebookTree = forwardRef<TreeHandle, Props>(({ selected, onPageSelect, on
   const [dropSec, setDropSec] = useState<string | null>(null)
   // For folder drag: where relative to the hovered folder we'd land.
   const [dropSecPos, setDropSecPos] = useState<{ id: string; pos: 'before' | 'into' | 'after' } | null>(null)
+  // Multi-select (Ctrl/Cmd-click) of pages/folders for batch move & delete.
+  type MItem = { type: 'page' | 'sec'; nbId: string; secId: string; pageId?: string; id: string }
+  const [msel, setMsel] = useState<MItem[]>([])
+  const mselIds = new Set(msel.map(m => m.id))
+  const toggleMsel = useCallback((item: MItem) => {
+    setMsel(prev => prev.some(m => m.id === item.id) ? prev.filter(m => m.id !== item.id) : [...prev, item])
+  }, [])
+  const clearMsel = useCallback(() => setMsel([]), [])
 
   const loadNotebooks = useCallback(async () => {
     const nbs = await window.lightnote.getNotebooks()
@@ -241,6 +249,44 @@ const NotebookTree = forwardRef<TreeHandle, Props>(({ selected, onPageSelect, on
   // several concurrent moves (which used to read the same source and duplicate
   // the page into every ancestor folder with the same id).
   const movingRef = useRef(false)
+
+  // Batch ops on the multi-selection (declared here so their dep arrays can see
+  // hideCtx / movingRef, which are initialized above this point).
+  const deleteSelected = useCallback(async () => {
+    const items = msel
+    setMsel([])
+    hideCtx()
+    if (items.length === 0) return
+    for (const it of items.filter(m => m.type === 'page')) {
+      await window.lightnote.deletePage(it.nbId, it.secId, it.pageId!)
+      if (selected.pageId === it.pageId) onEditorClear()
+    }
+    for (const it of items.filter(m => m.type === 'sec')) {
+      await window.lightnote.deleteSection(it.nbId, it.id)
+      if (selected.sectionId === it.id) onEditorClear()
+    }
+    await reload()
+  }, [msel, hideCtx, selected, onEditorClear, reload])
+
+  const moveSelectedIntoSec = useCallback(async (dstNbId: string, dstSecId: string) => {
+    const items = msel
+    setMsel([]); setDropSec(null); setDropSecPos(null)
+    if (items.length === 0 || movingRef.current) return
+    movingRef.current = true
+    try {
+      for (const it of items) {
+        if (it.type === 'page') {
+          if (it.secId !== dstSecId) await window.lightnote.movePage(it.nbId, it.secId, it.pageId!, dstNbId, dstSecId)
+        } else if (it.id !== dstSecId) {
+          await window.lightnote.moveSection(it.nbId, it.id, dstNbId, dstSecId)
+        }
+      }
+      setExpandedNbs(prev => new Set([...prev, dstNbId]))
+      setExpandedSecs(prev => new Set([...prev, dstSecId]))
+      await reload()
+    } catch (e) { console.error('batch move threw:', e) } finally { movingRef.current = false }
+  }, [msel, reload])
+
   const handleDropOnSec = useCallback(async (nbId: string, secId: string) => {
     setDropSec(null)
     const d = dragPage
@@ -403,12 +449,16 @@ const NotebookTree = forwardRef<TreeHandle, Props>(({ selected, onPageSelect, on
       <div key={sec.id} style={{ paddingLeft: depth > 0 ? 12 : 0 }}>
         <div
           className={`sec-header${isSelected ? ' selected' : ''}${
+            mselIds.has(sec.id) ? ' multi-selected' : ''}${
             dropSec === sec.id ? ' drop-target' : ''}${
             dropSecPos?.id === sec.id ? ` drop-${dropSecPos.pos}` : ''}`}
           draggable
           onDragStart={e => { e.stopPropagation(); setDragSec({ nbId, secId: sec.id }) }}
           onDragEnd={() => { setDragSec(null); setDropSec(null); setDropSecPos(null) }}
-          onClick={() => toggleSec(nbId, sec)}
+          onClick={e => {
+            if (e.ctrlKey || e.metaKey) { e.stopPropagation(); toggleMsel({ type: 'sec', nbId, secId: sec.id, id: sec.id }) }
+            else { clearMsel(); toggleSec(nbId, sec) }
+          }}
           onContextMenu={e => showCtx(e, { type: 'section', notebookId: nbId, sectionId: sec.id })}
           onDragOver={e => {
             if (dragPage) { e.preventDefault(); e.stopPropagation(); setDropSec(sec.id) }
@@ -427,6 +477,8 @@ const NotebookTree = forwardRef<TreeHandle, Props>(({ selected, onPageSelect, on
           onDragLeave={() => { setDropSec(prev => (prev === sec.id ? null : prev)); setDropSecPos(prev => (prev?.id === sec.id ? null : prev)) }}
           onDrop={e => {
             e.preventDefault(); e.stopPropagation()
+            const draggedId = dragPage?.pageId || dragSec?.secId
+            if (draggedId && mselIds.has(draggedId) && msel.length > 1) { moveSelectedIntoSec(nbId, sec.id); return }
             if (dragSec) {
               const pos = dropSecPos?.id === sec.id ? dropSecPos.pos : 'into'
               if (pos === 'into') handleMoveSectionToSec(nbId, sec.id)
@@ -451,17 +503,25 @@ const NotebookTree = forwardRef<TreeHandle, Props>(({ selected, onPageSelect, on
                 setDropSec(prev => (prev === sec.id ? null : prev))
               }
             }}
-            onDrop={e => { e.preventDefault(); e.stopPropagation(); handleDropOnSec(nbId, sec.id) }}
+            onDrop={e => {
+              e.preventDefault(); e.stopPropagation()
+              const draggedId = dragPage?.pageId
+              if (draggedId && mselIds.has(draggedId) && msel.length > 1) { moveSelectedIntoSec(nbId, sec.id); return }
+              handleDropOnSec(nbId, sec.id)
+            }}
           >
             {sec.children?.map(child => renderSection(nbId, child, nbName, depth + 1))}
             {pages.map(page => (
               <div
                 key={page.id}
-                className={`page-item${selected.pageId === page.id ? ' selected' : ''}`}
+                className={`page-item${selected.pageId === page.id ? ' selected' : ''}${mselIds.has(page.id) ? ' multi-selected' : ''}`}
                 draggable
                 onDragStart={() => setDragPage({ nbId, secId: sec.id, pageId: page.id })}
                 onDragEnd={() => { setDragPage(null); setDropSec(null) }}
-                onClick={() => handlePageClick(nbId, sec.id, page, nbName, sec.name)}
+                onClick={e => {
+                  if (e.ctrlKey || e.metaKey) { e.stopPropagation(); toggleMsel({ type: 'page', nbId, secId: sec.id, pageId: page.id, id: page.id }) }
+                  else { clearMsel(); handlePageClick(nbId, sec.id, page, nbName, sec.name) }
+                }}
                 onContextMenu={e => showCtx(e, { type: 'page', notebookId: nbId, sectionId: sec.id, pageId: page.id })}
               >
                 <span className="page-icon">📄</span>
@@ -483,6 +543,17 @@ const NotebookTree = forwardRef<TreeHandle, Props>(({ selected, onPageSelect, on
           padding: '6px 12px', borderRadius: '8px', boxShadow: '0 2px 10px rgba(0,0,0,.3)',
         }}>
           🔗 Link copied
+        </div>
+      )}
+      {msel.length > 0 && (
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '4px 10px', margin: '2px 6px 0', borderRadius: '8px',
+          background: 'rgba(124,111,240,0.18)', fontSize: '11px', color: 'var(--text, #ccc)',
+        }}>
+          <span>{msel.length}개 선택됨 · 폴더로 드래그 이동 / 우클릭 삭제</span>
+          <button onClick={clearMsel} title="선택 해제"
+            style={{ border: 'none', background: 'none', color: '#7c6ff0', cursor: 'pointer', fontSize: '13px', lineHeight: 1 }}>×</button>
         </div>
       )}
       <div className="sidebar-top">
@@ -524,6 +595,13 @@ const NotebookTree = forwardRef<TreeHandle, Props>(({ selected, onPageSelect, on
           !!notebooks.find(n => n.id === ctxMenu.target.notebookId)?.builtin
         return (
         <div className="context-menu" style={{ left: ctxMenu.x, top: ctxMenu.y }} onClick={e => e.stopPropagation()}>
+          {msel.length > 1 && (
+            <>
+              <div className="ctx-item ctx-danger" onClick={deleteSelected}>🗑 선택 삭제 ({msel.length})</div>
+              <div className="ctx-item" onClick={() => { clearMsel(); hideCtx() }}>선택 해제</div>
+              <div className="ctx-sep" />
+            </>
+          )}
           {!isBuiltinNb && <div className="ctx-item" onClick={handleRename}>Rename</div>}
           {ctxMenu.target.type === 'page' && (
             <>
