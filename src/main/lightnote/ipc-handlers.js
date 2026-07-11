@@ -119,6 +119,9 @@ function registerIpcHandlers(ipcMain, getWindow, safeStorage, dialog, app, sched
     return r || { error: 'MOVE_FAILED' };
   });
 
+  ipcMain.handle('lightnote:reorder-page', async (_, { nbId, secId, pageId, refPageId, placeAfter }) =>
+    (await noteStorage.reorderPage(nbId, secId, pageId, refPageId, placeAfter)) || { error: 'REORDER_FAILED' });
+
   // Page ↔ page links (separate from event/task links)
   ipcMain.handle('lightnote:page-refs:get', async (_, { pageId }) => {
     const ids = await noteStorage.getPageRefs(pageId);

@@ -26,6 +26,7 @@ contextBridge.exposeInMainWorld('lightnote', {
   deletePage: (notebookId, sectionId, id) => ipcRenderer.invoke('lightnote:delete-page', { notebookId, sectionId, id }),
   duplicatePage: (notebookId, sectionId, id) => ipcRenderer.invoke('lightnote:duplicate-page', { notebookId, sectionId, id }),
   movePage: (srcNbId, srcSecId, pageId, dstNbId, dstSecId) => ipcRenderer.invoke('lightnote:move-page', { srcNbId, srcSecId, pageId, dstNbId, dstSecId }),
+  reorderPage: (nbId, secId, pageId, refPageId, placeAfter) => ipcRenderer.invoke('lightnote:reorder-page', { nbId, secId, pageId, refPageId, placeAfter }),
   listAllPages: () => ipcRenderer.invoke('lightnote:links:list-pages'),
 
   // Deep link: copy lightnote://page/<id> for a page to the clipboard

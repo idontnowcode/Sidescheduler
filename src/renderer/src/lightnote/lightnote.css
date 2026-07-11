@@ -381,6 +381,9 @@ html, body {
 }
 .page-item:hover { background: var(--bg3); color: var(--text); }
 .page-item.selected { background: var(--accent); color: #fff; }
+/* Drop indicator when reordering pages (drag a page above/below another). */
+.page-item.drop-before { box-shadow: inset 0 3px 0 -1px #7c6ff0; }
+.page-item.drop-after  { box-shadow: inset 0 -3px 0 -1px #7c6ff0; }
 .page-icon { font-size: 11px; }
 .page-name {
   flex: 1;

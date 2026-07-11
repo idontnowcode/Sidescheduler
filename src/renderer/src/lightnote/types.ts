@@ -73,6 +73,7 @@ declare global {
       deletePage: (notebookId: string, sectionId: string, id: string) => Promise<void>
       duplicatePage: (notebookId: string, sectionId: string, id: string) => Promise<Page>
       movePage: (srcNbId: string, srcSecId: string, pageId: string, dstNbId: string, dstSecId: string) => Promise<{ id?: string; error?: string }>
+      reorderPage: (nbId: string, secId: string, pageId: string, refPageId: string, placeAfter: boolean) => Promise<{ success?: boolean; error?: string }>
       listAllPages: () => Promise<PageRefLoc[]>
       copyPageLink: (pageId: string) => Promise<string>
       dedupPages: () => Promise<{ removed: number; separated: number }>

@@ -52,6 +52,8 @@ const NotebookTree = forwardRef<TreeHandle, Props>(({ selected, onPageSelect, on
   const [inputModal, setInputModal] = useState<InputModalState | null>(null)
   const [inputValue, setInputValue] = useState('')
   const [dragPage, setDragPage] = useState<{ nbId: string; secId: string; pageId: string } | null>(null)
+  // For page drag: which page we'd land next to, and on which side.
+  const [dropPagePos, setDropPagePos] = useState<{ id: string; pos: 'before' | 'after' } | null>(null)
   const [dragNb, setDragNb] = useState<string | null>(null)
   const [dropNb, setDropNb] = useState<string | null>(null)
   const [dropMode, setDropMode] = useState<'reorder' | 'into' | null>(null)
@@ -319,6 +321,37 @@ const NotebookTree = forwardRef<TreeHandle, Props>(({ selected, onPageSelect, on
     }
   }, [dragPage, reload, loadPages, selected, notebooks, sectionsByNb, onPageSelect])
 
+  // ── Drop a page ONTO another page: reorder within the same folder, or move
+  //    into the target's folder and drop it right next to the target.
+  const handleDropOnPage = useCallback(async (nbId: string, secId: string, refPageId: string, placeAfter: boolean) => {
+    const d = dragPage
+    setDragPage(null); setDropPagePos(null); setDropSec(null)
+    if (!d || d.pageId === refPageId || movingRef.current) return
+    movingRef.current = true
+    try {
+      if (d.secId === secId && d.nbId === nbId) {
+        const res = await window.lightnote.reorderPage(nbId, secId, d.pageId, refPageId, placeAfter)
+        if (res?.error) { console.error('reorderPage failed:', res.error); return }
+        await reload()
+        await loadPages(nbId, secId)
+      } else {
+        const res = await window.lightnote.movePage(d.nbId, d.secId, d.pageId, nbId, secId)
+        if (res?.error) { console.error('movePage failed:', res.error); return }
+        await window.lightnote.reorderPage(nbId, secId, d.pageId, refPageId, placeAfter)
+        setExpandedSecs(prev => new Set([...prev, secId]))
+        await reload()
+        await loadPages(d.nbId, d.secId)
+        const dstPages = await loadPages(nbId, secId)
+        if (selected.pageId === d.pageId) {
+          const nb = notebooks.find(n => n.id === nbId)
+          const sec = findSection(sectionsByNb[nbId] || [], secId)
+          const pg = dstPages.find(p => p.id === d.pageId)
+          onPageSelect(nbId, secId, d.pageId, `${nb?.name || ''} › ${sec?.name || ''} › ${pg?.title || ''}`)
+        }
+      }
+    } catch (e) { console.error('drop on page threw:', e) } finally { movingRef.current = false }
+  }, [dragPage, reload, loadPages, selected, notebooks, sectionsByNb, onPageSelect])
+
   // User notebooks in display order: pinned first, then by stored order.
   const userNotebooks = notebooks.filter(n => !n.builtin)
     .sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0) || (a.order ?? 0) - (b.order ?? 0))
@@ -514,10 +547,29 @@ const NotebookTree = forwardRef<TreeHandle, Props>(({ selected, onPageSelect, on
             {pages.map(page => (
               <div
                 key={page.id}
-                className={`page-item${selected.pageId === page.id ? ' selected' : ''}${mselIds.has(page.id) ? ' multi-selected' : ''}`}
+                className={`page-item${selected.pageId === page.id ? ' selected' : ''}${mselIds.has(page.id) ? ' multi-selected' : ''}${
+                  dropPagePos?.id === page.id ? ` drop-${dropPagePos.pos}` : ''}`}
                 draggable
                 onDragStart={() => setDragPage({ nbId, secId: sec.id, pageId: page.id })}
-                onDragEnd={() => { setDragPage(null); setDropSec(null) }}
+                onDragEnd={() => { setDragPage(null); setDropSec(null); setDropPagePos(null) }}
+                onDragOver={e => {
+                  if (dragPage && dragPage.pageId !== page.id) {
+                    e.preventDefault(); e.stopPropagation()
+                    const r = (e.currentTarget as HTMLElement).getBoundingClientRect()
+                    const pos: 'before' | 'after' = (e.clientY - r.top) > r.height / 2 ? 'after' : 'before'
+                    setDropPagePos({ id: page.id, pos })
+                    setDropSec(null)
+                  }
+                }}
+                onDragLeave={() => setDropPagePos(prev => (prev?.id === page.id ? null : prev))}
+                onDrop={e => {
+                  if (!dragPage) return
+                  e.preventDefault(); e.stopPropagation()
+                  const pos = dropPagePos?.id === page.id ? dropPagePos.pos : 'before'
+                  const draggedId = dragPage.pageId
+                  if (mselIds.has(draggedId) && msel.length > 1) { moveSelectedIntoSec(nbId, sec.id); return }
+                  handleDropOnPage(nbId, sec.id, page.id, pos === 'after')
+                }}
                 onClick={e => {
                   if (e.ctrlKey || e.metaKey) { e.stopPropagation(); toggleMsel({ type: 'page', nbId, secId: sec.id, pageId: page.id, id: page.id }) }
                   else { clearMsel(); handlePageClick(nbId, sec.id, page, nbName, sec.name) }

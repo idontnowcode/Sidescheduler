@@ -310,6 +310,24 @@ async function duplicatePage(notebookId, sectionId, pageId) {
   return meta;
 }
 
+/**
+ * Reorder a page within its own section: place `pageId` right before/after
+ * `refPageId`. Pages render in stored-array order, so we splice the array (and
+ * renumber `order` for consistency) rather than just tweaking `order`.
+ */
+async function reorderPage(nbId, secId, pageId, refPageId, placeAfter) {
+  const pages = await getPages(nbId, secId);
+  const moving = pages.find(p => p.id === pageId);
+  if (!moving || pageId === refPageId) return null;
+  const without = pages.filter(p => p.id !== pageId);
+  const at = without.findIndex(p => p.id === refPageId);
+  if (at < 0) return null;
+  without.splice(placeAfter ? at + 1 : at, 0, moving);
+  without.forEach((p, i) => { p.order = i; });
+  await writeJson(pagesPath(nbId, secId), without);
+  return { success: true };
+}
+
 /** Move a page to another section (and/or notebook). */
 async function movePage(srcNbId, srcSecId, pageId, dstNbId, dstSecId) {
   if (srcNbId === dstNbId && srcSecId === dstSecId) return null;
@@ -344,18 +362,240 @@ async function movePage(srcNbId, srcSecId, pageId, dstNbId, dstSecId) {
   return { id: pageId };
 }
 
-/** Locate a page by id (scans all notebooks/sections). */
+/** Locate a page by id (scans all notebooks/sections). Skips trashed items so
+ *  links/refs never resolve to something sitting in the Trash. */
 async function findPageLocation(pageId) {
-  const nbs = await getNotebooks();
+  const nbs = await getVisibleNotebooks();
   for (const nb of nbs) {
-    const secs = await getSections(nb.id);
+    const secs = await getVisibleSections(nb.id);
     for (const sec of secs) {
-      const pages = await getPages(nb.id, sec.id);
+      const pages = await getVisiblePages(nb.id, sec.id);
       const pg = pages.find(p => p.id === pageId);
       if (pg) return { notebookId: nb.id, sectionId: sec.id, pageId, title: pg.title, notebookName: nb.name, sectionName: sec.name };
     }
   }
   return null;
+}
+
+// === TRASH (soft delete) ===================================================
+// Deletes flip a `deletedAt` timestamp instead of removing files, so items can
+// be viewed, restored, or purged later. The raw getters above keep returning
+// everything (writers rely on that to preserve trashed siblings); read paths
+// that feed the normal UI/AI use the *Visible* variants below, which hide a
+// section when it OR any ancestor is trashed (so a deleted folder takes its
+// whole subtree out of view without flagging every descendant).
+
+function sectionHasDeletedChain(byId, sec) {
+  let cur = sec; const guard = new Set();
+  while (cur && !guard.has(cur.id)) {
+    if (cur.deletedAt) return true;
+    guard.add(cur.id);
+    cur = cur.parentId ? byId.get(cur.parentId) : null;
+  }
+  return false;
+}
+
+async function getVisibleNotebooks() {
+  return (await getNotebooks()).filter(n => !n.deletedAt);
+}
+async function getVisibleSections(nbId) {
+  const secs = await getSections(nbId);
+  const byId = new Map(secs.map(s => [s.id, s]));
+  return secs.filter(s => !sectionHasDeletedChain(byId, s));
+}
+async function getVisiblePages(nbId, secId) {
+  return (await getPages(nbId, secId)).filter(p => !p.deletedAt);
+}
+
+async function softDeletePage(nbId, secId, pageId) {
+  const pages = await getPages(nbId, secId);
+  const p = pages.find(x => x.id === pageId);
+  if (!p) return { success: false };
+  p.deletedAt = Date.now();
+  await writeJson(pagesPath(nbId, secId), pages);
+  return { success: true };
+}
+async function softDeleteSection(nbId, secId) {
+  const secs = await getSections(nbId);
+  const s = secs.find(x => x.id === secId);
+  if (!s) return { success: false };
+  s.deletedAt = Date.now();
+  await writeJson(sectionsPath(nbId), secs);
+  return { success: true };
+}
+async function softDeleteNotebook(id) {
+  const nbs = await getNotebooks();
+  const nb = nbs.find(n => n.id === id);
+  if (!nb) return { success: false };
+  if (nb.builtin) return { success: false, error: 'BUILTIN' }; // PARA defaults aren't deletable
+  nb.deletedAt = Date.now();
+  await writeJson(notebooksPath(), nbs);
+  return { success: true };
+}
+
+// ── Restore: clear deletedAt, and un-trash the ancestor chain so the item has
+//    a reachable home (restoring a page whose folder is also trashed brings the
+//    folder back too — least-surprising "it's back where it was").
+async function ensureNotebookVisible(nbId) {
+  const nbs = await getNotebooks();
+  const nb = nbs.find(n => n.id === nbId);
+  if (nb && nb.deletedAt) { delete nb.deletedAt; await writeJson(notebooksPath(), nbs); }
+}
+async function ensureSectionChainVisible(nbId, secId) {
+  const secs = await getSections(nbId);
+  const byId = new Map(secs.map(s => [s.id, s]));
+  let cur = byId.get(secId); const guard = new Set(); let changed = false;
+  while (cur && !guard.has(cur.id)) {
+    guard.add(cur.id);
+    if (cur.deletedAt) { delete cur.deletedAt; changed = true; }
+    cur = cur.parentId ? byId.get(cur.parentId) : null;
+  }
+  if (changed) await writeJson(sectionsPath(nbId), secs);
+  await ensureNotebookVisible(nbId);
+}
+async function restorePage(nbId, secId, pageId) {
+  const pages = await getPages(nbId, secId);
+  const p = pages.find(x => x.id === pageId);
+  if (!p) return { success: false };
+  delete p.deletedAt;
+  await writeJson(pagesPath(nbId, secId), pages);
+  await ensureSectionChainVisible(nbId, secId);
+  return { success: true };
+}
+async function restoreSection(nbId, secId) {
+  const secs = await getSections(nbId);
+  const s = secs.find(x => x.id === secId);
+  if (!s) return { success: false };
+  delete s.deletedAt;
+  await writeJson(sectionsPath(nbId), secs);
+  await ensureSectionChainVisible(nbId, s.parentId || secId);
+  await ensureNotebookVisible(nbId);
+  return { success: true };
+}
+async function restoreNotebook(id) {
+  const nbs = await getNotebooks();
+  const nb = nbs.find(n => n.id === id);
+  if (!nb) return { success: false };
+  delete nb.deletedAt;
+  await writeJson(notebooksPath(), nbs);
+  return { success: true };
+}
+
+// ── Trash listing: materialize each deletion-root with its full subtree so the
+//    renderer can show it read-only exactly like LightNote, without touching the
+//    (filtered) normal getters.
+async function buildSectionSubtree(nbId, sec, allSecs) {
+  const children = [];
+  for (const kid of allSecs.filter(s => (s.parentId || null) === sec.id)) {
+    children.push(await buildSectionSubtree(nbId, kid, allSecs));
+  }
+  for (const p of await getPages(nbId, sec.id)) {
+    children.push({ type: 'page', notebookId: nbId, sectionId: sec.id, pageId: p.id, name: p.title, deletedAt: p.deletedAt });
+  }
+  return { type: 'section', notebookId: nbId, sectionId: sec.id, name: sec.name, deletedAt: sec.deletedAt, children };
+}
+async function buildNotebookSubtree(nb, allSecs) {
+  const children = [];
+  for (const root of allSecs.filter(s => !(s.parentId || null))) {
+    children.push(await buildSectionSubtree(nb.id, root, allSecs));
+  }
+  return { type: 'notebook', notebookId: nb.id, name: nb.name, color: nb.color, deletedAt: nb.deletedAt, children };
+}
+
+async function listTrash() {
+  const nbs = await getNotebooks();
+  const roots = [];
+  for (const nb of nbs) {
+    const secs = await getSections(nb.id);
+    if (nb.deletedAt) {
+      const node = await buildNotebookSubtree(nb, secs);
+      node.origin = {};
+      roots.push(node);
+      continue; // trashed descendants are nested inside this node
+    }
+    const byId = new Map(secs.map(s => [s.id, s]));
+    const ancestorDeleted = (s) => {
+      let cur = s.parentId ? byId.get(s.parentId) : null; const g = new Set();
+      while (cur && !g.has(cur.id)) { if (cur.deletedAt) return true; g.add(cur.id); cur = cur.parentId ? byId.get(cur.parentId) : null; }
+      return false;
+    };
+    for (const s of secs) {
+      if (s.deletedAt && !ancestorDeleted(s)) {
+        const node = await buildSectionSubtree(nb.id, s, secs);
+        node.origin = { notebookName: nb.name };
+        roots.push(node);
+      }
+    }
+    for (const s of secs) {
+      if (s.deletedAt || ancestorDeleted(s)) continue; // pages under a trashed folder ride along with it
+      for (const p of await getPages(nb.id, s.id)) {
+        if (p.deletedAt) {
+          roots.push({ type: 'page', notebookId: nb.id, sectionId: s.id, pageId: p.id, name: p.title, deletedAt: p.deletedAt, origin: { notebookName: nb.name, sectionName: s.name } });
+        }
+      }
+    }
+  }
+  roots.sort((a, b) => (b.deletedAt || 0) - (a.deletedAt || 0));
+  return roots;
+}
+
+// ── Permanent removal (reuses the existing hard-delete paths). Returns the ids
+//    of every page removed so callers can drop links/refs and index entries.
+async function collectSubtreePageIds(nbId, secId) {
+  const secs = await getSections(nbId);
+  const ids = collectSubtree(secs, secId);
+  const pageIds = [];
+  for (const sid of ids) for (const p of await getPages(nbId, sid)) pageIds.push(p.id);
+  return pageIds;
+}
+async function purgePage(nbId, secId, pageId) {
+  await deletePage(nbId, secId, pageId);
+  return { pageIds: [pageId] };
+}
+async function purgeSection(nbId, secId) {
+  const pageIds = await collectSubtreePageIds(nbId, secId);
+  await deleteSection(nbId, secId);
+  return { pageIds };
+}
+async function purgeNotebook(id) {
+  const pageIds = [];
+  for (const s of await getSections(id)) for (const p of await getPages(id, s.id)) pageIds.push(p.id);
+  const nbs = await getNotebooks();
+  await writeJson(notebooksPath(), nbs.filter(n => n.id !== id));
+  try { await fs.rm(notebookDir(id), { recursive: true, force: true }); } catch {}
+  return { pageIds };
+}
+async function purgeRoot(node) {
+  if (node.type === 'page') return purgePage(node.notebookId, node.sectionId, node.pageId);
+  if (node.type === 'section') return purgeSection(node.notebookId, node.sectionId);
+  if (node.type === 'notebook') return purgeNotebook(node.notebookId);
+  return { pageIds: [] };
+}
+async function emptyTrash() {
+  const roots = await listTrash();
+  const pageIds = [];
+  for (const r of roots) pageIds.push(...(await purgeRoot(r)).pageIds);
+  return { pageIds, count: roots.length };
+}
+async function purgeExpired(retentionDays) {
+  if (!retentionDays || retentionDays <= 0) return { pageIds: [], count: 0 };
+  const cutoff = Date.now() - retentionDays * 86400000;
+  const expired = (await listTrash()).filter(r => (r.deletedAt || 0) < cutoff);
+  const pageIds = [];
+  for (const r of expired) pageIds.push(...(await purgeRoot(r)).pageIds);
+  return { pageIds, count: expired.length };
+}
+
+// ── Trash retention setting (days; 0 = never auto-purge), kept in settings.json.
+async function getTrashRetentionDays() {
+  const d = await readJson(settingsPath());
+  return typeof d?.trashRetentionDays === 'number' ? d.trashRetentionDays : 30;
+}
+async function setTrashRetentionDays(days) {
+  const d = (await readJson(settingsPath())) || {};
+  d.trashRetentionDays = days;
+  await writeJson(settingsPath(), d);
+  return { retentionDays: days };
 }
 
 // === PAGE ↔ PAGE LINKS (bidirectional, kept separate from event/task links) ===
@@ -491,7 +731,13 @@ module.exports = {
   setNotebookPinned, reorderNotebooks,
   getSections, createSection, renameSection, deleteSection, moveSection, reorderSection,
   getPages, createPage, loadPage, savePage, renamePage, deletePage,
-  duplicatePage, movePage, findPageLocation,
+  duplicatePage, movePage, reorderPage, findPageLocation,
   getPageRefs, addPageRef, removePageRef,
   getLastOpened, saveLastOpened,
+  // Trash / soft-delete
+  getVisibleNotebooks, getVisibleSections, getVisiblePages,
+  softDeletePage, softDeleteSection, softDeleteNotebook,
+  restorePage, restoreSection, restoreNotebook,
+  listTrash, purgePage, purgeSection, purgeNotebook, emptyTrash, purgeExpired,
+  getTrashRetentionDays, setTrashRetentionDays,
 };
