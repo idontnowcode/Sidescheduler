@@ -63,13 +63,13 @@ function scoreContent(page, queryTokens) {
 }
 
 async function getRelevantPages(question, maxPages = 5) {
-  const notebooks = await noteStorage.getNotebooks();
+  const notebooks = await noteStorage.getVisibleNotebooks();
   const result = [];
 
   for (const nb of notebooks) {
-    const sections = await noteStorage.getSections(nb.id);
+    const sections = await noteStorage.getVisibleSections(nb.id);
     for (const sec of sections) {
-      const pages = await noteStorage.getPages(nb.id, sec.id);
+      const pages = await noteStorage.getVisiblePages(nb.id, sec.id);
       for (const page of pages) {
         if (pageCache.has(page.id)) {
           result.push(pageCache.get(page.id));

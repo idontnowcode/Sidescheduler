@@ -1,15 +1,17 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
 import 'quill/dist/quill.snow.css'
 import './lightnote.css'
-import type { Selected } from './types'
+import type { Selected, TrashNode } from './types'
 import NotebookTree, { type TreeHandle } from './NotebookTree'
 import Editor, { type EditorHandle } from './Editor'
+import TrashViewer from './TrashViewer'
 import AIAssistant from './AIAssistant'
 import SettingsModal, { initAppearance } from './SettingsModal'
 
 export default function LightnoteApp() {
   const [selected, setSelected] = useState<Selected>({ notebookId: null, sectionId: null, pageId: null })
   const [breadcrumb, setBreadcrumb] = useState('')
+  const [trashNode, setTrashNode] = useState<TrashNode | null>(null)
   const [isAiOpen, setIsAiOpen] = useState(false)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [aiPanelWidth, setAiPanelWidth] = useState(320)
@@ -70,11 +72,26 @@ export default function LightnoteApp() {
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handlePageSelect = useCallback(async (nbId: string, secId: string, pageId: string, crumb: string) => {
+    setTrashNode(null) // opening a live page leaves the trash view
     setSelected({ notebookId: nbId, sectionId: secId, pageId })
     setBreadcrumb(crumb)
     if (editorRef.current) {
       await editorRef.current.loadPage(nbId, secId, pageId)
     }
+  }, [])
+
+  const restoreTrash = useCallback(async (node: TrashNode) => {
+    await window.lightnote.trashRestore(node)
+    setTrashNode(null)
+    await treeRef.current?.reload()
+    await treeRef.current?.refreshTrash()
+  }, [])
+
+  const purgeTrash = useCallback(async (node: TrashNode) => {
+    if (!confirm(`"${node.name || 'Untitled'}" 을(를) 영구 삭제할까요? 되돌릴 수 없습니다.`)) return
+    await window.lightnote.trashPurge(node)
+    setTrashNode(null)
+    await treeRef.current?.refreshTrash()
   }, [])
 
   const handleEditorClear = useCallback(() => {
@@ -107,13 +124,24 @@ export default function LightnoteApp() {
           selected={selected}
           onPageSelect={handlePageSelect}
           onEditorClear={handleEditorClear}
+          onTrashOpen={setTrashNode}
         />
 
-        <Editor
-          ref={editorRef}
-          onOpenSettings={() => setIsSettingsOpen(true)}
-          onOpenPage={handlePageSelect}
-        />
+        <div style={{ flex: 1, minWidth: 0, position: 'relative', display: 'flex' }}>
+          <Editor
+            ref={editorRef}
+            onOpenSettings={() => setIsSettingsOpen(true)}
+            onOpenPage={handlePageSelect}
+          />
+          {trashNode && (
+            <TrashViewer
+              node={trashNode}
+              onRestore={restoreTrash}
+              onPurge={purgeTrash}
+              onClose={() => setTrashNode(null)}
+            />
+          )}
+        </div>
 
         {isAiOpen && (
           <AIAssistant

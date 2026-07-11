@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useRef, forwardRef, useImperativeHandle } from 'react'
-import type { Notebook, Section, Page, Selected } from './types'
+import type { Notebook, Section, Page, Selected, TrashNode } from './types'
+import TrashPanel, { type TrashPanelHandle } from './TrashPanel'
 
 interface ContextMenuState {
   x: number; y: number
@@ -14,9 +15,10 @@ interface Props {
   selected: Selected
   onPageSelect: (nbId: string, secId: string, pageId: string, crumb: string) => void
   onEditorClear: () => void
+  onTrashOpen?: (node: TrashNode) => void
 }
 
-export interface TreeHandle { reload: () => Promise<void> }
+export interface TreeHandle { reload: () => Promise<void>; refreshTrash: () => Promise<void> }
 
 const COLORS = ['#4dabf7','#69db7c','#ffa94d','#da77f2','#f783ac','#a9e34b','#66d9e8','#ffd43b']
 
@@ -42,7 +44,8 @@ function findSection(sections: Section[], id: string): Section | undefined {
   return undefined
 }
 
-const NotebookTree = forwardRef<TreeHandle, Props>(({ selected, onPageSelect, onEditorClear }, ref) => {
+const NotebookTree = forwardRef<TreeHandle, Props>(({ selected, onPageSelect, onEditorClear, onTrashOpen }, ref) => {
+  const trashRef = useRef<TrashPanelHandle>(null)
   const [notebooks, setNotebooks] = useState<Notebook[]>([])
   const [expandedNbs, setExpandedNbs] = useState<Set<string>>(new Set())
   const [expandedSecs, setExpandedSecs] = useState<Set<string>>(new Set())
@@ -106,7 +109,7 @@ const NotebookTree = forwardRef<TreeHandle, Props>(({ selected, onPageSelect, on
     }
   }, [loadNotebooks, loadSections, loadPages, expandedNbs, expandedSecs])
 
-  useImperativeHandle(ref, () => ({ reload }))
+  useImperativeHandle(ref, () => ({ reload, refreshTrash: async () => { await trashRef.current?.refresh() } }))
 
   useEffect(() => { loadNotebooks() }, [loadNotebooks])
 
@@ -203,6 +206,7 @@ const NotebookTree = forwardRef<TreeHandle, Props>(({ selected, onPageSelect, on
     else if (type === 'section' && sectionId) { await window.lightnote.deleteSection(notebookId, sectionId); if (selected.sectionId === sectionId) onEditorClear() }
     else if (type === 'page' && sectionId && pageId) { await window.lightnote.deletePage(notebookId, sectionId, pageId); if (selected.pageId === pageId) onEditorClear() }
     await reload()
+    await trashRef.current?.refresh()
   }, [ctxMenu, hideCtx, selected, onEditorClear, reload])
 
   const handleAddSubsection = useCallback(async () => {
@@ -268,6 +272,7 @@ const NotebookTree = forwardRef<TreeHandle, Props>(({ selected, onPageSelect, on
       if (selected.sectionId === it.id) onEditorClear()
     }
     await reload()
+    await trashRef.current?.refresh()
   }, [msel, hideCtx, selected, onEditorClear, reload])
 
   const moveSelectedIntoSec = useCallback(async (dstNbId: string, dstSecId: string) => {
@@ -639,6 +644,8 @@ const NotebookTree = forwardRef<TreeHandle, Props>(({ selected, onPageSelect, on
           )
         })()}
       </div>
+
+      <TrashPanel ref={trashRef} onOpenPage={(n) => onTrashOpen?.(n)} onChanged={reload} />
 
       {/* Context menu */}
       {ctxMenu && (() => {

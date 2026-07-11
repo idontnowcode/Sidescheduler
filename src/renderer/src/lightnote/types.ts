@@ -47,6 +47,19 @@ export interface WebSource {
 }
 
 export interface PageRefLoc { pageId: string; notebookId: string; sectionId: string; title: string; notebookName?: string; sectionName?: string }
+
+// A node in the Trash tree (a deletion root and its materialized subtree).
+export interface TrashNode {
+  type: 'notebook' | 'section' | 'page'
+  notebookId: string
+  sectionId?: string
+  pageId?: string
+  name: string
+  color?: string
+  deletedAt?: number
+  origin?: { notebookName?: string; sectionName?: string }
+  children?: TrashNode[]
+}
 export interface ExtractedTask { title: string; dueDate: string | null; priority: 'urgent' | 'normal' | 'low' }
 export interface ExtractedEvent { title: string; date: string; start: string | null; end: string | null }
 
@@ -74,6 +87,13 @@ declare global {
       duplicatePage: (notebookId: string, sectionId: string, id: string) => Promise<Page>
       movePage: (srcNbId: string, srcSecId: string, pageId: string, dstNbId: string, dstSecId: string) => Promise<{ id?: string; error?: string }>
       reorderPage: (nbId: string, secId: string, pageId: string, refPageId: string, placeAfter: boolean) => Promise<{ success?: boolean; error?: string }>
+      // Trash
+      trashList: () => Promise<TrashNode[]>
+      trashRestore: (node: TrashNode) => Promise<{ success?: boolean; error?: string }>
+      trashPurge: (node: TrashNode) => Promise<{ success: boolean }>
+      trashEmpty: () => Promise<{ success: boolean; count: number }>
+      trashGetRetention: () => Promise<{ days: number }>
+      trashSetRetention: (days: number) => Promise<{ retentionDays: number }>
       listAllPages: () => Promise<PageRefLoc[]>
       copyPageLink: (pageId: string) => Promise<string>
       dedupPages: () => Promise<{ removed: number; separated: number }>

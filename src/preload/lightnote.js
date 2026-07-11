@@ -35,6 +35,14 @@ contextBridge.exposeInMainWorld('lightnote', {
   // Maintenance: de-duplicate pages that share the same id (old move bug)
   dedupPages: () => ipcRenderer.invoke('lightnote:dedup-pages'),
 
+  // Trash (soft delete): list, restore, permanently purge, empty, retention
+  trashList: () => ipcRenderer.invoke('lightnote:trash:list'),
+  trashRestore: (node) => ipcRenderer.invoke('lightnote:trash:restore', node),
+  trashPurge: (node) => ipcRenderer.invoke('lightnote:trash:purge', node),
+  trashEmpty: () => ipcRenderer.invoke('lightnote:trash:empty'),
+  trashGetRetention: () => ipcRenderer.invoke('lightnote:trash:get-retention'),
+  trashSetRetention: (days) => ipcRenderer.invoke('lightnote:trash:set-retention', { days }),
+
   // Page ↔ page links
   getPageRefs: (pageId) => ipcRenderer.invoke('lightnote:page-refs:get', { pageId }),
   addPageRef: (a, b) => ipcRenderer.invoke('lightnote:page-refs:add', { a, b }),

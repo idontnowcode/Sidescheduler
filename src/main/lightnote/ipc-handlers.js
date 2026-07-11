@@ -29,8 +29,18 @@ function registerIpcHandlers(ipcMain, getWindow, safeStorage, dialog, app, sched
   const existingKey = storage.loadApiKey();
   if (existingKey) geminiService.init(existingKey);
 
+  // Purge trash items past their retention window on launch (fire-and-forget).
+  (async () => {
+    try {
+      const days = await noteStorage.getTrashRetentionDays();
+      const r = await noteStorage.purgeExpired(days);
+      for (const pid of r.pageIds) { linkStorage.removePageLinks(pid); noteIndexer.invalidateCache(pid); }
+      if (r.count > 0) noteIndexer.clearCache();
+    } catch (e) { console.error('purgeExpired:', e); }
+  })();
+
   // === 노트북 ===
-  ipcMain.handle('lightnote:get-notebooks', async () => noteStorage.getNotebooks());
+  ipcMain.handle('lightnote:get-notebooks', async () => noteStorage.getVisibleNotebooks());
 
   ipcMain.handle('lightnote:create-notebook', async (_, { name, color }) =>
     noteStorage.createNotebook(name, color));
@@ -45,9 +55,9 @@ function registerIpcHandlers(ipcMain, getWindow, safeStorage, dialog, app, sched
     noteStorage.reorderNotebooks(ids));
 
   ipcMain.handle('lightnote:delete-notebook', async (_, { id }) => {
-    await noteStorage.deleteNotebook(id);
+    const r = await noteStorage.softDeleteNotebook(id); // → Trash, not gone
     noteIndexer.clearCache();
-    return { success: true };
+    return r;
   });
 
   // One-off cleanup for pages duplicated by the old move bug (shared ids).
@@ -59,7 +69,7 @@ function registerIpcHandlers(ipcMain, getWindow, safeStorage, dialog, app, sched
 
   // === 섹션 ===
   ipcMain.handle('lightnote:get-sections', async (_, { notebookId }) =>
-    noteStorage.getSections(notebookId));
+    noteStorage.getVisibleSections(notebookId));
 
   ipcMain.handle('lightnote:create-section', async (_, { notebookId, name, parentId }) =>
     noteStorage.createSection(notebookId, name, parentId || null));
@@ -68,14 +78,14 @@ function registerIpcHandlers(ipcMain, getWindow, safeStorage, dialog, app, sched
     noteStorage.renameSection(notebookId, id, name));
 
   ipcMain.handle('lightnote:delete-section', async (_, { notebookId, id }) => {
-    await noteStorage.deleteSection(notebookId, id);
+    const r = await noteStorage.softDeleteSection(notebookId, id); // → Trash
     noteIndexer.clearCache();
-    return { success: true };
+    return r;
   });
 
   // === 페이지 ===
   ipcMain.handle('lightnote:get-pages', async (_, { notebookId, sectionId }) =>
-    noteStorage.getPages(notebookId, sectionId));
+    noteStorage.getVisiblePages(notebookId, sectionId));
 
   ipcMain.handle('lightnote:create-page', async (_, { notebookId, sectionId, title }) =>
     noteStorage.createPage(notebookId, sectionId, title || '제목 없음'));
@@ -95,11 +105,50 @@ function registerIpcHandlers(ipcMain, getWindow, safeStorage, dialog, app, sched
     noteStorage.renamePage(notebookId, sectionId, id, title));
 
   ipcMain.handle('lightnote:delete-page', async (_, { notebookId, sectionId, id }) => {
-    await noteStorage.deletePage(notebookId, sectionId, id);
+    const r = await noteStorage.softDeletePage(notebookId, sectionId, id); // → Trash
     noteIndexer.invalidateCache(id);
-    linkStorage.removePageLinks(id); // drop event/task links pointing at the deleted page
+    // Links stay put while trashed (so restore re-attaches them); they simply
+    // won't resolve in link lists until restored, and are dropped on purge.
+    return r;
+  });
+
+  // === 휴지통 (Trash) ===
+  ipcMain.handle('lightnote:trash:list', async () => noteStorage.listTrash());
+
+  ipcMain.handle('lightnote:trash:restore', async (_, node) => {
+    let r;
+    if (node.type === 'page') r = await noteStorage.restorePage(node.notebookId, node.sectionId, node.pageId);
+    else if (node.type === 'section') r = await noteStorage.restoreSection(node.notebookId, node.sectionId);
+    else if (node.type === 'notebook') r = await noteStorage.restoreNotebook(node.notebookId);
+    else r = { success: false };
+    noteIndexer.clearCache();
+    return r || { success: false };
+  });
+
+  const dropRefsAndIndex = (pageIds) => {
+    for (const pid of pageIds) { linkStorage.removePageLinks(pid); noteIndexer.invalidateCache(pid); }
+  };
+
+  ipcMain.handle('lightnote:trash:purge', async (_, node) => {
+    let res;
+    if (node.type === 'page') res = await noteStorage.purgePage(node.notebookId, node.sectionId, node.pageId);
+    else if (node.type === 'section') res = await noteStorage.purgeSection(node.notebookId, node.sectionId);
+    else if (node.type === 'notebook') res = await noteStorage.purgeNotebook(node.notebookId);
+    else res = { pageIds: [] };
+    dropRefsAndIndex(res.pageIds || []);
+    noteIndexer.clearCache();
     return { success: true };
   });
+
+  ipcMain.handle('lightnote:trash:empty', async () => {
+    const r = await noteStorage.emptyTrash();
+    dropRefsAndIndex(r.pageIds || []);
+    noteIndexer.clearCache();
+    return { success: true, count: r.count };
+  });
+
+  ipcMain.handle('lightnote:trash:get-retention', async () => ({ days: await noteStorage.getTrashRetentionDays() }));
+  ipcMain.handle('lightnote:trash:set-retention', async (_, { days }) => noteStorage.setTrashRetentionDays(days));
 
   ipcMain.handle('lightnote:duplicate-page', async (_, { notebookId, sectionId, id }) =>
     noteStorage.duplicatePage(notebookId, sectionId, id));
@@ -336,13 +385,14 @@ function registerIpcHandlers(ipcMain, getWindow, safeStorage, dialog, app, sched
     const result = [];
     for (const ref of refs) {
       try {
-        const pages = await noteStorage.getPages(ref.notebookId, ref.sectionId);
+        const pages = await noteStorage.getVisiblePages(ref.notebookId, ref.sectionId);
         const page = pages.find(p => p.id === ref.pageId);
-        if (!page) continue;
-        const notebooks = await noteStorage.getNotebooks();
+        if (!page) continue; // skip trashed / missing pages
+        const notebooks = await noteStorage.getVisibleNotebooks();
         const nb = notebooks.find(n => n.id === ref.notebookId);
-        const sections = await noteStorage.getSections(ref.notebookId);
+        const sections = await noteStorage.getVisibleSections(ref.notebookId);
         const sec = sections.find(s => s.id === ref.sectionId);
+        if (!nb || !sec) continue; // notebook/section is trashed
         result.push({
           pageId: ref.pageId, notebookId: ref.notebookId, sectionId: ref.sectionId,
           title: page.title,
@@ -356,11 +406,11 @@ function registerIpcHandlers(ipcMain, getWindow, safeStorage, dialog, app, sched
   ipcMain.handle('lightnote:links:list-pages', async () => {
     const result = [];
     try {
-      const notebooks = await noteStorage.getNotebooks();
+      const notebooks = await noteStorage.getVisibleNotebooks();
       for (const nb of notebooks) {
-        const sections = await noteStorage.getSections(nb.id);
+        const sections = await noteStorage.getVisibleSections(nb.id);
         for (const sec of sections) {
-          const pages = await noteStorage.getPages(nb.id, sec.id);
+          const pages = await noteStorage.getVisiblePages(nb.id, sec.id);
           for (const page of pages) {
             result.push({
               pageId: page.id, notebookId: nb.id, sectionId: sec.id,
