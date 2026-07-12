@@ -34,7 +34,8 @@ Rules:
 4. Use - bullets for lists.
 5. Bold key keywords and important points with **markdown**.
 6. Remove redundancy and filler.
-7. Output Markdown only (no HTML).${KOREAN_DIRECTIVE}`;
+7. Output Markdown only (no HTML).
+8. Keep any [[IMAGE_n]] placeholder tokens EXACTLY as written (same number), each on its own line, positioned where it best fits the surrounding content. Never remove, rename, merge, or invent these tokens.${KOREAN_DIRECTIVE}`;
 
 const WEB_SEARCH_SYSTEM_PROMPT = `You are a personal AI assistant inside a scheduler app.
 Combine web search results with the user's personal notes and schedule for accurate, up-to-date answers.

@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback, forwardRef, useImperativeHandle } from 'react'
 import Quill from 'quill'
 import type { PageRefLoc } from './types'
+import { serializeForOrganize, markdownToQuillDelta, type ImageOp } from './organize-utils'
 
 // Replace Quill's default class-based size (small/large/huge) with an inline
 // font-size attributor so the toolbar can offer numeric px sizes.
@@ -47,38 +48,11 @@ function extractTextFromDelta(delta: { ops?: Array<{ insert?: unknown }> }): str
   }).join('')
 }
 
-function markdownToQuillDelta(text: string) {
-  const ops: Array<{ insert: string | object; attributes?: Record<string, unknown> }> = []
-  const lines = text.split('\n')
-  for (const line of lines) {
-    const h1 = line.match(/^# (.+)/), h2 = line.match(/^## (.+)/), h3 = line.match(/^### (.+)/)
-    const bullet = line.match(/^[-*] (.+)/)
-    if (h1) { pushInline(ops, h1[1]); ops.push({ insert: '\n', attributes: { header: 1 } }) }
-    else if (h2) { pushInline(ops, h2[1]); ops.push({ insert: '\n', attributes: { header: 2 } }) }
-    else if (h3) { pushInline(ops, h3[1]); ops.push({ insert: '\n', attributes: { header: 3 } }) }
-    else if (bullet) { pushInline(ops, bullet[1]); ops.push({ insert: '\n', attributes: { list: 'bullet' } }) }
-    else { pushInline(ops, line); ops.push({ insert: '\n' }) }
-  }
-  return { ops }
-}
-
-function pushInline(ops: Array<{ insert: string | object; attributes?: Record<string, unknown> }>, text: string) {
-  const parts = text.split(/(\*\*[^*]+?\*\*|\*[^*]+?\*)/g)
-  for (const part of parts) {
-    if (!part) continue
-    if (part.startsWith('**') && part.endsWith('**') && part.length > 4) {
-      ops.push({ insert: part.slice(2, -2), attributes: { bold: true } })
-    } else if (part.startsWith('*') && part.endsWith('*') && part.length > 2) {
-      ops.push({ insert: part.slice(1, -1), attributes: { italic: true } })
-    } else {
-      ops.push({ insert: part })
-    }
-  }
-}
-
 function renderOrganizePreview(text: string): string {
   const lines = text.split('\n')
   return lines.map(line => {
+    const imgTok = line.match(/^\s*\[\[IMAGE_(\d+)\]\]\s*$/)
+    if (imgTok) return `<p style="color:#7c6ff0;font-size:12px;margin:4px 0">🖼 이미지 ${imgTok[1]}</p>`
     const h1 = line.match(/^# (.+)/), h2 = line.match(/^## (.+)/), h3 = line.match(/^### (.+)/)
     const bullet = line.match(/^[-*] (.+)/)
     const esc = (s: string) => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
@@ -153,6 +127,8 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage }, 
   const quillRef = useRef<Quill | null>(null)
   const saveTimerRef = useRef<ReturnType<typeof setTimeout>>()
   const titleTimerRef = useRef<ReturnType<typeof setTimeout>>()
+  // Images pulled out of the page for AI Organize, re-inserted when applied.
+  const organizeImagesRef = useRef<ImageOp[]>([])
   const isDirtyRef = useRef(false)
   const currentPageRef = useRef(currentPage)
   const initializedRef = useRef(false)
@@ -227,6 +203,12 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage }, 
       theme: 'snow',
       placeholder: 'Start writing…',
       modules: {
+        // Disable Quill's "list autofill": typing "1. " (or "- ") at line start
+        // used to auto-convert into an ordered/bullet list, so a second "1."
+        // became "2.". Overriding the binding with a no-op that returns true
+        // lets the space insert normally → typed numbers stay literal. Real
+        // lists are still available via the toolbar buttons.
+        keyboard: { bindings: { 'list autofill': { key: ' ', handler: () => true } } },
         toolbar: [
           [{ header: [1, 2, 3, false] }],
           [{ size: SIZE_LIST }],
@@ -745,8 +727,12 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage }, 
 
   const handleOrganize = async () => {
     if (!currentPage || isOrganizing) return
-    const text = quillRef.current ? extractTextFromDelta(quillRef.current.getContents() as { ops?: Array<{ insert?: unknown }> }) : ''
-    if (!text.trim() || text.trim() === '\n') {
+    const { text, images } = quillRef.current
+      ? serializeForOrganize(quillRef.current.getContents() as { ops?: Array<{ insert?: unknown; attributes?: Record<string, unknown> }> })
+      : { text: '', images: [] as ImageOp[] }
+    organizeImagesRef.current = images
+    // Only images (no prose) is still worth organizing — they'll be preserved.
+    if ((!text.trim() || text.trim() === '\n') && images.length === 0) {
       alert('Nothing to organize. Write a note first.')
       return
     }
@@ -765,7 +751,7 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage }, 
 
   const applyOrganize = () => {
     if (!organizeText || !quillRef.current) return
-    const delta = markdownToQuillDelta(organizeText)
+    const delta = markdownToQuillDelta(organizeText, organizeImagesRef.current)
     quillRef.current.setContents(delta as Parameters<typeof quillRef.current.setContents>[0], 'user')
     setShowOrganize(false)
     setOrganizeText('')
