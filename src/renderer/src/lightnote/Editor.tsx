@@ -19,6 +19,37 @@ for (let i = 6; i <= 150; i++) FULL_SIZE_WHITELIST.push(`${i}px`)
   Quill.register(SizeStyle as unknown as Parameters<typeof Quill.register>[0], true)
 }
 
+// Two custom BLOCK formats:
+//  • liststart — starts an ordered list at an arbitrary number (data-list-start
+//    on the <li>; the generated CSS below counter-sets list-0 so "5. " → 5).
+//  • toclevel — marks a line for the table of contents (class ql-toc-1/2/3)
+//    WITHOUT changing its font/size, so a line can be an outline entry while
+//    looking like body text (Word's "outline level").
+{
+  const Parchment = Quill.import('parchment') as unknown as {
+    Attributor: new (n: string, k: string, o: unknown) => unknown
+    ClassAttributor: new (n: string, k: string, o: unknown) => unknown
+    Scope: { BLOCK: number }
+  }
+  const ListStart = new Parchment.Attributor('liststart', 'data-list-start', { scope: Parchment.Scope.BLOCK })
+  const TocLevel = new Parchment.ClassAttributor('toclevel', 'ql-toc', { scope: Parchment.Scope.BLOCK, whitelist: ['1', '2', '3'] })
+  Quill.register(ListStart as Parameters<typeof Quill.register>[0], true)
+  Quill.register(TocLevel as Parameters<typeof Quill.register>[0], true)
+
+  // Arbitrary ordered-list start values: counter-set the top-level list counter
+  // so the first item shows N (its own +1 increment lands it on N).
+  if (typeof document !== 'undefined' && !document.getElementById('ln-liststart-style')) {
+    const s = document.createElement('style')
+    s.id = 'ln-liststart-style'
+    // Only the FIRST item of a list run applies the offset; later items (which
+    // inherit data-list-start) must increment normally, so scope to :first-child.
+    let css = ''
+    for (let n = 2; n <= 200; n++) css += `.ql-editor li[data-list=ordered][data-list-start="${n}"]:first-child{counter-set:list-0 ${n - 1}}`
+    s.textContent = css
+    document.head.appendChild(s)
+  }
+}
+
 export interface EditorHandle {
   loadPage: (nbId: string, secId: string, pageId: string) => Promise<void>
   clearEditor: () => void
@@ -134,6 +165,9 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
   // Latest onHeadingsChange, so the (once-only) Quill effect can call it fresh.
   const onHeadingsChangeRef = useRef(onHeadingsChange)
   useEffect(() => { onHeadingsChangeRef.current = onHeadingsChange }, [onHeadingsChange])
+  // Returns the TOC anchor elements (headings + toclevel lines) in doc order —
+  // shared by heading extraction and scrollToHeading so indices line up.
+  const tocAnchorsRef = useRef<() => HTMLElement[]>(() => [])
   const isDirtyRef = useRef(false)
   const currentPageRef = useRef(currentPage)
   const initializedRef = useRef(false)
@@ -204,17 +238,66 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
     if (initializedRef.current || !editorDivRef.current) return
     initializedRef.current = true
 
+    const QDelta = Quill.import('delta') as unknown as new () => {
+      retain: (n: number, a?: unknown) => unknown; delete: (n: number) => unknown
+    }
     const quill = new Quill(editorDivRef.current, {
       theme: 'snow',
       placeholder: 'Start writing…',
       modules: {
-        // Word-style list autofill (Quill default): typing "1. " / "- " at line
-        // start auto-converts to an ordered/bullet list. It's recorded as one
-        // history step, so an immediate Ctrl+Z undoes ONLY the conversion and
-        // leaves the literal "1. " text — matching Word's behavior. Typing "1. "
-        // again re-applies it.
+        keyboard: {
+          bindings: {
+            // Word-style list autofill: "1. " / "- " / "[]" at line start converts
+            // to a list. Extends Quill's default so a leading number becomes the
+            // list's START value ("5. " → starts at 5). Recorded as one history
+            // step → an immediate Ctrl+Z reverts just the conversion (literal
+            // "1. " remains); typing it again re-applies.
+            'list autofill': {
+              key: ' ',
+              shiftKey: null,
+              collapsed: true,
+              format: { 'code-block': false, blockquote: false, table: false },
+              prefix: /^\s*?(\d+)[.)]$|^\s*?([-*])$|^\s*?(\[ ?\]|\[x\])$/,
+              handler(this: { quill: typeof quill }, range: { index: number }, context: { prefix: string }) {
+                const q = this.quill
+                if (q.scroll.query('list') == null) return true
+                const prefix = context.prefix
+                const { length } = prefix
+                const [line, offset] = q.getLine(range.index)
+                if (!line || offset > length) return true
+                const trimmed = prefix.trim()
+                let value = 'ordered'
+                let start = 1
+                const num = trimmed.match(/^(\d+)[.)]$/)
+                if (num) { value = 'ordered'; start = parseInt(num[1], 10) }
+                else if (trimmed === '-' || trimmed === '*') value = 'bullet'
+                else if (trimmed === '[]' || trimmed === '[ ]') value = 'unchecked'
+                else if (trimmed === '[x]') value = 'checked'
+                q.insertText(range.index, ' ', Quill.sources.USER)
+                q.history.cutoff()
+                // Set liststart only for an ordered list starting above 1; clear it
+                // (null) otherwise so a fresh "1. " list doesn't inherit a stray
+                // start from the line above.
+                const attrs: Record<string, unknown> = {
+                  list: value,
+                  liststart: (value === 'ordered' && start !== 1) ? String(start) : null,
+                }
+                const delta = new QDelta()
+                  .retain(range.index - offset)
+                  .delete(length + 1)
+                  .retain((line.length() as number) - 2 - offset)
+                  .retain(1, attrs)
+                q.updateContents(delta as Parameters<typeof q.updateContents>[0], Quill.sources.USER)
+                q.history.cutoff()
+                q.setSelection(range.index - length, Quill.sources.SILENT)
+                return false
+              }
+            }
+          }
+        },
         toolbar: [
           [{ header: [1, 2, 3, false] }],
+          [{ toclevel: [false, '1', '2', '3'] }],
           [{ size: SIZE_LIST }],
           ['bold', 'italic', 'underline', 'strike'],
           [{ color: [] }, { background: [] }],
@@ -246,6 +329,7 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
         '.ql-color': '글자 색 (Text color)',
         '.ql-background': '배경 색 (Highlight)',
         '.ql-header': '제목 스타일 (Heading)',
+        '.ql-toclevel': '목차 수준 (Outline level — 크기 변화 없이 목차에만 추가)',
         '.ql-size': '글자 크기 (Size)',
       }
       for (const [sel, label] of Object.entries(titles)) {
@@ -606,14 +690,25 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
       }
       setFoldChevrons(chevs)
 
-      // Table of contents: emit the heading list (h1/h2/h3 in document order,
-      // same order scrollToHeading uses) — only when it actually changed.
-      const hEls = Array.from(root.querySelectorAll('h1,h2,h3')) as HTMLElement[]
-      const headings = hEls.map((el, idx) => ({ level: levelOf(el), text: (el.innerText || '').trim(), index: idx }))
+      // Table of contents: headings (H1-3) AND toclevel-marked lines, in document
+      // order (same order scrollToHeading uses) — emitted only when it changes.
+      const anchors = tocAnchorsRef.current()
+      const headings = anchors.map((el, idx) => ({ level: tocLevelOf(el), text: (el.innerText || '').trim(), index: idx }))
       const sig = headings.map(h => `${h.level}:${h.text}`).join('|')
       if (sig !== lastTocSig) { lastTocSig = sig; onHeadingsChangeRef.current?.(headings) }
     }
     let lastTocSig = ''
+    // A block counts as a TOC anchor if it's a heading OR carries a toclevel class.
+    const tocLevelOf = (el: HTMLElement): number => {
+      if (el.tagName === 'H1') return 1
+      if (el.tagName === 'H2') return 2
+      if (el.tagName === 'H3') return 3
+      if (el.classList.contains('ql-toc-1')) return 1
+      if (el.classList.contains('ql-toc-2')) return 2
+      if (el.classList.contains('ql-toc-3')) return 3
+      return 0
+    }
+    tocAnchorsRef.current = () => (Array.from(quill.root.children) as HTMLElement[]).filter(el => tocLevelOf(el) > 0)
     recomputeFoldsRef.current = recomputeFolds
     let foldRaf = 0
     const scheduleFolds = () => {
@@ -722,8 +817,7 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
       return extractTextFromDelta(quillRef.current.getContents() as { ops?: Array<{ insert?: unknown }> })
     },
     scrollToHeading: (index: number) => {
-      const els = quillRef.current?.root.querySelectorAll('h1,h2,h3')
-      const el = els?.[index] as HTMLElement | undefined
+      const el = tocAnchorsRef.current()[index]
       if (el) {
         el.scrollIntoView({ behavior: 'smooth', block: 'start' })
         el.classList.add('ln-toc-flash')

@@ -304,6 +304,23 @@ html, body {
    row height stable so the icons stay aligned. */
 .ql-snow .ql-picker.ql-size .ql-picker-label::before { font-size: 13px !important; line-height: 22px; }
 
+/* Outline level ("목차 수준") picker — marks a line for the TOC without changing
+   its font/size. Labels shown at a normal size like the other pickers. */
+.ql-snow .ql-picker.ql-toclevel { width: 78px; }
+.ql-snow .ql-picker.ql-toclevel .ql-picker-label::before { content: '목차수준'; font-size: 13px; line-height: 22px; }
+.ql-snow .ql-picker.ql-toclevel .ql-picker-item::before { content: '없음'; }
+.ql-snow .ql-picker.ql-toclevel .ql-picker-label[data-value="1"]::before,
+.ql-snow .ql-picker.ql-toclevel .ql-picker-item[data-value="1"]::before { content: '목차 1'; }
+.ql-snow .ql-picker.ql-toclevel .ql-picker-label[data-value="2"]::before,
+.ql-snow .ql-picker.ql-toclevel .ql-picker-item[data-value="2"]::before { content: '목차 2'; }
+.ql-snow .ql-picker.ql-toclevel .ql-picker-label[data-value="3"]::before,
+.ql-snow .ql-picker.ql-toclevel .ql-picker-item[data-value="3"]::before { content: '목차 3'; }
+
+/* An outline-marked line: subtle left accent, but body font/size unchanged. */
+.ql-editor .ql-toc-1, .ql-editor .ql-toc-2, .ql-editor .ql-toc-3 {
+  border-left: 2px solid var(--accent); padding-left: 8px;
+}
+
 /* Consistent toolbar layout: flex row, vertically centred, even spacing. */
 .ql-toolbar.ql-snow { display: flex; flex-wrap: wrap; align-items: center; row-gap: 3px; }
 .ql-toolbar.ql-snow .ql-formats { display: inline-flex; align-items: center; margin-right: 8px; height: 24px; }
@@ -481,10 +498,15 @@ html, body {
   overflow-y: auto;
   padding: 20px 40px;
   color: var(--text);
-  line-height: 1.7;
+  /* Unitless so each line's height tracks its OWN font size: shrink the text
+     and the row shrinks with it (previously a fixed 1.7 × 14px base kept rows
+     tall no matter how small the text). */
+  line-height: 1.35;
   caret-color: var(--accent);
   user-select: text;
 }
+/* Dash (–) bullet marker instead of Quill's default • (per request). */
+.ql-editor li[data-list=bullet] > .ql-ui::before { content: '–'; }
 .ql-editor::-webkit-scrollbar { width: 6px; }
 .ql-editor::-webkit-scrollbar-thumb { background: var(--bg4); border-radius: 3px; }
 .ql-editor p, .ql-editor ol, .ql-editor ul, .ql-editor pre, .ql-editor blockquote { margin-bottom: 6px; }

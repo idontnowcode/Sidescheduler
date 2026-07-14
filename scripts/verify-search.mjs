@@ -59,6 +59,12 @@ ok('case-insensitive', r.length === 2, `${r.length}`)
 r = await search('budget pasta')
 ok('AND with no common page → empty', r.length === 0, `${r.length}`)
 
+// Path search: the notebook name ("Docs") / section name ("Sec") are searchable.
+r = await search('Docs')
+ok('matches on notebook name (path)', r.length === 3, `${r.length}`)
+r = await search('Docs pasta')
+ok('AND across path + body (Docs + pasta → recipe only)', r.length === 1 && r[0].pageId === ids.c, r.map(x => x.title).join(', '))
+
 // Trashed pages are excluded from results.
 await ln.evaluate(({ nb, sec, a }) => window.lightnote.deletePage(nb, sec, a), ids)
 r = await search('marketing')

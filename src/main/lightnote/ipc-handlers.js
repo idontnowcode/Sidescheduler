@@ -160,7 +160,9 @@ function registerIpcHandlers(ipcMain, getWindow, safeStorage, dialog, app, sched
             const content = await noteStorage.loadPage(nb.id, sec.id, pg.id);
             text = (content.delta?.ops || []).filter(o => typeof o.insert === 'string').map(o => o.insert).join('');
           } catch { /* skip unreadable page */ }
-          const haystack = `${pg.title}\n${text}`.toLowerCase();
+          // Search title + body + path (notebook / section names) so a term
+          // like "Firmware" or "Begin" surfaces its pages too.
+          const haystack = `${pg.title}\n${nb.name}\n${sec.name}\n${text}`.toLowerCase();
           if (!terms.every(t => haystack.includes(t))) continue;
           // Snippet around the first matching term found in the body.
           const lowBody = text.toLowerCase();
