@@ -43,6 +43,9 @@ contextBridge.exposeInMainWorld('lightnote', {
   trashGetRetention: () => ipcRenderer.invoke('lightnote:trash:get-retention'),
   trashSetRetention: (days) => ipcRenderer.invoke('lightnote:trash:set-retention', { days }),
 
+  // Full-text search (title + body), AND across terms
+  searchNotes: (query) => ipcRenderer.invoke('lightnote:search-notes', { query }),
+
   // Page ↔ page links
   getPageRefs: (pageId) => ipcRenderer.invoke('lightnote:page-refs:get', { pageId }),
   addPageRef: (a, b) => ipcRenderer.invoke('lightnote:page-refs:add', { a, b }),

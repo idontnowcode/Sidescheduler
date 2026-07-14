@@ -47,6 +47,9 @@ export interface WebSource {
 }
 
 export interface PageRefLoc { pageId: string; notebookId: string; sectionId: string; title: string; notebookName?: string; sectionName?: string }
+export interface SearchResult { pageId: string; notebookId: string; sectionId: string; title: string; notebookName: string; sectionName: string; snippet: string }
+// A heading extracted from the current page, for the table of contents.
+export interface TocItem { level: number; text: string; index: number }
 
 // A node in the Trash tree (a deletion root and its materialized subtree).
 export interface TrashNode {
@@ -94,6 +97,7 @@ declare global {
       trashEmpty: () => Promise<{ success: boolean; count: number }>
       trashGetRetention: () => Promise<{ days: number }>
       trashSetRetention: (days: number) => Promise<{ retentionDays: number }>
+      searchNotes: (query: string) => Promise<SearchResult[]>
       listAllPages: () => Promise<PageRefLoc[]>
       copyPageLink: (pageId: string) => Promise<string>
       dedupPages: () => Promise<{ removed: number; separated: number }>

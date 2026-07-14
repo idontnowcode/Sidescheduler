@@ -1,10 +1,12 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
 import 'quill/dist/quill.snow.css'
 import './lightnote.css'
-import type { Selected, TrashNode } from './types'
+import type { Selected, TrashNode, SearchResult, TocItem } from './types'
 import NotebookTree, { type TreeHandle } from './NotebookTree'
 import Editor, { type EditorHandle } from './Editor'
 import TrashViewer from './TrashViewer'
+import SearchBar from './SearchBar'
+import TocPanel from './TocPanel'
 import AIAssistant from './AIAssistant'
 import SettingsModal, { initAppearance } from './SettingsModal'
 
@@ -15,6 +17,7 @@ export default function LightnoteApp() {
   const [isAiOpen, setIsAiOpen] = useState(false)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [aiPanelWidth, setAiPanelWidth] = useState(320)
+  const [toc, setToc] = useState<TocItem[]>([])
 
   const editorRef = useRef<EditorHandle>(null)
   const treeRef = useRef<TreeHandle>(null)
@@ -104,10 +107,15 @@ export default function LightnoteApp() {
     if (treeRef.current) await treeRef.current.reload()
   }, [])
 
+  const openSearchResult = useCallback((r: SearchResult) => {
+    handlePageSelect(r.notebookId, r.sectionId, r.pageId, `${r.notebookName} › ${r.sectionName} › ${r.title}`)
+  }, [handlePageSelect])
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
       <header className="app-header">
         <span className="app-name">LightNote</span>
+        <SearchBar onOpen={openSearchResult} />
         <div className="header-actions">
           <button className="icon-btn" title="AI Assistant (Ctrl+F)" onClick={() => setIsAiOpen(v => !v)}>
             🤖 AI
@@ -132,6 +140,7 @@ export default function LightnoteApp() {
             ref={editorRef}
             onOpenSettings={() => setIsSettingsOpen(true)}
             onOpenPage={handlePageSelect}
+            onHeadingsChange={setToc}
           />
           {trashNode && (
             <TrashViewer
@@ -142,6 +151,8 @@ export default function LightnoteApp() {
             />
           )}
         </div>
+
+        {!trashNode && <TocPanel items={toc} onJump={(i) => editorRef.current?.scrollToHeading(i)} />}
 
         {isAiOpen && (
           <AIAssistant

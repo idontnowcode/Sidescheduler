@@ -24,11 +24,13 @@ export interface EditorHandle {
   clearEditor: () => void
   getCurrentPage: () => { notebookId: string; sectionId: string; pageId: string } | null
   getQuillText: () => string
+  scrollToHeading: (index: number) => void
 }
 
 interface Props {
   onOpenSettings: () => void
   onOpenPage?: (nbId: string, secId: string, pageId: string, crumb: string) => void
+  onHeadingsChange?: (items: { level: number; text: string; index: number }[]) => void
 }
 
 type SaveState = 'saved' | 'saving' | 'editing' | 'error'
@@ -97,7 +99,7 @@ function fmtEventWhen(start: number, end?: number) {
   return `${fmtDate(start)} ${fmtTime(start)}${end ? `–${fmtTime(end)}` : ''}`
 }
 
-const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage }, ref) => {
+const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, onHeadingsChange }, ref) => {
   const [currentPage, setCurrentPage] = useState<{ notebookId: string; sectionId: string; pageId: string } | null>(null)
   const [titleValue, setTitleValue] = useState('')
   const [saveState, setSaveState] = useState<SaveState>('saved')
@@ -129,6 +131,9 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage }, 
   const titleTimerRef = useRef<ReturnType<typeof setTimeout>>()
   // Images pulled out of the page for AI Organize, re-inserted when applied.
   const organizeImagesRef = useRef<ImageOp[]>([])
+  // Latest onHeadingsChange, so the (once-only) Quill effect can call it fresh.
+  const onHeadingsChangeRef = useRef(onHeadingsChange)
+  useEffect(() => { onHeadingsChangeRef.current = onHeadingsChange }, [onHeadingsChange])
   const isDirtyRef = useRef(false)
   const currentPageRef = useRef(currentPage)
   const initializedRef = useRef(false)
@@ -203,12 +208,11 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage }, 
       theme: 'snow',
       placeholder: 'Start writing…',
       modules: {
-        // Disable Quill's "list autofill": typing "1. " (or "- ") at line start
-        // used to auto-convert into an ordered/bullet list, so a second "1."
-        // became "2.". Overriding the binding with a no-op that returns true
-        // lets the space insert normally → typed numbers stay literal. Real
-        // lists are still available via the toolbar buttons.
-        keyboard: { bindings: { 'list autofill': { key: ' ', handler: () => true } } },
+        // Word-style list autofill (Quill default): typing "1. " / "- " at line
+        // start auto-converts to an ordered/bullet list. It's recorded as one
+        // history step, so an immediate Ctrl+Z undoes ONLY the conversion and
+        // leaves the literal "1. " text — matching Word's behavior. Typing "1. "
+        // again re-applies it.
         toolbar: [
           [{ header: [1, 2, 3, false] }],
           [{ size: SIZE_LIST }],
@@ -601,7 +605,15 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage }, 
         pushChev(b, 17)
       }
       setFoldChevrons(chevs)
+
+      // Table of contents: emit the heading list (h1/h2/h3 in document order,
+      // same order scrollToHeading uses) — only when it actually changed.
+      const hEls = Array.from(root.querySelectorAll('h1,h2,h3')) as HTMLElement[]
+      const headings = hEls.map((el, idx) => ({ level: levelOf(el), text: (el.innerText || '').trim(), index: idx }))
+      const sig = headings.map(h => `${h.level}:${h.text}`).join('|')
+      if (sig !== lastTocSig) { lastTocSig = sig; onHeadingsChangeRef.current?.(headings) }
     }
+    let lastTocSig = ''
     recomputeFoldsRef.current = recomputeFolds
     let foldRaf = 0
     const scheduleFolds = () => {
@@ -708,6 +720,15 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage }, 
     getQuillText: () => {
       if (!quillRef.current) return ''
       return extractTextFromDelta(quillRef.current.getContents() as { ops?: Array<{ insert?: unknown }> })
+    },
+    scrollToHeading: (index: number) => {
+      const els = quillRef.current?.root.querySelectorAll('h1,h2,h3')
+      const el = els?.[index] as HTMLElement | undefined
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        el.classList.add('ln-toc-flash')
+        setTimeout(() => el.classList.remove('ln-toc-flash'), 900)
+      }
     }
   }))
 

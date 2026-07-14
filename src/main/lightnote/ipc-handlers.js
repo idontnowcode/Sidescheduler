@@ -147,6 +147,38 @@ function registerIpcHandlers(ipcMain, getWindow, safeStorage, dialog, app, sched
     return { success: true, count: r.count };
   });
 
+  // === 검색 (title + body, AND across whitespace/.,-separated terms) ===
+  ipcMain.handle('lightnote:search-notes', async (_, { query }) => {
+    const terms = String(query || '').toLowerCase().split(/[\s.,]+/).filter(Boolean);
+    if (terms.length === 0) return [];
+    const results = [];
+    for (const nb of await noteStorage.getVisibleNotebooks()) {
+      for (const sec of await noteStorage.getVisibleSections(nb.id)) {
+        for (const pg of await noteStorage.getVisiblePages(nb.id, sec.id)) {
+          let text = '';
+          try {
+            const content = await noteStorage.loadPage(nb.id, sec.id, pg.id);
+            text = (content.delta?.ops || []).filter(o => typeof o.insert === 'string').map(o => o.insert).join('');
+          } catch { /* skip unreadable page */ }
+          const haystack = `${pg.title}\n${text}`.toLowerCase();
+          if (!terms.every(t => haystack.includes(t))) continue;
+          // Snippet around the first matching term found in the body.
+          const lowBody = text.toLowerCase();
+          let at = -1;
+          for (const t of terms) { const i = lowBody.indexOf(t); if (i >= 0 && (at < 0 || i < at)) at = i; }
+          const snippet = at >= 0
+            ? (at > 25 ? '…' : '') + text.slice(Math.max(0, at - 25), at + 60).replace(/\s+/g, ' ').trim()
+            : '';
+          results.push({
+            notebookId: nb.id, sectionId: sec.id, pageId: pg.id,
+            title: pg.title, notebookName: nb.name, sectionName: sec.name, snippet,
+          });
+        }
+      }
+    }
+    return results;
+  });
+
   ipcMain.handle('lightnote:trash:get-retention', async () => ({ days: await noteStorage.getTrashRetentionDays() }));
   ipcMain.handle('lightnote:trash:set-retention', async (_, { days }) => noteStorage.setTrashRetentionDays(days));
 
