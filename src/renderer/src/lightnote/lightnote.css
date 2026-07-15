@@ -580,6 +580,15 @@ html, body {
    invisible on the dark theme — use the theme border + readable padding. */
 .ql-editor table { border-collapse: collapse; margin: 8px 0; }
 .ql-editor td { border: 1px solid var(--border); padding: 4px 9px; min-width: 42px; vertical-align: top; }
+
+/* Table insert button glyph + size-picker popover. */
+.ql-toolbar.ql-snow button.ql-inserttable { font-size: 15px; }
+.tbl-picker { position: fixed; z-index: 1201; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 10px 30px rgba(0,0,0,0.4); padding: 8px; }
+.tbl-grid { display: flex; flex-direction: column; gap: 2px; }
+.tbl-grid-row { display: flex; gap: 2px; }
+.tbl-cell { width: 16px; height: 16px; border: 1px solid var(--border); border-radius: 2px; background: var(--bg); cursor: pointer; }
+.tbl-cell.on { background: var(--accent); border-color: var(--accent); }
+.tbl-picker-label { text-align: center; font-size: 11px; color: var(--text-dim); margin-top: 6px; }
 .ql-editor img { max-width: 100%; border-radius: 4px; cursor: pointer; }
 .ql-editor a { color: var(--accent); }
 .ql-editor strong { color: var(--text); }
