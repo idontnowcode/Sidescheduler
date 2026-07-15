@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback, forwardRef, useImperativeHandle } from 'react'
 import Quill from 'quill'
-import TableUp, { defaultCustomSelect, TableAlign, TableMenuContextmenu, TableResizeBox, TableSelection } from 'quill-table-up'
+import TableUp, { defaultCustomSelect, TableAlign, TableMenuContextmenu, TableResizeLine, TableSelection } from 'quill-table-up'
 import 'quill-table-up/index.css'
 import 'quill-table-up/table-creator.css'
 import type { PageRefLoc } from './types'
@@ -309,7 +309,7 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
           customSelect: defaultCustomSelect,
           texts: tableTexts,
           modules: [
-            { module: TableResizeBox },
+            { module: TableResizeLine },    // drag a cell border to resize the column/row
             { module: TableAlign },
             { module: TableSelection },     // drag-select a rectangle of cells
             { module: TableMenuContextmenu }, // right-click → merge/split, add/remove row+col
