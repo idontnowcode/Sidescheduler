@@ -43,7 +43,7 @@ const markers = await ln.evaluate(() => {
     unchecked: unchecked ? getComputedStyle(unchecked, '::before').content : null,
   }
 })
-ok('checked item shows a ✔ mark', markers.checked?.includes('✔'), JSON.stringify(markers))
+ok('checked item shows a ✓ check (text glyph, not emoji)', markers.checked?.includes('✓'), JSON.stringify(markers))
 ok('checked mark is green', /rgb\(47, 158, 68\)/.test(markers.checkedColor || ''), markers.checkedColor)
 ok('unchecked item shows an empty box', markers.unchecked?.includes('☐'), JSON.stringify(markers))
 

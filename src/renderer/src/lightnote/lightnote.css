@@ -566,7 +566,12 @@ html, body {
 /* Checklist markers: empty box when unchecked, a green check (✔) when checked
    (Quill's default ☑/☐ glyphs render inconsistently). */
 .ql-editor li[data-list=unchecked] > .ql-ui::before { content: '☐'; font-size: 15px; }
-.ql-editor li[data-list=checked] > .ql-ui::before { content: '✔'; color: #2f9e44; font-weight: 700; }
+/* U+2713 (text-presentation check) + FE0E, and a symbol font, so it never
+   falls back to a color emoji (the previous U+2714 rendered as an emoji). */
+.ql-editor li[data-list=checked] > .ql-ui::before {
+  content: '\2713\FE0E'; color: #2f9e44; font-weight: 700;
+  font-family: 'Segoe UI Symbol', 'Arial', system-ui, sans-serif;
+}
 .ql-editor li[data-list=checked] { color: var(--text-dim); text-decoration: line-through; }
 .ql-editor::-webkit-scrollbar { width: 6px; }
 .ql-editor::-webkit-scrollbar-thumb { background: var(--bg4); border-radius: 3px; }
