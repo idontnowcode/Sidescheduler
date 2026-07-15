@@ -19,7 +19,7 @@ export default function TrashViewer({ node, onRestore, onPurge, onClose }: Props
   useEffect(() => {
     if (!elRef.current) return
     if (!quillRef.current) {
-      quillRef.current = new Quill(elRef.current, { readOnly: true, theme: 'snow', modules: { toolbar: false, table: true } })
+      quillRef.current = new Quill(elRef.current, { readOnly: true, theme: 'snow', modules: { toolbar: false } })
     }
     const q = quillRef.current
     q.setContents([] as unknown as Parameters<typeof q.setContents>[0], 'silent')

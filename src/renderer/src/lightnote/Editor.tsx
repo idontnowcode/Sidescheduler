@@ -1,7 +1,26 @@
 import { useState, useRef, useEffect, useCallback, forwardRef, useImperativeHandle } from 'react'
 import Quill from 'quill'
+import TableUp, { defaultCustomSelect, TableAlign, TableMenuContextmenu, TableResizeBox, TableSelection } from 'quill-table-up'
+import 'quill-table-up/index.css'
+import 'quill-table-up/table-creator.css'
 import type { PageRefLoc } from './types'
 import { serializeForOrganize, markdownToQuillDelta, type ImageOp } from './organize-utils'
+
+// Full table support (insert/delete row+column, MERGE/SPLIT cells, resize) via
+// quill-table-up — replaces Quill's basic built-in table module.
+Quill.register({ [`modules/${TableUp.moduleName}`]: TableUp }, true)
+
+// Korean labels for the table menu / insert dialog.
+const TABLE_TEXTS_KO: Record<string, string> = {
+  fullCheckboxText: '전체 너비 표 삽입', customBtnText: '사용자 지정', confirmText: '확인', cancelText: '취소',
+  rowText: '행', colText: '열', notPositiveNumberError: '양의 정수를 입력하세요', custom: '사용자 지정', clear: '지우기',
+  transparent: '투명', perWidthInsufficient: '너비가 부족합니다. 고정 너비로 변환할까요?',
+  InsertTop: '위에 행 삽입', InsertRight: '오른쪽에 열 삽입', InsertBottom: '아래에 행 삽입', InsertLeft: '왼쪽에 열 삽입',
+  MergeCell: '셀 병합', SplitCell: '셀 분리', DeleteRow: '행 삭제', DeleteColumn: '열 삭제', DeleteTable: '표 삭제',
+  BackgroundColor: '배경색', BorderColor: '테두리색', SwitchWidth: '표 너비 전환', InsertCaption: '표 캡션',
+  ToggleTdBetweenTh: '헤더 셀 전환',
+}
+const tableTexts = (key: string) => TABLE_TEXTS_KO[key] ?? key
 
 // Replace Quill's default class-based size (small/large/huge) with an inline
 // font-size attributor so the toolbar can offer numeric px sizes.
@@ -162,16 +181,6 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
   // Image resize overlay: position + size + the target img element
   const [resizeBox, setResizeBox] = useState<{ left: number; top: number; w: number; h: number } | null>(null)
   const resizeTargetRef = useRef<HTMLImageElement | null>(null)
-  // Table editing: insert-size grid popover + right-click cell menu.
-  const [tablePicker, setTablePicker] = useState<{ x: number; y: number } | null>(null)
-  const [tableHover, setTableHover] = useState<{ r: number; c: number }>({ r: 0, c: 0 })
-  const [tableMenu, setTableMenu] = useState<{ x: number; y: number } | null>(null)
-  const tableModuleRef = useRef<{
-    insertTable: (r: number, c: number) => void
-    insertRowAbove: () => void; insertRowBelow: () => void
-    insertColumnLeft: () => void; insertColumnRight: () => void
-    deleteRow: () => void; deleteColumn: () => void; deleteTable: () => void
-  } | null>(null)
 
   // OneNote-style heading fold: which foldable blocks are collapsed (view-only,
   // never written to the delta). Keyed by the block's index among fold candidates
@@ -296,7 +305,16 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
       theme: 'snow',
       placeholder: 'Start writing…',
       modules: {
-        table: true, // enables table blots so pasted Excel/Word tables keep their grid
+        [TableUp.moduleName]: {
+          customSelect: defaultCustomSelect,
+          texts: tableTexts,
+          modules: [
+            { module: TableResizeBox },
+            { module: TableAlign },
+            { module: TableSelection },     // drag-select a rectangle of cells
+            { module: TableMenuContextmenu }, // right-click → merge/split, add/remove row+col
+          ],
+        },
         keyboard: {
           bindings: {
             // On an EMPTY outline line, Enter steps the level down (3→2→1→none)
@@ -373,16 +391,11 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
             ['color-apply', { color: SWATCHES }, 'bg-apply', { background: SWATCHES }],
             [{ list: 'ordered' }, { list: 'bullet' }, { list: 'check' }],
             ['blockquote', 'code-block'],
-            ['link', 'image', 'inserttable'],
+            ['link', 'image'],
+            [{ [TableUp.toolName]: [] }], // table insert picker (quill-table-up)
             ['clean'],
           ],
           handlers: {
-            inserttable: function () {
-              const btn = document.querySelector('.ql-toolbar .ql-inserttable')
-              const r = btn ? btn.getBoundingClientRect() : { left: 200, bottom: 80 } as DOMRect
-              setTableHover({ r: 0, c: 0 })
-              setTablePicker({ x: r.left, y: r.bottom + 4 })
-            },
             'color-apply': function (this: { quill: typeof quill }) { this.quill.format('color', lastColorRef.current, Quill.sources.USER) },
             'bg-apply': function (this: { quill: typeof quill }) { this.quill.format('background', lastBgRef.current, Quill.sources.USER) },
             color: function (this: { quill: typeof quill }, value: string) {
@@ -398,20 +411,6 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
       }
     })
     quillRef.current = quill
-    tableModuleRef.current = quill.getModule('table') as typeof tableModuleRef.current
-
-    // Right-click inside a table cell → a menu to add/remove rows & columns.
-    // The op runs on the current selection, so first move the caret into the cell.
-    quill.root.addEventListener('contextmenu', (e: MouseEvent) => {
-      const td = (e.target as HTMLElement).closest?.('td')
-      if (!td || !quill.root.contains(td)) return
-      e.preventDefault()
-      e.stopPropagation()
-      const blot = (Quill as unknown as { find: (n: Node) => unknown | null }).find(td)
-      if (blot) quill.setSelection(quill.getIndex(blot as Parameters<typeof quill.getIndex>[0]), 0, Quill.sources.SILENT)
-      setTablePicker(null)
-      setTableMenu({ x: e.clientX, y: e.clientY })
-    })
 
     // Reflect the current text/highlight color on the "apply" buttons' underbar.
     const syncColorButtons = () => {
@@ -447,7 +446,6 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
         '.ql-header': '제목 스타일 (Heading)',
         '.ql-toclevel': '목차 수준 (Outline level — 크기 변화 없이 목차에만 추가)',
         '.ql-size': '글자 크기 (Size)',
-        '.ql-inserttable': '표 삽입 (Insert table) — 셀 우클릭으로 행/열 편집',
       }
       for (const [sel, label] of Object.entries(titles)) {
         tbContainer.querySelectorAll(sel).forEach(el => el.setAttribute('title', label))
@@ -458,8 +456,6 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
       if (caBtn) caBtn.textContent = '가'
       const baBtn = tbContainer.querySelector('.ql-bg-apply') as HTMLElement | null
       if (baBtn) baBtn.textContent = '가'
-      const tblBtn = tbContainer.querySelector('.ql-inserttable') as HTMLElement | null
-      if (tblBtn) tblBtn.textContent = '▦'
       // Keep the editor's text selection visible while interacting with the
       // toolbar. Without this, clicking a picker (size, color, header)
       // moves focus to the toolbar control and the highlighted range
@@ -1088,21 +1084,6 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
     setOrganizeText('')
   }
 
-  // Insert an N×M table at the caret (via Quill's table module).
-  const insertTableSize = useCallback((rows: number, cols: number) => {
-    const q = quillRef.current
-    if (!q || !tableModuleRef.current) return
-    q.focus()
-    if (!q.getSelection()) q.setSelection(Math.max(0, q.getLength() - 1), 0)
-    tableModuleRef.current.insertTable(rows, cols)
-    setTablePicker(null)
-  }, [])
-
-  // Run a row/column/table op from the cell context menu.
-  const runTableOp = useCallback((op: 'insertRowAbove' | 'insertRowBelow' | 'insertColumnLeft' | 'insertColumnRight' | 'deleteRow' | 'deleteColumn' | 'deleteTable') => {
-    tableModuleRef.current?.[op]?.()
-    setTableMenu(null)
-  }, [])
 
   const stClass = saveState === 'saving' ? 'saving' : saveState === 'error' ? 'error' : ''
 
@@ -1409,46 +1390,6 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
         </div>
       )}
 
-      {/* Table insert: hover a grid to pick size, click to insert. */}
-      {tablePicker && (
-        <>
-          <div style={{ position: 'fixed', inset: 0, zIndex: 1200 }} onMouseDown={() => setTablePicker(null)} />
-          <div className="tbl-picker" style={{ left: tablePicker.x, top: tablePicker.y }} onMouseDown={e => e.stopPropagation()}>
-            <div className="tbl-grid">
-              {Array.from({ length: 8 }).map((_, r) => (
-                <div key={r} className="tbl-grid-row">
-                  {Array.from({ length: 8 }).map((_, c) => (
-                    <div
-                      key={c}
-                      className={`tbl-cell${r <= tableHover.r && c <= tableHover.c ? ' on' : ''}`}
-                      onMouseEnter={() => setTableHover({ r, c })}
-                      onClick={() => insertTableSize(tableHover.r + 1, tableHover.c + 1)}
-                    />
-                  ))}
-                </div>
-              ))}
-            </div>
-            <div className="tbl-picker-label">{tableHover.r + 1} × {tableHover.c + 1}</div>
-          </div>
-        </>
-      )}
-
-      {/* Cell context menu (right-click a table cell). */}
-      {tableMenu && (
-        <>
-          <div style={{ position: 'fixed', inset: 0, zIndex: 1200 }} onMouseDown={() => setTableMenu(null)} onContextMenu={e => { e.preventDefault(); setTableMenu(null) }} />
-          <div className="context-menu" style={{ left: tableMenu.x, top: tableMenu.y, zIndex: 1201 }} onMouseDown={e => e.stopPropagation()}>
-            <div className="ctx-item" onClick={() => runTableOp('insertRowAbove')}>↑ 위에 행 삽입</div>
-            <div className="ctx-item" onClick={() => runTableOp('insertRowBelow')}>↓ 아래에 행 삽입</div>
-            <div className="ctx-item" onClick={() => runTableOp('insertColumnLeft')}>← 왼쪽에 열 삽입</div>
-            <div className="ctx-item" onClick={() => runTableOp('insertColumnRight')}>→ 오른쪽에 열 삽입</div>
-            <div className="ctx-sep" />
-            <div className="ctx-item ctx-danger" onClick={() => runTableOp('deleteRow')}>행 삭제</div>
-            <div className="ctx-item ctx-danger" onClick={() => runTableOp('deleteColumn')}>열 삭제</div>
-            <div className="ctx-item ctx-danger" onClick={() => runTableOp('deleteTable')}>표 삭제</div>
-          </div>
-        </>
-      )}
     </div>
   )
 })

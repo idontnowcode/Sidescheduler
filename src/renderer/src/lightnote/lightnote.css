@@ -576,19 +576,18 @@ html, body {
 .ql-editor h3 { font-size: 16px; font-weight: 600; margin-bottom: 6px; color: var(--text); }
 .ql-editor blockquote { border-left: 3px solid var(--accent); padding-left: 12px; color: var(--text-dim); }
 .ql-editor pre { background: var(--bg3); border-radius: 4px; padding: 10px 14px; }
-/* Tables (pasted from Excel/Word). Core CSS gives cells a black border that is
-   invisible on the dark theme — use the theme border + readable padding. */
-.ql-editor table { border-collapse: collapse; margin: 8px 0; }
-.ql-editor td { border: 1px solid var(--border); padding: 4px 9px; min-width: 42px; vertical-align: top; }
+/* Tables (quill-table-up). Give cells a visible themed border (its default is a
+   light border that disappears on the dark theme) + readable padding. */
+.ql-editor td, .ql-editor th { border: 1px solid var(--border) !important; padding: 4px 9px; vertical-align: top; }
+.ql-editor th { background: var(--bg3); }
 
-/* Table insert button glyph + size-picker popover. */
-.ql-toolbar.ql-snow button.ql-inserttable { font-size: 15px; }
-.tbl-picker { position: fixed; z-index: 1201; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 10px 30px rgba(0,0,0,0.4); padding: 8px; }
-.tbl-grid { display: flex; flex-direction: column; gap: 2px; }
-.tbl-grid-row { display: flex; gap: 2px; }
-.tbl-cell { width: 16px; height: 16px; border: 1px solid var(--border); border-radius: 2px; background: var(--bg); cursor: pointer; }
-.tbl-cell.on { background: var(--accent); border-color: var(--accent); }
-.tbl-picker-label { text-align: center; font-size: 11px; color: var(--text-dim); margin-top: 6px; }
+/* quill-table-up UI (menus, selection, insert picker) themed for dark mode. */
+.table-up-menu, .table-up-tooltip, .table-up-select-box, .table-up-color-map,
+.ql-table-menu, .table-up-context-menu {
+  background: var(--bg2) !important; color: var(--text) !important; border-color: var(--border) !important;
+}
+.table-up-menu .table-up-menu-item:hover, .ql-table-menu .ql-table-menu-item:hover { background: var(--bg3) !important; }
+.table-up-selection, .ql-table-selection-line { border-color: var(--accent) !important; }
 .ql-editor img { max-width: 100%; border-radius: 4px; cursor: pointer; }
 .ql-editor a { color: var(--accent); }
 .ql-editor strong { color: var(--text); }
