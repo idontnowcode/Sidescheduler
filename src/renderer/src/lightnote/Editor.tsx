@@ -286,6 +286,7 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
       theme: 'snow',
       placeholder: 'Start writing…',
       modules: {
+        table: true, // enables table blots so pasted Excel/Word tables keep their grid
         keyboard: {
           bindings: {
             // On an EMPTY outline line, Enter steps the level down (3→2→1→none)

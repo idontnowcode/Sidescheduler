@@ -576,6 +576,10 @@ html, body {
 .ql-editor h3 { font-size: 16px; font-weight: 600; margin-bottom: 6px; color: var(--text); }
 .ql-editor blockquote { border-left: 3px solid var(--accent); padding-left: 12px; color: var(--text-dim); }
 .ql-editor pre { background: var(--bg3); border-radius: 4px; padding: 10px 14px; }
+/* Tables (pasted from Excel/Word). Core CSS gives cells a black border that is
+   invisible on the dark theme — use the theme border + readable padding. */
+.ql-editor table { border-collapse: collapse; margin: 8px 0; }
+.ql-editor td { border: 1px solid var(--border); padding: 4px 9px; min-width: 42px; vertical-align: top; }
 .ql-editor img { max-width: 100%; border-radius: 4px; cursor: pointer; }
 .ql-editor a { color: var(--accent); }
 .ql-editor strong { color: var(--text); }
