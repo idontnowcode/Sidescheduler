@@ -665,6 +665,10 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
       el.classList?.contains('ql-toc-3') ? 3 : 99
     const indentOf = (li: Element): number =>
       parseInt((li.className.match(/ql-indent-(\d+)/) || [])[1] || '0', 10)
+    // A blank body line acts as a separator between sections: it isn't folded
+    // under the preceding heading/outline (an empty <p>, not an anchor).
+    const isBlankPara = (el: Element): boolean =>
+      el.tagName === 'P' && levelOf(el) === 99 && !(el.textContent || '').trim()
     type Chev = { top: number; left: number; height: number; folded: boolean; el: HTMLElement }
     const recomputeFolds = () => {
       const wrapper = editorDivRef.current?.parentElement
@@ -701,13 +705,18 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
           }
           continue
         }
-        // ── Headings: fold blocks until the next heading of equal/higher level ──
+        // ── Headings: fold blocks until the next anchor of equal/higher level,
+        //    but exclude trailing blank lines so a blank separator between two
+        //    same-level sections stays visible instead of folding under this one.
         const lvl = levelOf(b)
         if (lvl === 99) continue
-        let j = i + 1, hasChild = false
-        for (; j < blocks.length; j++) { if (levelOf(blocks[j]) <= lvl) break; hasChild = true }
+        let j = i + 1
+        for (; j < blocks.length; j++) { if (levelOf(blocks[j]) <= lvl) break }
+        let end = j
+        while (end > i + 1 && isBlankPara(blocks[end - 1])) end--
+        const hasChild = end > i + 1
         if (!hasChild) { foldedRef.current.delete(b); continue }
-        if (foldedRef.current.has(b)) for (let k = i + 1; k < j; k++) blocks[k].classList.add('ln-fold-hidden')
+        if (foldedRef.current.has(b)) for (let k = i + 1; k < end; k++) blocks[k].classList.add('ln-fold-hidden')
         pushChev(b, 17)
       }
       setFoldChevrons(chevs)
@@ -1023,6 +1032,13 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
                   if (foldedRef.current.has(c.el)) foldedRef.current.delete(c.el)
                   else foldedRef.current.add(c.el)
                   recomputeFoldsRef.current()
+                  // Folding near the end of the page can clamp the editor's
+                  // scroll after layout; recompute on the next frames so the
+                  // chevron positions follow instead of staying at stale spots.
+                  requestAnimationFrame(() => {
+                    recomputeFoldsRef.current()
+                    requestAnimationFrame(() => recomputeFoldsRef.current())
+                  })
                 }}
                 style={{
                   position: 'absolute', left: c.left, top: c.top, zIndex: 4,
