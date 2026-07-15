@@ -16,9 +16,14 @@ interface Props {
   onPageSelect: (nbId: string, secId: string, pageId: string, crumb: string) => void
   onEditorClear: () => void
   onTrashOpen?: (node: TrashNode) => void
+  width?: number
 }
 
-export interface TreeHandle { reload: () => Promise<void>; refreshTrash: () => Promise<void> }
+export interface TreeHandle {
+  reload: () => Promise<void>
+  refreshTrash: () => Promise<void>
+  updatePageTitle: (nbId: string, secId: string, pageId: string, title: string) => void
+}
 
 const COLORS = ['#4dabf7','#69db7c','#ffa94d','#da77f2','#f783ac','#a9e34b','#66d9e8','#ffd43b']
 
@@ -44,7 +49,7 @@ function findSection(sections: Section[], id: string): Section | undefined {
   return undefined
 }
 
-const NotebookTree = forwardRef<TreeHandle, Props>(({ selected, onPageSelect, onEditorClear, onTrashOpen }, ref) => {
+const NotebookTree = forwardRef<TreeHandle, Props>(({ selected, onPageSelect, onEditorClear, onTrashOpen, width }, ref) => {
   const trashRef = useRef<TrashPanelHandle>(null)
   const [notebooks, setNotebooks] = useState<Notebook[]>([])
   const [expandedNbs, setExpandedNbs] = useState<Set<string>>(new Set())
@@ -109,7 +114,18 @@ const NotebookTree = forwardRef<TreeHandle, Props>(({ selected, onPageSelect, on
     }
   }, [loadNotebooks, loadSections, loadPages, expandedNbs, expandedSecs])
 
-  useImperativeHandle(ref, () => ({ reload, refreshTrash: async () => { await trashRef.current?.refresh() } }))
+  useImperativeHandle(ref, () => ({
+    reload,
+    refreshTrash: async () => { await trashRef.current?.refresh() },
+    // Cheap in-place title update (avoids a full reload while the user types).
+    updatePageTitle: (_nbId, secId, pageId, title) => {
+      setPagesBySec(prev => {
+        const list = prev[secId]
+        if (!list || !list.some(p => p.id === pageId)) return prev
+        return { ...prev, [secId]: list.map(p => (p.id === pageId ? { ...p, title } : p)) }
+      })
+    },
+  }))
 
   useEffect(() => { loadNotebooks() }, [loadNotebooks])
 
@@ -592,7 +608,7 @@ const NotebookTree = forwardRef<TreeHandle, Props>(({ selected, onPageSelect, on
   }
 
   return (
-    <div className="ln-sidebar" onClick={hideCtx}>
+    <div className="ln-sidebar" onClick={hideCtx} style={width ? { width } : undefined}>
       {copiedFor && (
         <div style={{
           position: 'fixed', bottom: '12px', left: '12px', zIndex: 2000,

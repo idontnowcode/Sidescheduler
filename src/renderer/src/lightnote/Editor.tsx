@@ -66,6 +66,7 @@ interface Props {
   onOpenSettings: () => void
   onOpenPage?: (nbId: string, secId: string, pageId: string, crumb: string) => void
   onHeadingsChange?: (items: { level: number; text: string; index: number }[]) => void
+  onTitleChange?: (nbId: string, secId: string, pageId: string, title: string) => void
 }
 
 type SaveState = 'saved' | 'saving' | 'editing' | 'error'
@@ -134,7 +135,16 @@ function fmtEventWhen(start: number, end?: number) {
   return `${fmtDate(start)} ${fmtTime(start)}${end ? `–${fmtTime(end)}` : ''}`
 }
 
-const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, onHeadingsChange }, ref) => {
+// Word-style default text / highlight colors (the "apply" buttons use these
+// until the user picks another from the small swatch dropdown).
+const DEFAULT_TEXT_COLOR = '#e03131'
+const DEFAULT_BG_COLOR = '#ffe066'
+const SWATCHES = [
+  '#000000', '#495057', '#e03131', '#f08c00', '#f59f00', '#2f9e44', '#1971c2', '#7048e8', '#e64980',
+  '#ffffff', '#ced4da', '#ff8787', '#ffc078', '#ffe066', '#8ce99a', '#74c0fc', '#b197fc', '#faa2c1',
+]
+
+const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, onHeadingsChange, onTitleChange }, ref) => {
   const [currentPage, setCurrentPage] = useState<{ notebookId: string; sectionId: string; pageId: string } | null>(null)
   const [titleValue, setTitleValue] = useState('')
   const [saveState, setSaveState] = useState<SaveState>('saved')
@@ -153,12 +163,28 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
   const [resizeBox, setResizeBox] = useState<{ left: number; top: number; w: number; h: number } | null>(null)
   const resizeTargetRef = useRef<HTMLImageElement | null>(null)
 
-  // OneNote-style heading fold: which heading blocks are collapsed (view-only,
-  // never written to the delta). Recomputed on edits/scroll; cleared per page.
-  const foldedRef = useRef<Set<HTMLElement>>(new Set())
-  const [foldChevrons, setFoldChevrons] = useState<{ top: number; left: number; height: number; folded: boolean; el: HTMLElement }[]>([])
+  // OneNote-style heading fold: which foldable blocks are collapsed (view-only,
+  // never written to the delta). Keyed by the block's index among fold candidates
+  // (document order) so the state survives page switches — persisted per page.
+  const foldKeysRef = useRef<Set<number>>(new Set())
+  const [foldChevrons, setFoldChevrons] = useState<{ top: number; left: number; height: number; folded: boolean; key: number }[]>([])
   const [foldHoverY, setFoldHoverY] = useState<number | null>(null)
   const recomputeFoldsRef = useRef<() => void>(() => {})
+  // Persist folded keys per page in localStorage.
+  const loadFoldKeys = (pageId?: string) => {
+    if (!pageId) return new Set<number>()
+    try { const m = JSON.parse(localStorage.getItem('ln-folds') || '{}'); return new Set<number>(m[pageId] || []) } catch { return new Set<number>() }
+  }
+  const saveFoldKeys = () => {
+    const pid = currentPageRef.current?.pageId
+    if (!pid) return
+    try {
+      const m = JSON.parse(localStorage.getItem('ln-folds') || '{}')
+      const keys = [...foldKeysRef.current]
+      if (keys.length) m[pid] = keys; else delete m[pid]
+      localStorage.setItem('ln-folds', JSON.stringify(m))
+    } catch { /* ignore */ }
+  }
 
   const editorDivRef = useRef<HTMLDivElement>(null)
   const quillRef = useRef<Quill | null>(null)
@@ -166,9 +192,15 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
   const titleTimerRef = useRef<ReturnType<typeof setTimeout>>()
   // Images pulled out of the page for AI Organize, re-inserted when applied.
   const organizeImagesRef = useRef<ImageOp[]>([])
+  // Last-used text/highlight colors for the Word-style "apply" buttons.
+  const lastColorRef = useRef<string>(DEFAULT_TEXT_COLOR)
+  const lastBgRef = useRef<string>(DEFAULT_BG_COLOR)
   // Latest onHeadingsChange, so the (once-only) Quill effect can call it fresh.
   const onHeadingsChangeRef = useRef(onHeadingsChange)
   useEffect(() => { onHeadingsChangeRef.current = onHeadingsChange }, [onHeadingsChange])
+  const onTitleChangeRef = useRef(onTitleChange)
+  useEffect(() => { onTitleChangeRef.current = onTitleChange }, [onTitleChange])
+  const lastSavedTitleRef = useRef<string>('')
   // Returns the TOC anchor elements (headings + toclevel lines) in doc order —
   // shared by heading extraction and scrollToHeading so indices line up.
   const tocAnchorsRef = useRef<() => HTMLElement[]>(() => [])
@@ -182,8 +214,8 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
 
   // Load linked items (events/tasks) + related pages when the page changes
   useEffect(() => {
-    // Folds are per-page and view-only — reset them when the page switches.
-    foldedRef.current.clear()
+    // Restore this page's saved fold state (persisted, per-page).
+    foldKeysRef.current = loadFoldKeys(currentPage?.pageId)
     setFoldChevrons([])
     const tid = setTimeout(() => recomputeFoldsRef.current(), 120)
     if (!currentPage) { setLinkedItems({ events: [], tasks: [] }); setRelatedPages([]); return () => clearTimeout(tid) }
@@ -232,6 +264,11 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
       setSaveState('saved')
       isDirtyRef.current = false
       setIsDirty(false)
+      // Reflect a renamed title in the left tree immediately (only when it changed).
+      if (title !== lastSavedTitleRef.current) {
+        lastSavedTitleRef.current = title
+        onTitleChangeRef.current?.(cp.notebookId, cp.sectionId, cp.pageId, title)
+      }
     } catch {
       setSaveState('error')
     }
@@ -315,20 +352,45 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
             }
           }
         },
-        toolbar: [
-          [{ header: [1, 2, 3, false] }],
-          [{ toclevel: [false, '1', '2', '3'] }],
-          [{ size: SIZE_LIST }],
-          ['bold', 'italic', 'underline', 'strike'],
-          [{ color: [] }, { background: [] }],
-          [{ list: 'ordered' }, { list: 'bullet' }],
-          ['blockquote', 'code-block'],
-          ['link', 'image'],
-          ['clean'],
-        ]
+        toolbar: {
+          container: [
+            [{ header: [1, 2, 3, false] }, { toclevel: [false, '1', '2', '3'] }],
+            [{ size: SIZE_LIST }],
+            ['bold', 'italic', 'underline', 'strike'],
+            // Word-style: the "apply" button applies the current color instantly;
+            // the small swatch dropdown next to it changes the current color.
+            ['color-apply', { color: SWATCHES }, 'bg-apply', { background: SWATCHES }],
+            [{ list: 'ordered' }, { list: 'bullet' }, { list: 'check' }],
+            ['blockquote', 'code-block'],
+            ['link', 'image'],
+            ['clean'],
+          ],
+          handlers: {
+            'color-apply': function (this: { quill: typeof quill }) { this.quill.format('color', lastColorRef.current, Quill.sources.USER) },
+            'bg-apply': function (this: { quill: typeof quill }) { this.quill.format('background', lastBgRef.current, Quill.sources.USER) },
+            color: function (this: { quill: typeof quill }, value: string) {
+              if (value) { lastColorRef.current = value; syncColorButtons() }
+              this.quill.format('color', value || false, Quill.sources.USER)
+            },
+            background: function (this: { quill: typeof quill }, value: string) {
+              if (value) { lastBgRef.current = value; syncColorButtons() }
+              this.quill.format('background', value || false, Quill.sources.USER)
+            },
+          }
+        }
       }
     })
     quillRef.current = quill
+
+    // Reflect the current text/highlight color on the "apply" buttons' underbar.
+    const syncColorButtons = () => {
+      const tb = (quill.getModule('toolbar') as { container: HTMLElement }).container
+      const ca = tb?.querySelector('.ql-color-apply') as HTMLElement | null
+      const ba = tb?.querySelector('.ql-bg-apply') as HTMLElement | null
+      if (ca) ca.style.setProperty('--ln-cur', lastColorRef.current)
+      if (ba) ba.style.setProperty('--ln-cur', lastBgRef.current)
+    }
+    syncColorButtons()
 
     // Tooltips on toolbar buttons — Quill renders them without labels, so hovering
     // a bare icon gives no hint. Add a Korean (English) title to each control.
@@ -346,8 +408,11 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
         '.ql-clean': '서식 지우기 (Clear formatting)',
         '.ql-list[value="ordered"]': '번호 목록 (Numbered list)',
         '.ql-list[value="bullet"]': '글머리 기호 (Bullet list)',
-        '.ql-color': '글자 색 (Text color)',
-        '.ql-background': '배경 색 (Highlight)',
+        '.ql-list[value="check"]': '체크박스 (Checklist)',
+        '.ql-color-apply': '글자 색 적용 (현재 색) — 옆 ▾ 로 색 변경',
+        '.ql-color': '글자 색 선택',
+        '.ql-bg-apply': '형광펜 적용 (현재 색) — 옆 ▾ 로 색 변경',
+        '.ql-background': '형광펜 색 선택',
         '.ql-header': '제목 스타일 (Heading)',
         '.ql-toclevel': '목차 수준 (Outline level — 크기 변화 없이 목차에만 추가)',
         '.ql-size': '글자 크기 (Size)',
@@ -355,6 +420,12 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
       for (const [sel, label] of Object.entries(titles)) {
         tbContainer.querySelectorAll(sel).forEach(el => el.setAttribute('title', label))
       }
+      // The custom apply-buttons render empty — give them an "A" glyph (text) and
+      // a highlighter glyph (bg); their underbar color comes from --ln-cur (CSS).
+      const caBtn = tbContainer.querySelector('.ql-color-apply') as HTMLElement | null
+      if (caBtn) caBtn.textContent = '가'
+      const baBtn = tbContainer.querySelector('.ql-bg-apply') as HTMLElement | null
+      if (baBtn) baBtn.textContent = '가'
       // Keep the editor's text selection visible while interacting with the
       // toolbar. Without this, clicking a picker (size, color, header)
       // moves focus to the toolbar control and the highlighted range
@@ -669,24 +740,25 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
     // under the preceding heading/outline (an empty <p>, not an anchor).
     const isBlankPara = (el: Element): boolean =>
       el.tagName === 'P' && levelOf(el) === 99 && !(el.textContent || '').trim()
-    type Chev = { top: number; left: number; height: number; folded: boolean; el: HTMLElement }
+    type Chev = { top: number; left: number; height: number; folded: boolean; key: number }
     const recomputeFolds = () => {
       const wrapper = editorDivRef.current?.parentElement
       const root = quill.root
       if (!wrapper) return
-      // Drop folds whose node no longer exists (edited away).
-      for (const h of [...foldedRef.current]) if (!h.isConnected) foldedRef.current.delete(h)
       root.querySelectorAll('.ln-fold-hidden').forEach(n => n.classList.remove('ln-fold-hidden'))
       const wr = wrapper.getBoundingClientRect()
       const chevs: Chev[] = []
-      const pushChev = (el: HTMLElement, gutter: number) => {
+      // Each foldable block gets a sequential key in document order, stable for
+      // the same content — that's what we persist so folds survive page switches.
+      let foldIdx = 0
+      const pushChev = (el: HTMLElement, gutter: number, key: number) => {
         const br = el.getBoundingClientRect()
         chevs.push({
           top: br.top - wr.top + 3,
           left: Math.max(0, br.left - wr.left - gutter),
           height: Math.min(br.height, 34),
-          folded: foldedRef.current.has(el),
-          el,
+          folded: foldKeysRef.current.has(key),
+          key,
         })
       }
       const blocks = Array.from(root.children) as HTMLElement[]
@@ -699,9 +771,10 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
             const ind = indentOf(items[x])
             let y = x + 1, hasChild = false
             for (; y < items.length; y++) { if (indentOf(items[y]) <= ind) break; hasChild = true }
-            if (!hasChild) { foldedRef.current.delete(items[x]); continue }
-            if (foldedRef.current.has(items[x])) for (let k = x + 1; k < y; k++) items[k].classList.add('ln-fold-hidden')
-            pushChev(items[x], 16)
+            if (!hasChild) continue
+            const key = foldIdx++
+            if (foldKeysRef.current.has(key)) for (let k = x + 1; k < y; k++) items[k].classList.add('ln-fold-hidden')
+            pushChev(items[x], 16, key)
           }
           continue
         }
@@ -715,9 +788,10 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
         let end = j
         while (end > i + 1 && isBlankPara(blocks[end - 1])) end--
         const hasChild = end > i + 1
-        if (!hasChild) { foldedRef.current.delete(b); continue }
-        if (foldedRef.current.has(b)) for (let k = i + 1; k < end; k++) blocks[k].classList.add('ln-fold-hidden')
-        pushChev(b, 17)
+        if (!hasChild) continue
+        const key = foldIdx++
+        if (foldKeysRef.current.has(key)) for (let k = i + 1; k < end; k++) blocks[k].classList.add('ln-fold-hidden')
+        pushChev(b, 17, key)
       }
       setFoldChevrons(chevs)
 
@@ -853,6 +927,7 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
       try {
         const data = await window.lightnote.loadPage(nbId, secId, pageId)
         setTitleValue(data.title || 'Untitled')
+        lastSavedTitleRef.current = data.title || 'Untitled'
         if (quillRef.current) {
           const delta = data.delta as { ops?: unknown[] } | null
           quillRef.current.setContents(delta && delta.ops ? delta as Parameters<typeof quillRef.current.setContents>[0] : [], 'silent')
@@ -1029,8 +1104,9 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
                 title={c.folded ? '펼치기 (Expand)' : '접기 (Collapse)'}
                 onMouseDown={e => e.preventDefault()}
                 onClick={() => {
-                  if (foldedRef.current.has(c.el)) foldedRef.current.delete(c.el)
-                  else foldedRef.current.add(c.el)
+                  if (foldKeysRef.current.has(c.key)) foldKeysRef.current.delete(c.key)
+                  else foldKeysRef.current.add(c.key)
+                  saveFoldKeys()
                   recomputeFoldsRef.current()
                   // Folding near the end of the page can clamp the editor's
                   // scroll after layout; recompute on the next frames so the

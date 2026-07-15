@@ -18,6 +18,29 @@ export default function LightnoteApp() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [aiPanelWidth, setAiPanelWidth] = useState(320)
   const [toc, setToc] = useState<TocItem[]>([])
+  // Resizable side panels (persisted).
+  const [leftW, setLeftW] = useState(() => Number(localStorage.getItem('ln-left-w')) || 220)
+  const [tocW, setTocW] = useState(() => Number(localStorage.getItem('ln-toc-w')) || 210)
+  useEffect(() => { localStorage.setItem('ln-left-w', String(leftW)) }, [leftW])
+  useEffect(() => { localStorage.setItem('ln-toc-w', String(tocW)) }, [tocW])
+
+  const startResize = useCallback((e: React.MouseEvent, kind: 'left' | 'toc') => {
+    e.preventDefault()
+    const startX = e.clientX
+    const startLeft = leftW, startToc = tocW
+    const onMove = (ev: MouseEvent) => {
+      if (kind === 'left') setLeftW(Math.max(160, Math.min(480, startLeft + (ev.clientX - startX))))
+      else setTocW(Math.max(150, Math.min(480, startToc - (ev.clientX - startX))))
+    }
+    const onUp = () => {
+      document.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseup', onUp)
+      document.body.style.cursor = ''
+    }
+    document.body.style.cursor = 'col-resize'
+    document.addEventListener('mousemove', onMove)
+    document.addEventListener('mouseup', onUp)
+  }, [leftW, tocW])
 
   const editorRef = useRef<EditorHandle>(null)
   const treeRef = useRef<TreeHandle>(null)
@@ -129,11 +152,13 @@ export default function LightnoteApp() {
       <div className="main-layout">
         <NotebookTree
           ref={treeRef}
+          width={leftW}
           selected={selected}
           onPageSelect={handlePageSelect}
           onEditorClear={handleEditorClear}
           onTrashOpen={setTrashNode}
         />
+        <div className="ln-resizer" onMouseDown={(e) => startResize(e, 'left')} title="너비 조절" />
 
         <div style={{ flex: 1, minWidth: 0, position: 'relative', display: 'flex' }}>
           <Editor
@@ -141,6 +166,7 @@ export default function LightnoteApp() {
             onOpenSettings={() => setIsSettingsOpen(true)}
             onOpenPage={handlePageSelect}
             onHeadingsChange={setToc}
+            onTitleChange={(nbId, secId, pageId, title) => treeRef.current?.updatePageTitle(nbId, secId, pageId, title)}
           />
           {trashNode && (
             <TrashViewer
@@ -153,11 +179,15 @@ export default function LightnoteApp() {
         </div>
 
         {!trashNode && (
-          <TocPanel
-            items={toc}
-            onJump={(i) => editorRef.current?.scrollToHeading(i)}
-            onMove={(from, to, after) => editorRef.current?.moveTocSection(from, to, after)}
-          />
+          <>
+            <div className="ln-resizer" onMouseDown={(e) => startResize(e, 'toc')} title="너비 조절" />
+            <TocPanel
+              items={toc}
+              width={tocW}
+              onJump={(i) => editorRef.current?.scrollToHeading(i)}
+              onMove={(from, to, after) => editorRef.current?.moveTocSection(from, to, after)}
+            />
+          </>
         )}
 
         {isAiOpen && (

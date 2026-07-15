@@ -5,13 +5,14 @@ interface Props {
   items: TocItem[]
   onJump: (index: number) => void
   onMove: (from: number, to: number, placeAfter: boolean) => void
+  width?: number
 }
 
 // Right-side table of contents (Word-style). Collapses to a thin rail with a
 // button; expands to a scrollable heading outline. Indented by heading level.
 // Items can be dragged to reorder — the whole section (with its sub-content)
 // moves in the document and keeps its outline level.
-export default function TocPanel({ items, onJump, onMove }: Props) {
+export default function TocPanel({ items, onJump, onMove, width }: Props) {
   const [collapsed, setCollapsed] = useState(false)
   const [drag, setDrag] = useState<number | null>(null)
   const [drop, setDrop] = useState<{ index: number; pos: 'before' | 'after' } | null>(null)
@@ -26,7 +27,7 @@ export default function TocPanel({ items, onJump, onMove }: Props) {
   }
 
   return (
-    <div className="toc-panel">
+    <div className="toc-panel" style={width ? { width } : undefined}>
       <div className="toc-header">
         <span className="toc-title">목차</span>
         <button className="toc-collapse" title="접기" onClick={() => setCollapsed(true)}>⟩</button>
