@@ -756,7 +756,18 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
     let lastTocSig = ''
     // A block is a TOC anchor if it's a heading OR carries a toclevel class.
     const tocLevelOf = (el: HTMLElement): number => { const l = levelOf(el); return l === 99 ? 0 : l }
-    tocAnchorsRef.current = () => (Array.from(quill.root.children) as HTMLElement[]).filter(el => tocLevelOf(el) > 0)
+    // Collect anchors in document order, descending into list containers so that
+    // outline-marked list items (<li>, nested in <ol>/<ul>) are included too.
+    tocAnchorsRef.current = () => {
+      const out: HTMLElement[] = []
+      for (const el of Array.from(quill.root.children) as HTMLElement[]) {
+        if (tocLevelOf(el) > 0) out.push(el)
+        else if (el.tagName === 'OL' || el.tagName === 'UL') {
+          for (const li of Array.from(el.children) as HTMLElement[]) if (tocLevelOf(li) > 0) out.push(li)
+        }
+      }
+      return out
+    }
     recomputeFoldsRef.current = recomputeFolds
     let foldRaf = 0
     const scheduleFolds = () => {
@@ -886,25 +897,25 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
         el.tagName === 'H1' || el.classList.contains('ql-toc-1') ? 1 :
         el.tagName === 'H2' || el.classList.contains('ql-toc-2') ? 2 :
         el.tagName === 'H3' || el.classList.contains('ql-toc-3') ? 3 : 0
-      const children = Array.from(q.root.children) as HTMLElement[]
-      const anchors = children.filter(el => lvlOf(el) > 0)
+      // Same unified anchor list the TOC panel uses (headings + outline lines,
+      // including list items), so drag indices line up.
+      const anchors = tocAnchorsRef.current()
       const fromEl = anchors[from]; const toEl = anchors[to]
       if (!fromEl || !toEl) return
-      const idxOfChild = (i: number) =>
-        i < children.length ? (q.getIndex(QF.find(children[i]) as Parameters<typeof q.getIndex>[0])) : q.getLength()
-      const sectionEnd = (el: HTMLElement) => { // child index where el's section ends (exclusive)
-        const p = children.indexOf(el); const L = lvlOf(el)
-        for (let i = p + 1; i < children.length; i++) { const l = lvlOf(children[i]); if (l > 0 && l <= L) return i }
-        return children.length
+      const idxOf = (el: HTMLElement) => q.getIndex(QF.find(el) as Parameters<typeof q.getIndex>[0])
+      // A section ends at the next anchor (in the unified list) of equal/higher
+      // level — everything between belongs to it (sub-headings, paragraphs).
+      const sectionEnd = (anchorIdx: number) => {
+        const L = lvlOf(anchors[anchorIdx])
+        for (let i = anchorIdx + 1; i < anchors.length; i++) { if (lvlOf(anchors[i]) <= L) return idxOf(anchors[i]) }
+        return q.getLength()
       }
-      const startIdx = q.getIndex(QF.find(fromEl) as Parameters<typeof q.getIndex>[0])
-      const endIdx = idxOfChild(sectionEnd(fromEl))
+      const startIdx = idxOf(fromEl)
+      const endIdx = sectionEnd(from)
       const len = endIdx - startIdx
       if (len <= 0) return
       const moved = q.getContents(startIdx, len)
-      const targetIdx = placeAfter
-        ? idxOfChild(sectionEnd(toEl))
-        : q.getIndex(QF.find(toEl) as Parameters<typeof q.getIndex>[0])
+      const targetIdx = placeAfter ? sectionEnd(to) : idxOf(toEl)
       // Delete the source section, then re-insert it at the (shifted) target.
       q.updateContents(new Delta().retain(startIdx).delete(len) as Parameters<typeof q.updateContents>[0], Quill.sources.USER)
       const insertAt = targetIdx > startIdx ? targetIdx - len : targetIdx

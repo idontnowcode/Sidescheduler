@@ -316,12 +316,20 @@ html, body {
 .ql-snow .ql-picker.ql-toclevel .ql-picker-label[data-value="3"]::before,
 .ql-snow .ql-picker.ql-toclevel .ql-picker-item[data-value="3"]::before { content: '목차 3'; }
 
-/* An outline-marked line: a left accent bar (colored per level), but the body
-   font/size is unchanged. */
-.ql-editor .ql-toc-1, .ql-editor .ql-toc-2, .ql-editor .ql-toc-3 { padding-left: 8px; }
-.ql-editor .ql-toc-1 { border-left: 3px solid #4dabf7; }
-.ql-editor .ql-toc-2 { border-left: 3px solid #69db7c; }
-.ql-editor .ql-toc-3 { border-left: 3px solid #ffa94d; }
+/* An outline-marked line: a left accent bar (colored per level), body font/size
+   unchanged. Non-list lines use a border + small indent. */
+.ql-editor :is(p, h1, h2, h3).ql-toc-1 { border-left: 3px solid #4dabf7; padding-left: 8px; }
+.ql-editor :is(p, h1, h2, h3).ql-toc-2 { border-left: 3px solid #69db7c; padding-left: 8px; }
+.ql-editor :is(p, h1, h2, h3).ql-toc-3 { border-left: 3px solid #ffa94d; padding-left: 8px; }
+/* List items: draw the bar to the LEFT of the marker via ::before (li is
+   position:relative in Quill), so it doesn't shift the line or collide with the
+   number/bullet — it lines up with the non-list bars. */
+.ql-editor li.ql-toc-1::before, .ql-editor li.ql-toc-2::before, .ql-editor li.ql-toc-3::before {
+  content: ''; position: absolute; left: -1.5em; top: 0; bottom: 0; width: 3px; border-radius: 1px;
+}
+.ql-editor li.ql-toc-1::before { background: #4dabf7; }
+.ql-editor li.ql-toc-2::before { background: #69db7c; }
+.ql-editor li.ql-toc-3::before { background: #ffa94d; }
 /* Matching level dots in the TOC panel. */
 .toc-item.toc-l1::before { content: ''; display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #4dabf7; margin-right: 6px; vertical-align: middle; }
 .toc-item.toc-l2::before { content: ''; display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #69db7c; margin-right: 6px; vertical-align: middle; }
