@@ -152,7 +152,13 @@ export default function LightnoteApp() {
           )}
         </div>
 
-        {!trashNode && <TocPanel items={toc} onJump={(i) => editorRef.current?.scrollToHeading(i)} />}
+        {!trashNode && (
+          <TocPanel
+            items={toc}
+            onJump={(i) => editorRef.current?.scrollToHeading(i)}
+            onMove={(from, to, after) => editorRef.current?.moveTocSection(from, to, after)}
+          />
+        )}
 
         {isAiOpen && (
           <AIAssistant

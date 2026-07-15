@@ -316,10 +316,21 @@ html, body {
 .ql-snow .ql-picker.ql-toclevel .ql-picker-label[data-value="3"]::before,
 .ql-snow .ql-picker.ql-toclevel .ql-picker-item[data-value="3"]::before { content: '목차 3'; }
 
-/* An outline-marked line: subtle left accent, but body font/size unchanged. */
-.ql-editor .ql-toc-1, .ql-editor .ql-toc-2, .ql-editor .ql-toc-3 {
-  border-left: 2px solid var(--accent); padding-left: 8px;
-}
+/* An outline-marked line: a left accent bar (colored per level), but the body
+   font/size is unchanged. */
+.ql-editor .ql-toc-1, .ql-editor .ql-toc-2, .ql-editor .ql-toc-3 { padding-left: 8px; }
+.ql-editor .ql-toc-1 { border-left: 3px solid #4dabf7; }
+.ql-editor .ql-toc-2 { border-left: 3px solid #69db7c; }
+.ql-editor .ql-toc-3 { border-left: 3px solid #ffa94d; }
+/* Matching level dots in the TOC panel. */
+.toc-item.toc-l1::before { content: ''; display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #4dabf7; margin-right: 6px; vertical-align: middle; }
+.toc-item.toc-l2::before { content: ''; display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #69db7c; margin-right: 6px; vertical-align: middle; }
+.toc-item.toc-l3::before { content: ''; display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #ffa94d; margin-right: 6px; vertical-align: middle; }
+/* TOC drag-and-drop reorder affordances. */
+.toc-item { cursor: grab; }
+.toc-item.toc-drag { opacity: 0.45; }
+.toc-item.toc-drop-before { box-shadow: inset 0 3px 0 -1px var(--accent); }
+.toc-item.toc-drop-after { box-shadow: inset 0 -3px 0 -1px var(--accent); }
 
 /* Consistent toolbar layout: flex row, vertically centred, even spacing. */
 .ql-toolbar.ql-snow { display: flex; flex-wrap: wrap; align-items: center; row-gap: 3px; }

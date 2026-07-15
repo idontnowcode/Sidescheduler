@@ -27,6 +27,10 @@ const ids = await ln.evaluate(async () => {
     { insert: 'HUGE', attributes: { size: '28px' } }, { insert: '\n' },
     { insert: 'Outline entry' }, { insert: '\n', attributes: { toclevel: '2' } },
     { insert: 'plain body\n' },
+    // A Heading 1 whose text is shrunk to 8px inline (the case the user hit).
+    { insert: 'shrunk head', attributes: { size: '8px' } }, { insert: '\n', attributes: { header: 1 } },
+    // A default (un-shrunk) Heading 1 for comparison.
+    { insert: 'big head' }, { insert: '\n', attributes: { header: 1 } },
   ]
   await window.lightnote.savePage({ notebookId: nb.id, sectionId: sec.id, pageId: pg.id, delta: { ops }, title: 'Fmt' })
   return { nb: nb.id, sec: sec.id, pg: pg.id }
@@ -46,6 +50,17 @@ const rows = await ln.evaluate(() => {
 })
 ok('row height scales with font size (6px row < 28px row)', rows.tiny > 0 && rows.tiny < rows.huge, JSON.stringify(rows))
 ok('small-text row is tight (< 22px, was ~24 before)', rows.tiny < 22, `tiny=${rows.tiny}`)
+
+// (5b) A Heading 1 with 8px inline text gets a short row too — the specific case
+// that used to stay locked at the 24px heading height.
+const heads = await ln.evaluate(() => {
+  const h1s = Array.from(document.querySelectorAll('.ql-editor > h1'))
+  const shrunk = h1s.find(h => h.textContent.includes('shrunk head'))
+  const big = h1s.find(h => h.textContent.includes('big head'))
+  return { shrunk: shrunk?.offsetHeight ?? -1, big: big?.offsetHeight ?? -1 }
+})
+ok('shrunk Heading 1 row < default Heading 1 row', heads.shrunk > 0 && heads.shrunk < heads.big, JSON.stringify(heads))
+ok('shrunk Heading 1 row is tight (< 24px)', heads.shrunk < 24, `shrunk=${heads.shrunk}`)
 
 // (2) Dash bullet: type a "- " list; marker glyph is an en-dash, not a bullet.
 const editor = ln.locator('.ql-editor')

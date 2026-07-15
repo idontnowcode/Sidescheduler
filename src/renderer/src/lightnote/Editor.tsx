@@ -43,8 +43,11 @@ for (let i = 6; i <= 150; i++) FULL_SIZE_WHITELIST.push(`${i}px`)
     s.id = 'ln-liststart-style'
     // Only the FIRST item of a list run applies the offset; later items (which
     // inherit data-list-start) must increment normally, so scope to :first-child.
+    // Chromium lets counter-set win over counter-increment on the same element,
+    // so force increment 0 and set the exact value (n) — the item then shows n,
+    // and the next item's default +1 yields n+1.
     let css = ''
-    for (let n = 2; n <= 200; n++) css += `.ql-editor li[data-list=ordered][data-list-start="${n}"]:first-child{counter-set:list-0 ${n - 1}}`
+    for (let n = 2; n <= 200; n++) css += `.ql-editor li[data-list=ordered][data-list-start="${n}"]:first-child{counter-increment:list-0 0;counter-set:list-0 ${n}}`
     s.textContent = css
     document.head.appendChild(s)
   }
@@ -56,6 +59,7 @@ export interface EditorHandle {
   getCurrentPage: () => { notebookId: string; sectionId: string; pageId: string } | null
   getQuillText: () => string
   scrollToHeading: (index: number) => void
+  moveTocSection: (from: number, to: number, placeAfter: boolean) => void
 }
 
 interface Props {
@@ -247,6 +251,22 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
       modules: {
         keyboard: {
           bindings: {
+            // On an EMPTY outline line, Enter steps the level down (3→2→1→none)
+            // instead of adding a line — so repeated Enters walk back out of the
+            // outline. A non-empty outline line keeps Quill's default (the next
+            // line inherits the same level for continued typing).
+            'toc outdent': {
+              key: 'Enter',
+              collapsed: true,
+              empty: true,
+              format: ['toclevel'],
+              handler(this: { quill: typeof quill }, range: { index: number }, context: { format: { toclevel?: string } }) {
+                const lvl = parseInt(context.format.toclevel || '0', 10)
+                const next = lvl - 1
+                this.quill.formatLine(range.index, 1, 'toclevel', next >= 1 ? String(next) : false, Quill.sources.USER)
+                return false // consume Enter (no new line)
+              }
+            },
             // Word-style list autofill: "1. " / "- " / "[]" at line start converts
             // to a list. Extends Quill's default so a leading number becomes the
             // list's START value ("5. " → starts at 5). Recorded as one history
@@ -636,11 +656,13 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
         }
       })
     }
-    // ── Heading fold: place a chevron next to any heading that has content
-    //    beneath it (up to the next heading of equal/higher level). Clicking
-    //    hides that content. Purely a view concern — the delta is untouched.
+    // ── Heading fold: place a chevron next to any heading (or outline-level
+    //    line) that has content beneath it (up to the next anchor of equal/higher
+    //    level). Clicking hides that content — a view concern, delta untouched.
     const levelOf = (el: Element): number =>
-      el.tagName === 'H1' ? 1 : el.tagName === 'H2' ? 2 : el.tagName === 'H3' ? 3 : 99
+      el.tagName === 'H1' ? 1 : el.tagName === 'H2' ? 2 : el.tagName === 'H3' ? 3 :
+      el.classList?.contains('ql-toc-1') ? 1 : el.classList?.contains('ql-toc-2') ? 2 :
+      el.classList?.contains('ql-toc-3') ? 3 : 99
     const indentOf = (li: Element): number =>
       parseInt((li.className.match(/ql-indent-(\d+)/) || [])[1] || '0', 10)
     type Chev = { top: number; left: number; height: number; folded: boolean; el: HTMLElement }
@@ -690,6 +712,40 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
       }
       setFoldChevrons(chevs)
 
+      // Line height that tracks the text: each block's row height is driven by
+      // the LARGEST font size actually on that line (inline size overrides, else
+      // the block's base). A fixed CSS line-height couldn't do this — headings
+      // (h1=24px) kept tall rows even when the text was shrunk. Applied as an
+      // absolute px line-height (view-only; not part of the delta).
+      const baseSize = (el: HTMLElement) =>
+        el.tagName === 'H1' ? 24 : el.tagName === 'H2' ? 20 : el.tagName === 'H3' ? 16 : 14
+      const maxInlineSize = (el: HTMLElement, base: number): number => {
+        let max = 0; let hasBare = false
+        const walk = (node: HTMLElement) => {
+          node.childNodes.forEach(n => {
+            if (n.nodeType === 3) { if ((n.textContent || '').trim()) hasBare = true; return }
+            if (n.nodeType !== 1) return
+            const e = n as HTMLElement
+            if (e.classList.contains('ql-ui')) return // list marker, not content
+            const fs = e.style?.fontSize ? parseFloat(e.style.fontSize) : NaN
+            if (!Number.isNaN(fs)) max = Math.max(max, fs)
+            else walk(e) // descend into non-sized spans (bold/italic/links)
+          })
+        }
+        walk(el)
+        if (hasBare) max = Math.max(max, base)
+        return max || base
+      }
+      for (const b of blocks) {
+        const targets = (b.tagName === 'OL' || b.tagName === 'UL')
+          ? (Array.from(b.children).filter(x => x.tagName === 'LI') as HTMLElement[])
+          : [b]
+        for (const el of targets) {
+          const lh = Math.round(maxInlineSize(el, baseSize(el)) * 1.4)
+          if (el.style.lineHeight !== `${lh}px`) el.style.lineHeight = `${lh}px`
+        }
+      }
+
       // Table of contents: headings (H1-3) AND toclevel-marked lines, in document
       // order (same order scrollToHeading uses) — emitted only when it changes.
       const anchors = tocAnchorsRef.current()
@@ -698,16 +754,8 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
       if (sig !== lastTocSig) { lastTocSig = sig; onHeadingsChangeRef.current?.(headings) }
     }
     let lastTocSig = ''
-    // A block counts as a TOC anchor if it's a heading OR carries a toclevel class.
-    const tocLevelOf = (el: HTMLElement): number => {
-      if (el.tagName === 'H1') return 1
-      if (el.tagName === 'H2') return 2
-      if (el.tagName === 'H3') return 3
-      if (el.classList.contains('ql-toc-1')) return 1
-      if (el.classList.contains('ql-toc-2')) return 2
-      if (el.classList.contains('ql-toc-3')) return 3
-      return 0
-    }
+    // A block is a TOC anchor if it's a heading OR carries a toclevel class.
+    const tocLevelOf = (el: HTMLElement): number => { const l = levelOf(el); return l === 99 ? 0 : l }
     tocAnchorsRef.current = () => (Array.from(quill.root.children) as HTMLElement[]).filter(el => tocLevelOf(el) > 0)
     recomputeFoldsRef.current = recomputeFolds
     let foldRaf = 0
@@ -823,6 +871,45 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
         el.classList.add('ln-toc-flash')
         setTimeout(() => el.classList.remove('ln-toc-flash'), 900)
       }
+    },
+    // Move a TOC section (an anchor + everything under it, down to the next
+    // anchor of equal/higher level) to before/after another anchor's section.
+    // The moved lines keep their heading/outline level.
+    moveTocSection: (from: number, to: number, placeAfter: boolean) => {
+      const q = quillRef.current
+      if (!q || from === to) return
+      const Delta = Quill.import('delta') as unknown as new () => {
+        retain: (n: number) => { delete: (n: number) => unknown; concat: (d: unknown) => unknown }
+      }
+      const QF = Quill as unknown as { find: (n: Node) => unknown }
+      const lvlOf = (el: HTMLElement): number =>
+        el.tagName === 'H1' || el.classList.contains('ql-toc-1') ? 1 :
+        el.tagName === 'H2' || el.classList.contains('ql-toc-2') ? 2 :
+        el.tagName === 'H3' || el.classList.contains('ql-toc-3') ? 3 : 0
+      const children = Array.from(q.root.children) as HTMLElement[]
+      const anchors = children.filter(el => lvlOf(el) > 0)
+      const fromEl = anchors[from]; const toEl = anchors[to]
+      if (!fromEl || !toEl) return
+      const idxOfChild = (i: number) =>
+        i < children.length ? (q.getIndex(QF.find(children[i]) as Parameters<typeof q.getIndex>[0])) : q.getLength()
+      const sectionEnd = (el: HTMLElement) => { // child index where el's section ends (exclusive)
+        const p = children.indexOf(el); const L = lvlOf(el)
+        for (let i = p + 1; i < children.length; i++) { const l = lvlOf(children[i]); if (l > 0 && l <= L) return i }
+        return children.length
+      }
+      const startIdx = q.getIndex(QF.find(fromEl) as Parameters<typeof q.getIndex>[0])
+      const endIdx = idxOfChild(sectionEnd(fromEl))
+      const len = endIdx - startIdx
+      if (len <= 0) return
+      const moved = q.getContents(startIdx, len)
+      const targetIdx = placeAfter
+        ? idxOfChild(sectionEnd(toEl))
+        : q.getIndex(QF.find(toEl) as Parameters<typeof q.getIndex>[0])
+      // Delete the source section, then re-insert it at the (shifted) target.
+      q.updateContents(new Delta().retain(startIdx).delete(len) as Parameters<typeof q.updateContents>[0], Quill.sources.USER)
+      const insertAt = targetIdx > startIdx ? targetIdx - len : targetIdx
+      q.updateContents(new Delta().retain(insertAt).concat(moved) as Parameters<typeof q.updateContents>[0], Quill.sources.USER)
+      q.setSelection(insertAt, 0, Quill.sources.SILENT)
     }
   }))
 
