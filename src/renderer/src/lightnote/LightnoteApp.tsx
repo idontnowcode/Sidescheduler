@@ -7,6 +7,7 @@ import Editor, { type EditorHandle } from './Editor'
 import TrashViewer from './TrashViewer'
 import SearchBar from './SearchBar'
 import TocPanel from './TocPanel'
+import WorkObjectPanel from './WorkObjectPanel'
 import AIAssistant from './AIAssistant'
 import SettingsModal, { initAppearance } from './SettingsModal'
 
@@ -160,7 +161,10 @@ export default function LightnoteApp() {
         />
         <div className="ln-resizer" onMouseDown={(e) => startResize(e, 'left')} title="너비 조절" />
 
-        <div style={{ flex: 1, minWidth: 0, position: 'relative', display: 'flex' }}>
+        <div style={{ flex: 1, minWidth: 0, position: 'relative', display: 'flex', flexDirection: 'column' }}>
+          {!trashNode && selected.pageId && (
+            <WorkObjectPanel key={selected.pageId} pageId={selected.pageId} />
+          )}
           <Editor
             ref={editorRef}
             onOpenSettings={() => setIsSettingsOpen(true)}

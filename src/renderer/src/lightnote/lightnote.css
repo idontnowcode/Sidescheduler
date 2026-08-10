@@ -1062,6 +1062,48 @@ sup.citation:hover { background: var(--accent-hover); }
 .toc-rail:hover { background: var(--bg3); }
 .toc-rail-icon { font-size: 14px; color: var(--text-dim); }
 .toc-rail-label { writing-mode: vertical-rl; font-size: 11px; color: var(--text-dim); letter-spacing: 0.1em; }
+/* ── Work object (업무 속성) panel ──────────────────────────────────────── */
+.wo-addbar { flex-shrink: 0; display: flex; align-items: center; gap: 10px; padding: 6px 16px; border-bottom: 1px solid var(--border); background: var(--bg); }
+.wo-add-btn { font-size: 12px; padding: 4px 12px; border-radius: 8px; border: 1px dashed var(--border); background: transparent; color: var(--text-dim); cursor: pointer; }
+.wo-add-btn:hover { border-color: var(--accent); color: var(--accent); }
+.wo-hidden-note { font-size: 11px; color: var(--text-dim); }
+
+.wo-panel { flex-shrink: 0; background: var(--bg2); border-bottom: 1px solid var(--border); padding: 10px 16px; display: flex; flex-direction: column; gap: 8px; max-height: 42%; overflow-y: auto; }
+.wo-panel::-webkit-scrollbar { width: 5px; }
+.wo-panel::-webkit-scrollbar-thumb { background: var(--bg4); border-radius: 2px; }
+.wo-row { display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; }
+.wo-field { display: flex; flex-direction: column; gap: 3px; font-size: 11px; color: var(--text-dim); }
+.wo-field.wo-grow { flex: 1; min-width: 150px; }
+.wo-field > span { letter-spacing: 0.02em; }
+.wo-field select, .wo-field input {
+  background: var(--bg); color: var(--text); border: 1px solid var(--border);
+  border-radius: 6px; padding: 4px 8px; font-size: 12px; outline: none;
+}
+.wo-field select:focus, .wo-field input:focus { border-color: var(--accent); }
+.wo-field input[type="date"] { color-scheme: dark; }
+.wo-spacer { flex: 1; }
+.wo-hide-btn, .wo-del-btn { font-size: 11px; padding: 4px 10px; border-radius: 6px; border: 1px solid var(--border); background: transparent; cursor: pointer; color: var(--text-dim); }
+.wo-hide-btn:hover { background: var(--bg3); color: var(--text); }
+.wo-del-btn { border-color: var(--danger); color: var(--danger); }
+.wo-del-btn:hover { background: var(--danger); color: #fff; }
+
+.wo-lists { display: flex; gap: 16px; flex-wrap: wrap; }
+.wo-col { flex: 1; min-width: 220px; display: flex; flex-direction: column; gap: 3px; }
+.wo-sub-title { font-size: 11px; font-weight: 600; color: var(--text-dim); letter-spacing: 0.03em; margin-bottom: 2px; }
+.wo-action, .wo-decision { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text); padding: 2px 0; }
+.wo-action-text { flex: 1; }
+.wo-action.done .wo-action-text { text-decoration: line-through; color: var(--text-dim); }
+.wo-action-date, .wo-decision-date { font-size: 10px; color: var(--text-dim); flex-shrink: 0; }
+.wo-decision-date { min-width: 30px; }
+.wo-decision-text { flex: 1; background: transparent; border: none; border-bottom: 1px solid transparent; color: var(--text); font-size: 12px; padding: 1px 2px; outline: none; }
+.wo-decision-text:hover, .wo-decision-text:focus { border-bottom-color: var(--border); }
+.wo-x { border: none; background: none; color: var(--text-dim); cursor: pointer; font-size: 14px; line-height: 1; padding: 0 2px; }
+.wo-x:hover { color: var(--danger); }
+.wo-inline-input { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 3px 8px; font-size: 12px; color: var(--text); outline: none; margin-top: 2px; }
+.wo-inline-input:focus { border-color: var(--accent); }
+.wo-err { font-size: 11px; color: var(--danger); }
+.wo-err-row { padding-top: 2px; }
+
 /* Draggable dividers to resize the left tree / right TOC panels. */
 .ln-resizer { flex: 0 0 5px; width: 5px; cursor: col-resize; background: transparent; position: relative; z-index: 5; }
 .ln-resizer:hover, .ln-resizer:active { background: var(--accent); opacity: 0.5; }
