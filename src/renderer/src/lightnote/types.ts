@@ -48,6 +48,29 @@ export interface WebSource {
 
 export interface PageRefLoc { pageId: string; notebookId: string; sectionId: string; title: string; notebookName?: string; sectionName?: string }
 export interface SearchResult { pageId: string; notebookId: string; sectionId: string; title: string; notebookName: string; sectionName: string; snippet: string }
+
+// Work object (업무 객체) — structured fields attached to a page, stored apart
+// from the note body. All optional except a default status; AI-free.
+export type WorkStatus = '예정' | '진행중' | '대기' | '완료' | '보류'
+export type WorkPriority = '' | '상' | '중' | '하'
+export interface WorkAction { id: string; text: string; done: boolean; doneAt: number | null }
+export interface WorkDecision { id: string; at: number; text: string }
+export interface WorkObject {
+  enabled: boolean
+  status: WorkStatus
+  priority: WorkPriority
+  due: number | null
+  start: number | null
+  doneAt: number | null
+  nextActions: WorkAction[]
+  decisions: WorkDecision[]
+  depts: string
+  docs: string
+  relatedPages: string[]
+  calendarLink: string | null
+  updatedAt: number
+}
+export type WorkObjectListItem = WorkObject & { pageId: string }
 // A heading extracted from the current page, for the table of contents.
 export interface TocItem { level: number; text: string; index: number }
 
@@ -98,6 +121,11 @@ declare global {
       trashGetRetention: () => Promise<{ days: number }>
       trashSetRetention: (days: number) => Promise<{ retentionDays: number }>
       searchNotes: (query: string) => Promise<SearchResult[]>
+      // Work object (업무 객체)
+      workObjectGet: (pageId: string) => Promise<WorkObject | null>
+      workObjectSet: (pageId: string, patch: Partial<WorkObject>) => Promise<WorkObject>
+      workObjectRemove: (pageId: string) => Promise<{ success: boolean }>
+      workObjectList: () => Promise<WorkObjectListItem[]>
       listAllPages: () => Promise<PageRefLoc[]>
       copyPageLink: (pageId: string) => Promise<string>
       dedupPages: () => Promise<{ removed: number; separated: number }>

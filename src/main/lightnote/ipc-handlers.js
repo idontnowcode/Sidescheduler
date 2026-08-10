@@ -4,6 +4,7 @@ const noteIndexer = require('./note-indexer');
 const geminiService = require('./gemini-service');
 const storage = require('./storage');
 const linkStorage = require('./link-storage');
+const workObjectStorage = require('./work-object-storage');
 const path = require('path');
 const { shell } = require('electron');
 
@@ -22,6 +23,7 @@ function registerIpcHandlers(ipcMain, getWindow, safeStorage, dialog, app, sched
   noteStorage.init(DATA_ROOT);
   imageHandler.init(DATA_ROOT);
   linkStorage.init(DATA_ROOT);
+  workObjectStorage.init(DATA_ROOT);
   storage.init(safeStorage);
   // Seed the fixed PARA notebooks if they don't exist yet (built-in defaults).
   noteStorage.ensureDefaultNotebooks().catch((e) => console.error('ensureDefaultNotebooks:', e));
@@ -35,6 +37,7 @@ function registerIpcHandlers(ipcMain, getWindow, safeStorage, dialog, app, sched
       const days = await noteStorage.getTrashRetentionDays();
       const r = await noteStorage.purgeExpired(days);
       for (const pid of r.pageIds) { linkStorage.removePageLinks(pid); noteIndexer.invalidateCache(pid); }
+      await workObjectStorage.removeMany(r.pageIds);
       if (r.count > 0) noteIndexer.clearCache();
     } catch (e) { console.error('purgeExpired:', e); }
   })();
@@ -127,6 +130,8 @@ function registerIpcHandlers(ipcMain, getWindow, safeStorage, dialog, app, sched
 
   const dropRefsAndIndex = (pageIds) => {
     for (const pid of pageIds) { linkStorage.removePageLinks(pid); noteIndexer.invalidateCache(pid); }
+    // Permanently deleted pages lose their work-object metadata too (no orphans).
+    workObjectStorage.removeMany(pageIds).catch((e) => console.error('workObject cleanup:', e));
   };
 
   ipcMain.handle('lightnote:trash:purge', async (_, node) => {
@@ -183,6 +188,12 @@ function registerIpcHandlers(ipcMain, getWindow, safeStorage, dialog, app, sched
 
   ipcMain.handle('lightnote:trash:get-retention', async () => ({ days: await noteStorage.getTrashRetentionDays() }));
   ipcMain.handle('lightnote:trash:set-retention', async (_, { days }) => noteStorage.setTrashRetentionDays(days));
+
+  // === 업무 객체 (work object) — structured fields per page, AI-free ===
+  ipcMain.handle('lightnote:work-object:get', async (_, { pageId }) => workObjectStorage.get(pageId));
+  ipcMain.handle('lightnote:work-object:set', async (_, { pageId, patch }) => workObjectStorage.set(pageId, patch));
+  ipcMain.handle('lightnote:work-object:remove', async (_, { pageId }) => workObjectStorage.remove(pageId));
+  ipcMain.handle('lightnote:work-object:list', async () => workObjectStorage.list());
 
   ipcMain.handle('lightnote:duplicate-page', async (_, { notebookId, sectionId, id }) =>
     noteStorage.duplicatePage(notebookId, sectionId, id));

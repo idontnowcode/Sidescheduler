@@ -46,6 +46,12 @@ contextBridge.exposeInMainWorld('lightnote', {
   // Full-text search (title + body), AND across terms
   searchNotes: (query) => ipcRenderer.invoke('lightnote:search-notes', { query }),
 
+  // Work object (업무 객체) — structured per-page metadata
+  workObjectGet: (pageId) => ipcRenderer.invoke('lightnote:work-object:get', { pageId }),
+  workObjectSet: (pageId, patch) => ipcRenderer.invoke('lightnote:work-object:set', { pageId, patch }),
+  workObjectRemove: (pageId) => ipcRenderer.invoke('lightnote:work-object:remove', { pageId }),
+  workObjectList: () => ipcRenderer.invoke('lightnote:work-object:list'),
+
   // Page ↔ page links
   getPageRefs: (pageId) => ipcRenderer.invoke('lightnote:page-refs:get', { pageId }),
   addPageRef: (a, b) => ipcRenderer.invoke('lightnote:page-refs:add', { a, b }),
