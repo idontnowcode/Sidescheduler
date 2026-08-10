@@ -51,6 +51,10 @@ contextBridge.exposeInMainWorld('lightnote', {
   workObjectSet: (pageId, patch) => ipcRenderer.invoke('lightnote:work-object:set', { pageId, patch }),
   workObjectRemove: (pageId) => ipcRenderer.invoke('lightnote:work-object:remove', { pageId }),
   workObjectList: () => ipcRenderer.invoke('lightnote:work-object:list'),
+  workObjectSchedulerAvailable: () => ipcRenderer.invoke('lightnote:work-object:scheduler-available'),
+  workObjectCreateTask: (payload) => ipcRenderer.invoke('lightnote:work-object:create-task', payload),
+  workObjectCompleteTask: (taskId) => ipcRenderer.invoke('lightnote:work-object:complete-task', { taskId }),
+  workObjectTaskStatus: (taskId) => ipcRenderer.invoke('lightnote:work-object:task-status', { taskId }),
 
   // Page ↔ page links
   getPageRefs: (pageId) => ipcRenderer.invoke('lightnote:page-refs:get', { pageId }),

@@ -53,7 +53,7 @@ export interface SearchResult { pageId: string; notebookId: string; sectionId: s
 // from the note body. All optional except a default status; AI-free.
 export type WorkStatus = '예정' | '진행중' | '대기' | '완료' | '보류'
 export type WorkPriority = '' | '상' | '중' | '하'
-export interface WorkAction { id: string; text: string; done: boolean; doneAt: number | null }
+export interface WorkAction { id: string; text: string; done: boolean; doneAt: number | null; taskId?: string | null }
 export interface WorkDecision { id: string; at: number; text: string }
 export interface WorkObject {
   enabled: boolean
@@ -126,6 +126,10 @@ declare global {
       workObjectSet: (pageId: string, patch: Partial<WorkObject>) => Promise<WorkObject>
       workObjectRemove: (pageId: string) => Promise<{ success: boolean }>
       workObjectList: () => Promise<WorkObjectListItem[]>
+      workObjectSchedulerAvailable: () => Promise<{ available: boolean }>
+      workObjectCreateTask: (payload: { title: string; due: number | null; priority: string }) => Promise<{ taskId: string | null; error?: string }>
+      workObjectCompleteTask: (taskId: string) => Promise<{ done: boolean; error?: string }>
+      workObjectTaskStatus: (taskId: string) => Promise<{ id: string; title: string; due_at: number | null; done: boolean } | null>
       listAllPages: () => Promise<PageRefLoc[]>
       copyPageLink: (pageId: string) => Promise<string>
       dedupPages: () => Promise<{ removed: number; separated: number }>

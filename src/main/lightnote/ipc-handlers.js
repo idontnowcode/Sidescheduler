@@ -195,6 +195,25 @@ function registerIpcHandlers(ipcMain, getWindow, safeStorage, dialog, app, sched
   ipcMain.handle('lightnote:work-object:remove', async (_, { pageId }) => workObjectStorage.remove(pageId));
   ipcMain.handle('lightnote:work-object:list', async () => workObjectStorage.list());
 
+  // Calendar bridge (only meaningful when embedded in the DSP planner). All local
+  // IPC — no AI. Gated in the UI on scheduler availability.
+  const priToTask = (p) => (p === '상' ? 'urgent' : p === '하' ? 'low' : 'normal');
+  ipcMain.handle('lightnote:work-object:scheduler-available', async () => ({ available: !!(scheduler && scheduler.createTask) }));
+  ipcMain.handle('lightnote:work-object:create-task', async (_, { title, due, priority }) => {
+    if (!scheduler?.createTask) return { error: 'NO_SCHEDULER' };
+    const task = scheduler.createTask({ title: String(title || 'Untitled').slice(0, 200), due_at: due ?? null, priority: priToTask(priority) });
+    scheduler.refresh?.();
+    return { taskId: task?.id ?? null };
+  });
+  ipcMain.handle('lightnote:work-object:complete-task', async (_, { taskId }) => {
+    if (!scheduler?.completeTask) return { error: 'NO_SCHEDULER' };
+    return scheduler.completeTask(taskId) || { done: false };
+  });
+  ipcMain.handle('lightnote:work-object:task-status', async (_, { taskId }) => {
+    if (!scheduler?.getTask) return null;
+    return scheduler.getTask(taskId);
+  });
+
   ipcMain.handle('lightnote:duplicate-page', async (_, { notebookId, sectionId, id }) =>
     noteStorage.duplicatePage(notebookId, sectionId, id));
 

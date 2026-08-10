@@ -135,6 +135,26 @@ export default function LightnoteApp() {
     handlePageSelect(r.notebookId, r.sectionId, r.pageId, `${r.notebookName} › ${r.sectionName} › ${r.title}`)
   }, [handlePageSelect])
 
+  // When a work-object is marked 완료, offer to move the note to PARA Archives
+  // (opt-in — never forced). Re-points the editor to the moved page.
+  const moveCurrentToArchives = useCallback(async () => {
+    const { notebookId, sectionId, pageId } = selected
+    if (!notebookId || !sectionId || !pageId) return
+    try {
+      const nbs = await window.lightnote.getNotebooks()
+      const arch = nbs.find(n => n.name === 'Archives')
+      if (!arch || arch.id === notebookId) return // no Archives, or already there
+      if (!confirm('완료 처리되었습니다. Archives로 이동할까요?')) return
+      const secs = await window.lightnote.getSections(arch.id)
+      const target = secs[0] || await window.lightnote.createSection(arch.id, '완료 업무', null)
+      const r = await window.lightnote.movePage(notebookId, sectionId, pageId, arch.id, target.id)
+      if (r?.error) return
+      await treeRef.current?.reload()
+      const title = breadcrumb.split('›').pop()?.trim() || ''
+      handlePageSelect(arch.id, target.id, pageId, `${arch.name} › ${target.name} › ${title}`)
+    } catch { /* ignore */ }
+  }, [selected, breadcrumb, handlePageSelect])
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
       <header className="app-header">
@@ -163,7 +183,12 @@ export default function LightnoteApp() {
 
         <div style={{ flex: 1, minWidth: 0, position: 'relative', display: 'flex', flexDirection: 'column' }}>
           {!trashNode && selected.pageId && (
-            <WorkObjectPanel key={selected.pageId} pageId={selected.pageId} />
+            <WorkObjectPanel
+              key={selected.pageId}
+              pageId={selected.pageId}
+              noteTitle={breadcrumb.split('›').pop()?.trim()}
+              onComplete={moveCurrentToArchives}
+            />
           )}
           <Editor
             ref={editorRef}

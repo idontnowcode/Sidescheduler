@@ -934,6 +934,18 @@ app.whenReady().then(() => {
     createTask: (data: Parameters<typeof createTask>[0]) => createTask(data),
     createEvent: (data: Parameters<typeof createEvent>[0]) => createEvent(data),
     refresh: () => broadcastRefresh(),
+    // For LightNote work-object calendar sync: complete a linked task (idempotent
+    // — only toggles when not already done), and read a task's current state.
+    completeTask: (id: string) => {
+      const t = getTaskById(id)
+      if (t && !t.done) { toggleTask(id); broadcastRefresh() }
+      const u = getTaskById(id)
+      return u ? { id: u.id, done: !!u.done } : null
+    },
+    getTask: (id: string) => {
+      const t = getTaskById(id)
+      return t ? { id: t.id, title: t.title, due_at: t.due_at ?? null, done: !!t.done } : null
+    },
     getItem: (kind: 'event' | 'task', id: string) => {
       if (kind === 'event') {
         const e = getEventById(id)

@@ -1087,6 +1087,21 @@ sup.citation:hover { background: var(--accent-hover); }
 .wo-del-btn { border-color: var(--danger); color: var(--danger); }
 .wo-del-btn:hover { background: var(--danger); color: #fff; }
 
+/* D-day / overdue / done badges + calendar buttons */
+.wo-badge { align-self: center; font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 999px; white-space: nowrap; }
+.wo-badge-soon { background: rgba(77,171,247,0.18); color: #4dabf7; }
+.wo-badge-today { background: rgba(255,169,77,0.2); color: #ffa94d; }
+.wo-badge-overdue { background: rgba(244,71,71,0.2); color: var(--danger); }
+.wo-doneat { align-self: center; font-size: 11px; color: #2f9e44; display: inline-flex; align-items: center; gap: 2px; }
+.wo-doneat-x { border: none; background: none; color: var(--text-dim); cursor: pointer; font-size: 13px; line-height: 1; padding: 0 2px; }
+.wo-doneat-x:hover { color: var(--danger); }
+.wo-cal-btn { align-self: center; font-size: 11px; padding: 4px 10px; border-radius: 6px; border: 1px solid var(--border); background: transparent; color: var(--text); cursor: pointer; white-space: nowrap; }
+.wo-cal-btn:hover { border-color: var(--accent); color: var(--accent); }
+.wo-cal-linked { align-self: center; font-size: 11px; color: var(--text-dim); white-space: nowrap; }
+.wo-action-cal { border: none; background: none; cursor: pointer; font-size: 12px; opacity: 0.5; padding: 0 2px; }
+.wo-action-cal:hover { opacity: 1; }
+.wo-action-linked { font-size: 12px; opacity: 0.85; }
+
 .wo-lists { display: flex; gap: 16px; flex-wrap: wrap; }
 .wo-col { flex: 1; min-width: 220px; display: flex; flex-direction: column; gap: 3px; }
 .wo-sub-title { font-size: 11px; font-weight: 600; color: var(--text-dim); letter-spacing: 0.03em; margin-bottom: 2px; }
