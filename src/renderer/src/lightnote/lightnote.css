@@ -1109,6 +1109,8 @@ sup.citation:hover { background: var(--accent-hover); }
 .wo-action-text { flex: 1; }
 .wo-action.done .wo-action-text { text-decoration: line-through; color: var(--text-dim); }
 .wo-action-date, .wo-decision-date { font-size: 10px; color: var(--text-dim); flex-shrink: 0; }
+.wo-action-due { flex-shrink: 0; background: var(--bg); border: 1px solid var(--border); border-radius: 5px; color: var(--text-dim); font-size: 10px; padding: 1px 4px; color-scheme: dark; outline: none; }
+.wo-action-due:hover, .wo-action-due:focus { border-color: var(--accent); color: var(--text); }
 .wo-decision-date { min-width: 30px; }
 .wo-decision-text { flex: 1; background: transparent; border: none; border-bottom: 1px solid transparent; color: var(--text); font-size: 12px; padding: 1px 2px; outline: none; }
 .wo-decision-text:hover, .wo-decision-text:focus { border-bottom-color: var(--border); }
@@ -1186,6 +1188,21 @@ sup.citation:hover { background: var(--accent-hover); }
 .wl-prog { display: inline-block; width: 60px; height: 6px; background: var(--bg3); border-radius: 3px; overflow: hidden; vertical-align: middle; }
 .wl-prog-bar { height: 100%; background: #2f9e44; }
 .wl-prog-txt { font-size: 11px; color: var(--text-dim); margin-left: 6px; }
+
+/* 업무 / 액션 mode toggle */
+.wl-modes { display: inline-flex; gap: 2px; background: var(--bg3); border-radius: 8px; padding: 2px; }
+.wl-mode { font-size: 12px; padding: 4px 12px; border-radius: 6px; border: none; background: transparent; color: var(--text-dim); cursor: pointer; }
+.wl-mode.on { background: var(--bg); color: var(--text); font-weight: 600; }
+
+/* 액션 목록 table (spreadsheet-style) */
+.wl-cell-cat { color: var(--text-dim); white-space: nowrap; }
+.wl-cell-action { display: flex; flex-direction: column; gap: 2px; cursor: pointer; max-width: 420px; }
+.wl-action-text { color: var(--text); }
+.wl-arow-done .wl-action-text { text-decoration: line-through; color: var(--text-dim); }
+.wl-done-cell { text-align: center; }
+.wl-done-mark { min-width: 26px; border: 1px solid var(--border); background: transparent; color: var(--text-dim); border-radius: 6px; font-size: 12px; cursor: pointer; padding: 2px 6px; }
+.wl-done-mark.on { border-color: #2f9e44; color: #6bd68a; font-weight: 700; }
+.wl-done-mark:hover { border-color: var(--accent); }
 
 /* Draggable dividers to resize the left tree / right TOC panels. */
 .ln-resizer { flex: 0 0 5px; width: 5px; cursor: col-resize; background: transparent; position: relative; z-index: 5; }

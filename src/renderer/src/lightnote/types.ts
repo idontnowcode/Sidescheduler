@@ -53,7 +53,7 @@ export interface SearchResult { pageId: string; notebookId: string; sectionId: s
 // from the note body. All optional except a default status; AI-free.
 export type WorkStatus = '예정' | '진행중' | '대기' | '완료' | '보류'
 export type WorkPriority = '' | '상' | '중' | '하'
-export interface WorkAction { id: string; text: string; done: boolean; doneAt: number | null; taskId?: string | null }
+export interface WorkAction { id: string; text: string; done: boolean; doneAt: number | null; due?: number | null; taskId?: string | null }
 export interface WorkDecision { id: string; at: number; text: string }
 // A related-document link: an external URL/file, or a link to another LightNote page.
 export interface WorkDocLink {

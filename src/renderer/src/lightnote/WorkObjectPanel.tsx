@@ -124,7 +124,7 @@ export default function WorkObjectPanel({ pageId, noteTitle, onComplete, onOpenP
 
   const addAction = () => {
     const t = newAction.trim(); if (!t) return
-    setActions([...wo.nextActions, { id: uid(), text: t, done: false, doneAt: null, taskId: null }])
+    setActions([...wo.nextActions, { id: uid(), text: t, done: false, doneAt: null, due: null, taskId: null }])
     setNewAction('')
   }
   const toggleAction = (id: string) => {
@@ -133,10 +133,13 @@ export default function WorkObjectPanel({ pageId, noteTitle, onComplete, onOpenP
     setActions(wo.nextActions.map(a => a.id === id ? { ...a, done: nextDone, doneAt: nextDone ? Date.now() : null } : a))
     if (nextDone && target?.taskId) window.lightnote.workObjectCompleteTask(target.taskId).catch(() => {})
   }
+  const setActionDue = (id: string, due: number | null) =>
+    setActions(wo.nextActions.map(a => a.id === id ? { ...a, due } : a))
   const delAction = (id: string) => setActions(wo.nextActions.filter(a => a.id !== id))
-  // Calendar C: turn an action into a planner task.
+  // Calendar C: turn an action into a planner task — uses the action's own date
+  // when set, else the note's 기한.
   const actionToTask = async (a: WorkAction) => {
-    const r = await window.lightnote.workObjectCreateTask({ title: a.text, due: wo.due, priority: wo.priority }).catch(() => null)
+    const r = await window.lightnote.workObjectCreateTask({ title: a.text, due: a.due ?? wo.due, priority: wo.priority }).catch(() => null)
     if (r?.taskId) setActions(wo.nextActions.map(x => x.id === a.id ? { ...x, taskId: r.taskId } : x))
     else setError('태스크 등록에 실패했습니다.')
   }
@@ -311,9 +314,11 @@ export default function WorkObjectPanel({ pageId, noteTitle, onComplete, onOpenP
               <input type="checkbox" checked={a.done} onChange={() => toggleAction(a.id)} />
               <span className="wo-action-text">{a.text}</span>
               {a.done && a.doneAt && <span className="wo-action-date">{fmtDate(a.doneAt)}</span>}
+              <input type="date" className="wo-action-due" title="목표 일정 (액션별)"
+                value={toDateInput(a.due ?? null)} onChange={e => setActionDue(a.id, fromDateInput(e.target.value, true))} />
               {hasScheduler && (a.taskId
-                ? <span className="wo-action-linked" title="태스크로 등록됨">📅</span>
-                : <button className="wo-action-cal" title="태스크로 등록" onClick={() => actionToTask(a)}>📅</button>)}
+                ? <span className="wo-action-linked" title="캘린더에 등록됨">📅</span>
+                : <button className="wo-action-cal" title="이 액션을 캘린더에 등록" onClick={() => actionToTask(a)}>📅</button>)}
               <button className="wo-x" title="삭제" onClick={() => delAction(a.id)}>×</button>
             </div>
           ))}
