@@ -1119,6 +1119,46 @@ sup.citation:hover { background: var(--accent-hover); }
 .wo-err { font-size: 11px; color: var(--danger); }
 .wo-err-row { padding-top: 2px; }
 
+/* ── 업무 현황 dashboard (overlay over the main layout) ─────────────────── */
+.wl-view { position: absolute; inset: 0; z-index: 50; background: var(--bg); display: flex; flex-direction: column; overflow: hidden; }
+.wl-head { display: flex; align-items: center; gap: 8px; padding: 10px 18px; border-bottom: 1px solid var(--border); }
+.wl-title { font-size: 15px; font-weight: 700; color: var(--text); }
+.wl-refresh { border: none; background: none; color: var(--text-dim); cursor: pointer; font-size: 15px; }
+.wl-refresh:hover { color: var(--text); }
+.wl-spacer { flex: 1; }
+.wl-close { font-size: 12px; padding: 5px 12px; border-radius: 8px; border: 1px solid var(--border); background: transparent; color: var(--text); cursor: pointer; }
+.wl-close:hover { background: var(--bg3); }
+.wl-cards { display: flex; gap: 12px; padding: 14px 18px; flex-wrap: wrap; }
+.wl-card { flex: 1; min-width: 120px; background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; }
+.wl-card-num { font-size: 26px; font-weight: 700; color: var(--text); line-height: 1; }
+.wl-card-label { font-size: 12px; color: var(--text-dim); margin-top: 6px; }
+.wl-card-today .wl-card-num { color: #ffa94d; }
+.wl-card-overdue .wl-card-num { color: var(--danger); }
+.wl-card-done .wl-card-num { color: #2f9e44; }
+.wl-filters { display: flex; gap: 6px; padding: 0 18px 10px; flex-wrap: wrap; }
+.wl-chip { font-size: 12px; padding: 4px 12px; border-radius: 999px; border: 1px solid var(--border); background: transparent; color: var(--text-dim); cursor: pointer; }
+.wl-chip.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+.wl-table-wrap { flex: 1; overflow: auto; padding: 0 18px 18px; }
+.wl-empty { padding: 40px; text-align: center; color: var(--text-dim); font-size: 13px; }
+.wl-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.wl-table thead th { position: sticky; top: 0; background: var(--bg); text-align: left; padding: 8px 10px; color: var(--text-dim); font-weight: 600; font-size: 12px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+.wl-th { cursor: pointer; user-select: none; }
+.wl-th:hover { color: var(--text); }
+.wl-row { cursor: pointer; border-bottom: 1px solid var(--border); }
+.wl-row:hover { background: var(--bg2); }
+.wl-row td { padding: 8px 10px; color: var(--text); vertical-align: middle; }
+.wl-cell-title { display: flex; flex-direction: column; gap: 2px; max-width: 280px; }
+.wl-cell-title { font-weight: 500; }
+.wl-path { font-size: 10px; color: var(--text-dim); font-weight: 400; }
+.wl-status { font-size: 11px; padding: 2px 8px; border-radius: 999px; background: var(--bg3); color: var(--text); white-space: nowrap; }
+.wl-s-진행중 { background: rgba(77,171,247,0.18); color: #4dabf7; }
+.wl-s-완료 { background: rgba(47,158,68,0.18); color: #6bd68a; }
+.wl-s-보류, .wl-s-대기 { background: rgba(255,169,77,0.16); color: #ffa94d; }
+.wl-overdue { color: var(--danger); font-weight: 600; }
+.wl-prog { display: inline-block; width: 60px; height: 6px; background: var(--bg3); border-radius: 3px; overflow: hidden; vertical-align: middle; }
+.wl-prog-bar { height: 100%; background: #2f9e44; }
+.wl-prog-txt { font-size: 11px; color: var(--text-dim); margin-left: 6px; }
+
 /* Draggable dividers to resize the left tree / right TOC panels. */
 .ln-resizer { flex: 0 0 5px; width: 5px; cursor: col-resize; background: transparent; position: relative; z-index: 5; }
 .ln-resizer:hover, .ln-resizer:active { background: var(--accent); opacity: 0.5; }

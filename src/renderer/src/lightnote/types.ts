@@ -70,7 +70,10 @@ export interface WorkObject {
   calendarLink: string | null
   updatedAt: number
 }
-export type WorkObjectListItem = WorkObject & { pageId: string }
+export type WorkObjectListItem = WorkObject & {
+  pageId: string; title: string
+  notebookId: string; sectionId: string; notebookName: string; sectionName: string
+}
 // A heading extracted from the current page, for the table of contents.
 export interface TocItem { level: number; text: string; index: number }
 

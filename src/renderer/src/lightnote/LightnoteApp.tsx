@@ -8,6 +8,7 @@ import TrashViewer from './TrashViewer'
 import SearchBar from './SearchBar'
 import TocPanel from './TocPanel'
 import WorkObjectPanel from './WorkObjectPanel'
+import WorkListView from './WorkListView'
 import AIAssistant from './AIAssistant'
 import SettingsModal, { initAppearance } from './SettingsModal'
 
@@ -19,6 +20,7 @@ export default function LightnoteApp() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [aiPanelWidth, setAiPanelWidth] = useState(320)
   const [toc, setToc] = useState<TocItem[]>([])
+  const [showWorkList, setShowWorkList] = useState(false)
   // Resizable side panels (persisted).
   const [leftW, setLeftW] = useState(() => Number(localStorage.getItem('ln-left-w')) || 220)
   const [tocW, setTocW] = useState(() => Number(localStorage.getItem('ln-toc-w')) || 210)
@@ -161,6 +163,10 @@ export default function LightnoteApp() {
         <span className="app-name">LightNote</span>
         <SearchBar onOpen={openSearchResult} />
         <div className="header-actions">
+          <button className={`icon-btn${showWorkList ? ' active' : ''}`} title="업무 현황"
+            onClick={() => setShowWorkList(v => !v)}>
+            📋 업무 현황
+          </button>
           <button className="icon-btn" title="AI Assistant (Ctrl+F)" onClick={() => setIsAiOpen(v => !v)}>
             🤖 AI
           </button>
@@ -170,7 +176,16 @@ export default function LightnoteApp() {
         </div>
       </header>
 
-      <div className="main-layout">
+      <div className="main-layout" style={{ position: 'relative' }}>
+        {showWorkList && (
+          <WorkListView
+            onOpen={(item) => {
+              handlePageSelect(item.notebookId, item.sectionId, item.pageId, `${item.notebookName} › ${item.sectionName} › ${item.title}`)
+              setShowWorkList(false)
+            }}
+            onClose={() => setShowWorkList(false)}
+          />
+        )}
         <NotebookTree
           ref={treeRef}
           width={leftW}

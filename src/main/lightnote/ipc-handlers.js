@@ -193,7 +193,26 @@ function registerIpcHandlers(ipcMain, getWindow, safeStorage, dialog, app, sched
   ipcMain.handle('lightnote:work-object:get', async (_, { pageId }) => workObjectStorage.get(pageId));
   ipcMain.handle('lightnote:work-object:set', async (_, { pageId, patch }) => workObjectStorage.set(pageId, patch));
   ipcMain.handle('lightnote:work-object:remove', async (_, { pageId }) => workObjectStorage.remove(pageId));
-  ipcMain.handle('lightnote:work-object:list', async () => workObjectStorage.list());
+  // Enriched list for the "업무 현황" dashboard: join each enabled work-object
+  // with its (visible) page title + location in ONE pass over the tree. Pages in
+  // the trash / deleted are excluded.
+  ipcMain.handle('lightnote:work-object:list', async () => {
+    const objs = await workObjectStorage.list();
+    if (objs.length === 0) return [];
+    const byId = new Map(objs.map(o => [o.pageId, o]));
+    const out = [];
+    for (const nb of await noteStorage.getVisibleNotebooks()) {
+      for (const sec of await noteStorage.getVisibleSections(nb.id)) {
+        for (const pg of await noteStorage.getVisiblePages(nb.id, sec.id)) {
+          const o = byId.get(pg.id);
+          if (o && o.enabled !== false) {
+            out.push({ ...o, title: pg.title, notebookId: nb.id, sectionId: sec.id, notebookName: nb.name, sectionName: sec.name });
+          }
+        }
+      }
+    }
+    return out;
+  });
 
   // Calendar bridge (only meaningful when embedded in the DSP planner). All local
   // IPC — no AI. Gated in the UI on scheduler availability.

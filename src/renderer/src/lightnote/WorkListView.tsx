@@ -1,0 +1,130 @@
+import { useState, useEffect, useMemo, useCallback } from 'react'
+import type { WorkObjectListItem, WorkStatus } from './types'
+
+const DAY = 86400000
+const startOfDay = (ts: number) => { const d = new Date(ts); d.setHours(0, 0, 0, 0); return d.getTime() }
+const startOfWeek = () => { const d = new Date(); d.setHours(0, 0, 0, 0); const wd = (d.getDay() + 6) % 7; d.setDate(d.getDate() - wd); return d.getTime() } // Monday
+const fmt = (ts: number | null) => { if (!ts) return '—'; const d = new Date(ts); return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}` }
+const isOverdue = (w: WorkObjectListItem) => w.due != null && w.status !== '완료' && startOfDay(w.due) < startOfDay(Date.now())
+const ddayText = (w: WorkObjectListItem) => {
+  if (!w.due || w.status === '완료') return '—'
+  const diff = Math.round((startOfDay(w.due) - startOfDay(Date.now())) / DAY)
+  return diff < 0 ? `지연 D+${-diff}` : diff === 0 ? 'D-DAY' : `D-${diff}`
+}
+const progress = (w: WorkObjectListItem) => {
+  const total = w.nextActions.length
+  const done = w.nextActions.filter(a => a.done).length
+  return { done, total, pct: total ? Math.round((done / total) * 100) : (w.status === '완료' ? 100 : 0) }
+}
+
+type SortKey = 'title' | 'status' | 'priority' | 'due' | 'updatedAt' | 'progress'
+const PRIO_ORDER: Record<string, number> = { 상: 0, 중: 1, 하: 2, '': 3 }
+const STATUS_ORDER: Record<string, number> = { 진행중: 0, 예정: 1, 대기: 2, 보류: 3, 완료: 4 }
+const FILTERS = ['전체', '진행중', '예정', '대기', '지연', '완료'] as const
+
+interface Props {
+  onOpen: (item: WorkObjectListItem) => void
+  onClose: () => void
+}
+
+// "업무 현황" dashboard — a dedicated view (not a real note) listing every
+// enabled work-object with summary counts, sortable/filterable table. AI-free.
+export default function WorkListView({ onOpen, onClose }: Props) {
+  const [items, setItems] = useState<WorkObjectListItem[]>([])
+  const [loaded, setLoaded] = useState(false)
+  const [filter, setFilter] = useState<typeof FILTERS[number]>('전체')
+  const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>({ key: 'due', dir: 1 })
+
+  const reload = useCallback(() => {
+    window.lightnote.workObjectList().then(l => { setItems(l); setLoaded(true) }).catch(() => setLoaded(true))
+  }, [])
+  useEffect(() => { reload() }, [reload])
+
+  const summary = useMemo(() => {
+    const today = startOfDay(Date.now()); const wk = startOfWeek()
+    return {
+      inProgress: items.filter(w => w.status === '진행중').length,
+      dueToday: items.filter(w => w.due != null && startOfDay(w.due) === today && w.status !== '완료').length,
+      overdue: items.filter(isOverdue).length,
+      doneThisWeek: items.filter(w => w.status === '완료' && w.doneAt != null && w.doneAt >= wk).length,
+    }
+  }, [items])
+
+  const rows = useMemo(() => {
+    let r = items
+    if (filter === '지연') r = r.filter(isOverdue)
+    else if (filter !== '전체') r = r.filter(w => w.status === filter)
+    const { key, dir } = sort
+    const val = (w: WorkObjectListItem) =>
+      key === 'title' ? w.title.toLowerCase()
+        : key === 'status' ? STATUS_ORDER[w.status] ?? 9
+          : key === 'priority' ? PRIO_ORDER[w.priority] ?? 9
+            : key === 'due' ? (w.due ?? Number.MAX_SAFE_INTEGER)
+              : key === 'progress' ? progress(w).pct
+                : w.updatedAt
+    return [...r].sort((a, b) => { const va = val(a), vb = val(b); return va < vb ? -dir : va > vb ? dir : 0 })
+  }, [items, filter, sort])
+
+  const th = (key: SortKey, label: string) => (
+    <th className="wl-th" onClick={() => setSort(s => ({ key, dir: s.key === key ? (s.dir === 1 ? -1 : 1) : 1 }))}>
+      {label}{sort.key === key ? (sort.dir === 1 ? ' ▲' : ' ▼') : ''}
+    </th>
+  )
+
+  return (
+    <div className="wl-view">
+      <div className="wl-head">
+        <span className="wl-title">업무 현황</span>
+        <button className="wl-refresh" title="새로고침" onClick={reload}>↻</button>
+        <div className="wl-spacer" />
+        <button className="wl-close" onClick={onClose}>✕ 닫기</button>
+      </div>
+
+      <div className="wl-cards">
+        <div className="wl-card"><div className="wl-card-num">{summary.inProgress}</div><div className="wl-card-label">진행중</div></div>
+        <div className="wl-card wl-card-today"><div className="wl-card-num">{summary.dueToday}</div><div className="wl-card-label">오늘 마감</div></div>
+        <div className="wl-card wl-card-overdue"><div className="wl-card-num">{summary.overdue}</div><div className="wl-card-label">지연</div></div>
+        <div className="wl-card wl-card-done"><div className="wl-card-num">{summary.doneThisWeek}</div><div className="wl-card-label">이번주 완료</div></div>
+      </div>
+
+      <div className="wl-filters">
+        {FILTERS.map(f => (
+          <button key={f} className={`wl-chip${filter === f ? ' on' : ''}`} onClick={() => setFilter(f)}>{f}</button>
+        ))}
+      </div>
+
+      <div className="wl-table-wrap">
+        {!loaded ? <div className="wl-empty">불러오는 중…</div>
+          : rows.length === 0 ? <div className="wl-empty">해당하는 업무가 없습니다.</div>
+            : (
+              <table className="wl-table">
+                <thead><tr>
+                  {th('title', '제목')}{th('status', '상태')}{th('priority', '우선순위')}
+                  {th('due', '기한')}<th>D-day</th>{th('progress', '진행률')}<th>남은 액션</th>{th('updatedAt', '최근수정')}
+                </tr></thead>
+                <tbody>
+                  {rows.map(w => {
+                    const pr = progress(w); const over = isOverdue(w)
+                    return (
+                      <tr key={w.pageId} className="wl-row" onClick={() => onOpen(w)}>
+                        <td className="wl-cell-title">{w.title || '(제목 없음)'}<span className="wl-path">{w.notebookName} / {w.sectionName}</span></td>
+                        <td><span className={`wl-status wl-s-${w.status}`}>{w.status}</span></td>
+                        <td>{w.priority || '—'}</td>
+                        <td>{fmt(w.due)}</td>
+                        <td className={over ? 'wl-overdue' : ''}>{ddayText(w)}</td>
+                        <td>
+                          <div className="wl-prog"><div className="wl-prog-bar" style={{ width: `${pr.pct}%` }} /></div>
+                          <span className="wl-prog-txt">{pr.total ? `${pr.done}/${pr.total}` : '—'}</span>
+                        </td>
+                        <td>{w.nextActions.filter(a => !a.done).length || '—'}</td>
+                        <td>{fmt(w.updatedAt)}</td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            )}
+      </div>
+    </div>
+  )
+}
