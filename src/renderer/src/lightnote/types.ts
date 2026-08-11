@@ -55,6 +55,16 @@ export type WorkStatus = '예정' | '진행중' | '대기' | '완료' | '보류'
 export type WorkPriority = '' | '상' | '중' | '하'
 export interface WorkAction { id: string; text: string; done: boolean; doneAt: number | null; taskId?: string | null }
 export interface WorkDecision { id: string; at: number; text: string }
+// A related-document link: an external URL/file, or a link to another LightNote page.
+export interface WorkDocLink {
+  id: string
+  kind: 'url' | 'page'
+  label: string
+  url?: string          // kind === 'url'
+  pageId?: string       // kind === 'page'
+  notebookId?: string
+  sectionId?: string
+}
 export interface WorkObject {
   enabled: boolean
   status: WorkStatus
@@ -66,6 +76,7 @@ export interface WorkObject {
   decisions: WorkDecision[]
   depts: string
   docs: string
+  docLinks: WorkDocLink[]
   relatedPages: string[]
   calendarLink: string | null
   updatedAt: number

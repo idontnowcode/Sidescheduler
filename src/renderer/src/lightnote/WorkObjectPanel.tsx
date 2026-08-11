@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import type { WorkObject, WorkStatus, WorkPriority, WorkAction, WorkDecision } from './types'
+import type { WorkObject, WorkStatus, WorkPriority, WorkAction, WorkDecision, WorkDocLink, PageRefLoc } from './types'
 
 const STATUSES: WorkStatus[] = ['예정', '진행중', '대기', '완료', '보류']
 const PRIORITIES: WorkPriority[] = ['', '상', '중', '하']
@@ -34,21 +34,37 @@ interface Props {
   noteTitle?: string
   // Called when the note is just marked 완료 — the app offers to move it to Archives.
   onComplete?: () => void
+  // Open a LightNote page (for 관련 문서 page links). Falls back to no-op if absent.
+  onOpenPage?: (nbId: string, secId: string, pageId: string, crumb: string) => void
+}
+
+const normalizeUrl = (raw: string) => {
+  const s = raw.trim()
+  if (!s) return ''
+  // Leave file:// and explicit schemes (http, https, mailto, C:\ paths…) as-is;
+  // bare domains get https:// so openExternal treats them as web links.
+  if (/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(s) || /^[a-zA-Z]:[\\/]/.test(s) || s.startsWith('\\\\')) return s
+  return 'https://' + s
 }
 
 // The work-object ("업무 속성") panel. Loads/saves its own metadata for the
 // current page; every edit persists immediately. AI-free. Phase 3 adds D-day/
 // overdue badges, auto done-date on 완료, and (DSP-embedded only) calendar sync.
-export default function WorkObjectPanel({ pageId, noteTitle, onComplete }: Props) {
+export default function WorkObjectPanel({ pageId, noteTitle, onComplete, onOpenPage }: Props) {
   const [wo, setWo] = useState<WorkObject | null>(null)
   const [loaded, setLoaded] = useState(false)
   const [error, setError] = useState('')
   const [hasScheduler, setHasScheduler] = useState(false)
   const [depts, setDepts] = useState('')
-  const [docs, setDocs] = useState('')
   const [newAction, setNewAction] = useState('')
   const [newDecision, setNewDecision] = useState('')
   const textTimer = useRef<ReturnType<typeof setTimeout>>()
+  // 관련 문서 link editor.
+  const [adding, setAdding] = useState<null | 'url' | 'page'>(null)
+  const [urlVal, setUrlVal] = useState('')
+  const [urlLabel, setUrlLabel] = useState('')
+  const [pageQuery, setPageQuery] = useState('')
+  const [allPages, setAllPages] = useState<PageRefLoc[]>([])
 
   useEffect(() => {
     window.lightnote.workObjectSchedulerAvailable?.().then(r => setHasScheduler(!!r?.available)).catch(() => {})
@@ -58,8 +74,9 @@ export default function WorkObjectPanel({ pageId, noteTitle, onComplete }: Props
     let alive = true
     setLoaded(false); setError('')
     window.lightnote.workObjectGet(pageId)
-      .then(w => { if (!alive) return; setWo(w); setDepts(w?.depts || ''); setDocs(w?.docs || ''); setLoaded(true) })
+      .then(w => { if (!alive) return; setWo(w); setDepts(w?.depts || ''); setLoaded(true) })
       .catch(() => { if (alive) { setError('업무 속성을 불러오지 못했습니다.'); setLoaded(true) } })
+    setAdding(null); setUrlVal(''); setUrlLabel(''); setPageQuery('')
     return () => { alive = false }
   }, [pageId])
 
@@ -147,6 +164,42 @@ export default function WorkObjectPanel({ pageId, noteTitle, onComplete }: Props
     try { await window.lightnote.workObjectRemove(pageId); setWo(null) } catch { setError('삭제에 실패했습니다.') }
   }
 
+  // ── 관련 문서 links (external URL/file + LightNote page) ────────────────────
+  const docLinks = wo.docLinks || []
+  const setLinks = (next: WorkDocLink[]) => { setWo({ ...wo, docLinks: next }); persist({ docLinks: next }) }
+  const closeAdder = () => { setAdding(null); setUrlVal(''); setUrlLabel(''); setPageQuery('') }
+
+  const openLink = (l: WorkDocLink) => {
+    if (l.kind === 'url' && l.url) window.lightnote.openExternal(l.url).catch(() => setError('링크를 열지 못했습니다.'))
+    else if (l.kind === 'page' && l.pageId && l.notebookId && l.sectionId) {
+      onOpenPage?.(l.notebookId, l.sectionId, l.pageId, l.label)
+    }
+  }
+  const removeLink = (id: string) => setLinks(docLinks.filter(l => l.id !== id))
+
+  const addUrlLink = () => {
+    const url = normalizeUrl(urlVal); if (!url) return
+    const label = urlLabel.trim() || urlVal.trim()
+    setLinks([...docLinks, { id: uid(), kind: 'url', label, url }])
+    closeAdder()
+  }
+  const openPageAdder = async () => {
+    setAdding('page')
+    if (allPages.length === 0) {
+      try { setAllPages(await window.lightnote.listAllPages()) } catch { /* keep empty */ }
+    }
+  }
+  const addPageLink = (p: PageRefLoc) => {
+    const label = p.pageName || p.title || '(제목 없음)'
+    setLinks([...docLinks, { id: uid(), kind: 'page', label, pageId: p.pageId, notebookId: p.notebookId, sectionId: p.sectionId }])
+    closeAdder()
+  }
+  const pageMatches = (() => {
+    const q = pageQuery.trim().toLowerCase()
+    const rows = q ? allPages.filter(p => `${p.path || ''} ${p.pageName || p.title || ''}`.toLowerCase().includes(q)) : allPages
+    return rows.filter(p => p.pageId !== pageId).slice(0, 8)
+  })()
+
   return (
     <div className="wo-panel">
       <div className="wo-row wo-top">
@@ -193,12 +246,61 @@ export default function WorkObjectPanel({ pageId, noteTitle, onComplete }: Props
             onChange={e => { setDepts(e.target.value); persistText({ depts: e.target.value }) }}
             onBlur={() => persist({ depts })} />
         </label>
-        <label className="wo-field wo-grow">
+        <div className="wo-field wo-grow">
           <span>관련 문서</span>
-          <input type="text" placeholder="예: ECR, VTS" value={docs}
-            onChange={e => { setDocs(e.target.value); persistText({ docs: e.target.value }) }}
-            onBlur={() => persist({ docs })} />
-        </label>
+          <div className="wo-links">
+            {wo.docs && (
+              <span className="wo-doc-memo" title="이전 메모">📝 {wo.docs}
+                <button className="wo-link-x" title="메모 지우기" onClick={() => persist({ docs: '' })}>×</button>
+              </span>
+            )}
+            {docLinks.map(l => (
+              <span key={l.id} className={`wo-link-chip wo-link-${l.kind}`}>
+                <button className="wo-link-open" title={l.kind === 'url' ? l.url : '페이지 열기'} onClick={() => openLink(l)}>
+                  {l.kind === 'page' ? '📄' : '🔗'} {l.label}
+                </button>
+                <button className="wo-link-x" title="링크 제거" onClick={() => removeLink(l.id)}>×</button>
+              </span>
+            ))}
+            {adding === null && (
+              <span className="wo-link-add-group">
+                <button className="wo-link-add" onClick={() => setAdding('url')}>🔗 URL</button>
+                <button className="wo-link-add" onClick={openPageAdder}>📄 페이지</button>
+              </span>
+            )}
+          </div>
+
+          {adding === 'url' && (
+            <div className="wo-link-adder">
+              <input className="wo-link-in" autoFocus placeholder="URL 또는 파일 경로 (예: https://…, C:\\docs\\a.pdf)"
+                value={urlVal} onChange={e => setUrlVal(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') addUrlLink(); if (e.key === 'Escape') closeAdder() }} />
+              <input className="wo-link-in wo-link-in-label" placeholder="표시 이름 (선택)"
+                value={urlLabel} onChange={e => setUrlLabel(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') addUrlLink(); if (e.key === 'Escape') closeAdder() }} />
+              <button className="wo-link-ok" onClick={addUrlLink}>추가</button>
+              <button className="wo-link-cancel" onClick={closeAdder}>취소</button>
+            </div>
+          )}
+          {adding === 'page' && (
+            <div className="wo-link-adder wo-link-adder-page">
+              <input className="wo-link-in" autoFocus placeholder="페이지 제목/경로 검색"
+                value={pageQuery} onChange={e => setPageQuery(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Escape') closeAdder() }} />
+              <button className="wo-link-cancel" onClick={closeAdder}>취소</button>
+              <div className="wo-page-results">
+                {pageMatches.length === 0
+                  ? <div className="wo-page-empty">일치하는 페이지가 없습니다.</div>
+                  : pageMatches.map(p => (
+                    <button key={p.pageId} className="wo-page-hit" onClick={() => addPageLink(p)}>
+                      <span className="wo-page-hit-name">{p.pageName || p.title || '(제목 없음)'}</span>
+                      {p.path && <span className="wo-page-hit-path">{p.path}</span>}
+                    </button>
+                  ))}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="wo-lists">

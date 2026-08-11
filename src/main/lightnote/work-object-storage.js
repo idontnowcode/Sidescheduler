@@ -54,7 +54,8 @@ function blank() {
     nextActions: [],        // [{ id, text, done, doneAt }]
     decisions: [],          // [{ id, at, text }]  (history log)
     depts: '',              // 관련 부서/담당 (free text)
-    docs: '',               // 관련 문서 (free text/links)
+    docs: '',               // 관련 문서 메모 (legacy free text, kept for migration)
+    docLinks: [],           // 관련 문서 링크 [{ id, kind:'url'|'page', label, url?, pageId?, notebookId?, sectionId? }]
     relatedPages: [],       // [pageId] internal note links
     calendarLink: null,     // linked planner task id (Phase 3)
     updatedAt: Date.now(),

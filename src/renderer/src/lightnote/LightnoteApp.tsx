@@ -203,6 +203,7 @@ export default function LightnoteApp() {
               pageId={selected.pageId}
               noteTitle={breadcrumb.split('›').pop()?.trim()}
               onComplete={moveCurrentToArchives}
+              onOpenPage={handlePageSelect}
             />
           )}
           <Editor
