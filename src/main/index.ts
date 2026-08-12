@@ -217,6 +217,7 @@ function openDashboard(view?: string): void {
   dashboardWindow = new BrowserWindow({
     width: 960, height: 700, minWidth: 800, minHeight: 560,
     title: 'Daily Sidebar Planner — Calendar',
+    icon: join(__dirname, '../../resources/icon.ico'),
     show: false,
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
@@ -769,6 +770,7 @@ function openLightNoteWindow(): void {
     minWidth: 960,
     minHeight: 600,
     title: 'LightNote',
+    icon: join(__dirname, '../../resources/icon.ico'),
     show: false,
     webPreferences: {
       preload: join(__dirname, '../preload/lightnote.js'),
