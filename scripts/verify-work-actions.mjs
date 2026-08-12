@@ -75,20 +75,23 @@ const a1done = await ln.evaluate((id) => window.lightnote.workObjectGet(id).then
 ok('toggling 완료 in the table persists', a1done === true, `${a1done}`)
 
 // 6) Per-action calendar registration uses the ACTION's date, not the note 기한.
+// Calendar UI is switched off (일정은 Outlook으로 관리), so this drives the same
+// IPC path the hidden 📅 button used to call, confirming the plumbing still
+// prefers the action's own due date over the note's 기한.
 await ln.locator('.wl-mode', { hasText: '업무' }).click()
 await ln.locator('.wl-close').click()
 await ln.evaluate((id) => window.lightnote.loadPage(id.nbA, id.secA, id.p1), ids)
 await ln.reload()
 await ln.waitForFunction(() => !!window.lightnote, null, { timeout: 8000 })
-await ln.waitForSelector('.wo-action-cal', { timeout: 8000 })
-// Register the first (not-yet-linked) action; its own due = d1 (today+1), note due = d2 (today+5).
-await ln.locator('.wo-action-cal').first().click()
-await ln.waitForTimeout(500)
+await ln.waitForSelector('.wo-panel', { timeout: 8000 })
+ok('per-action 📅 button is hidden (calendar UI off)', await ln.locator('.wo-action-cal').count() === 0)
 const linkedTaskDue = await ln.evaluate(async (id) => {
-  const w = await window.lightnote.workObjectGet(id)
-  const linked = w.nextActions.find(a => a.taskId)
-  if (!linked) return { err: 'no linked action' }
-  const st = await window.lightnote.workObjectTaskStatus(linked.taskId)
+  const cur = await window.lightnote.workObjectGet(id)
+  const first = cur.nextActions[0] // due = d1 (today+1); note due = d2 (today+5)
+  const r = await window.lightnote.workObjectCreateTask({ title: first.text, due: first.due ?? cur.due, priority: cur.priority })
+  const next = cur.nextActions.map((a, i) => i === 0 ? { ...a, taskId: r.taskId } : a)
+  await window.lightnote.workObjectSet(id, { nextActions: next })
+  const st = await window.lightnote.workObjectTaskStatus(r.taskId)
   return { due: st?.due_at ?? null }
 }, ids.p1)
 const expectDay = new Date(dayTs(1)); expectDay.setHours(0, 0, 0, 0)

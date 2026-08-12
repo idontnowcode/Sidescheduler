@@ -3,6 +3,9 @@ import type { WorkObject, WorkStatus, WorkPriority, WorkAction, WorkDecision, Wo
 
 const STATUSES: WorkStatus[] = ['예정', '진행중', '대기', '완료', '보류']
 const PRIORITIES: WorkPriority[] = ['', '상', '중', '하']
+// 캘린더 등록 UI는 꺼둠 (일정은 사내 Outlook으로 별도 관리) — 데이터/IPC/스토리지는
+// 그대로 두고 버튼·배지만 숨긴다. 다시 필요해지면 이 상수만 true로.
+const CALENDAR_SYNC_ENABLED = false
 const uid = () => (crypto as Crypto).randomUUID()
 const DAY = 86400000
 
@@ -67,6 +70,7 @@ export default function WorkObjectPanel({ pageId, noteTitle, onComplete, onOpenP
   const [allPages, setAllPages] = useState<PageRefLoc[]>([])
 
   useEffect(() => {
+    if (!CALENDAR_SYNC_ENABLED) return
     window.lightnote.workObjectSchedulerAvailable?.().then(r => setHasScheduler(!!r?.available)).catch(() => {})
   }, [])
 
@@ -232,7 +236,7 @@ export default function WorkObjectPanel({ pageId, noteTitle, onComplete, onOpenP
             <button className="wo-doneat-x" title="완료일 지우기" onClick={() => persist({ doneAt: null })}>×</button>
           </span>
         )}
-        {hasScheduler && wo.due && (
+        {CALENDAR_SYNC_ENABLED && hasScheduler && wo.due && (
           wo.calendarLink
             ? <span className="wo-cal-linked" title="캘린더에 등록됨">📅 등록됨</span>
             : <button className="wo-cal-btn" onClick={registerCalendar}>📅 캘린더 등록</button>
@@ -316,7 +320,7 @@ export default function WorkObjectPanel({ pageId, noteTitle, onComplete, onOpenP
               {a.done && a.doneAt && <span className="wo-action-date">{fmtDate(a.doneAt)}</span>}
               <input type="date" className="wo-action-due" title="목표 일정 (액션별)"
                 value={toDateInput(a.due ?? null)} onChange={e => setActionDue(a.id, fromDateInput(e.target.value, true))} />
-              {hasScheduler && (a.taskId
+              {CALENDAR_SYNC_ENABLED && hasScheduler && (a.taskId
                 ? <span className="wo-action-linked" title="캘린더에 등록됨">📅</span>
                 : <button className="wo-action-cal" title="이 액션을 캘린더에 등록" onClick={() => actionToTask(a)}>📅</button>)}
               <button className="wo-x" title="삭제" onClick={() => delAction(a.id)}>×</button>
