@@ -5,7 +5,9 @@ const geminiService = require('./gemini-service');
 const storage = require('./storage');
 const linkStorage = require('./link-storage');
 const workObjectStorage = require('./work-object-storage');
+const exportImport = require('./export-import');
 const path = require('path');
+const fs = require('fs').promises;
 const { shell } = require('electron');
 
 /**
@@ -212,6 +214,53 @@ function registerIpcHandlers(ipcMain, getWindow, safeStorage, dialog, app, sched
       }
     }
     return out;
+  });
+
+  // === 내보내기/가져오기 (page/section/notebook → single portable .json) ===
+  // For moving work between independent installs (e.g. home PC → company PC)
+  // with no shared backend — the user handles actual file transport (USB,
+  // email, company file share…), the app only reads/writes the bundle file.
+  ipcMain.handle('lightnote:export-node', async (_, { type, notebookId, sectionId, pageId, suggestedName }) => {
+    if (!dialog) return { error: 'NO_DIALOG' };
+    try {
+      const bundle = type === 'page' ? await exportImport.exportPage(notebookId, sectionId, pageId)
+        : type === 'section' ? await exportImport.exportSection(notebookId, sectionId)
+        : type === 'notebook' ? await exportImport.exportNotebook(notebookId)
+        : null;
+      if (!bundle) return { error: 'INVALID_TYPE' };
+      const win = getWindow();
+      const res = await dialog.showSaveDialog(win || undefined, {
+        title: '내보내기',
+        defaultPath: `${(suggestedName || bundle.name || 'lightnote-export').replace(/[\\/:*?"<>|]/g, '_')}.lightnote.json`,
+        filters: [{ name: 'LightNote Export', extensions: ['json'] }],
+      });
+      if (res.canceled || !res.filePath) return { canceled: true };
+      await fs.writeFile(res.filePath, JSON.stringify(bundle, null, 2), 'utf-8');
+      return { success: true, filePath: res.filePath };
+    } catch (err) {
+      return { error: err.message || 'EXPORT_FAILED' };
+    }
+  });
+
+  ipcMain.handle('lightnote:import-bundle', async () => {
+    if (!dialog) return { error: 'NO_DIALOG' };
+    try {
+      const win = getWindow();
+      const res = await dialog.showOpenDialog(win || undefined, {
+        title: '가져오기',
+        properties: ['openFile'],
+        filters: [{ name: 'LightNote Export', extensions: ['json'] }],
+      });
+      if (res.canceled || !res.filePaths?.length) return { canceled: true };
+      const raw = await fs.readFile(res.filePaths[0], 'utf-8');
+      let bundle;
+      try { bundle = JSON.parse(raw); } catch { return { error: 'INVALID_JSON' }; }
+      const result = await exportImport.importBundle(bundle);
+      noteIndexer.clearCache();
+      return { success: true, ...result };
+    } catch (err) {
+      return { error: err.message || 'IMPORT_FAILED' };
+    }
   });
 
   // Calendar bridge (only meaningful when embedded in the DSP planner). All local

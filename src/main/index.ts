@@ -930,7 +930,7 @@ app.whenReady().then(() => {
   })
 
   initDb()
-  registerLightNoteIpc(ipcMain, () => lightNoteWindow, safeStorage, null, app, {
+  registerLightNoteIpc(ipcMain, () => lightNoteWindow, safeStorage, dialog, app, {
     scheduleDigest: buildScheduleDigest,
     pageLinks: pageLinkContext,
     createTask: (data: Parameters<typeof createTask>[0]) => createTask(data),

@@ -214,6 +214,38 @@ const NotebookTree = forwardRef<TreeHandle, Props>(({ selected, onPageSelect, on
     } catch { /* ignore */ }
   }, [ctxMenu, hideCtx])
 
+  // ── Export / Import: move a page / folder / notebook to another install
+  //    (e.g. home PC → company PC) as a single portable .json file. Import
+  //    always lands as a brand-new notebook — never overwrites anything. ──
+  const [toast, setToast] = useState<string | null>(null)
+  const showToast = useCallback((msg: string) => {
+    setToast(msg)
+    setTimeout(() => setToast(prev => (prev === msg ? null : prev)), 2200)
+  }, [])
+
+  const handleExport = useCallback(async () => {
+    if (!ctxMenu) return
+    const { type, notebookId, sectionId, pageId } = ctxMenu.target
+    hideCtx()
+    let suggestedName = ''
+    if (type === 'notebook') suggestedName = notebooks.find(n => n.id === notebookId)?.name || ''
+    else if (type === 'section' && sectionId) suggestedName = findSection(sectionsByNb[notebookId] || [], sectionId)?.name || ''
+    else if (type === 'page' && sectionId && pageId) suggestedName = (pagesBySec[sectionId] || []).find(p => p.id === pageId)?.title || ''
+    const res = await window.lightnote.exportNode({ type, notebookId, sectionId, pageId, suggestedName })
+    if (res?.success) showToast(`📤 내보냈습니다: ${res.filePath?.split(/[\\/]/).pop()}`)
+    else if (!res?.canceled) showToast('내보내기에 실패했습니다.')
+  }, [ctxMenu, hideCtx, notebooks, sectionsByNb, pagesBySec, showToast])
+
+  const handleImport = useCallback(async () => {
+    const res = await window.lightnote.importBundle()
+    if (res?.success) {
+      showToast(`📥 "${res.notebookName}" 가져옴 — 페이지 ${res.pageCount}개`)
+      await reload()
+    } else if (!res?.canceled) {
+      showToast('가져오기에 실패했습니다. 파일 형식을 확인해 주세요.')
+    }
+  }, [showToast, reload])
+
   const handleDelete = useCallback(async () => {
     if (!ctxMenu) return
     hideCtx()
@@ -618,6 +650,16 @@ const NotebookTree = forwardRef<TreeHandle, Props>(({ selected, onPageSelect, on
           🔗 Link copied
         </div>
       )}
+      {toast && (
+        <div style={{
+          position: 'fixed', bottom: '12px', left: '12px', zIndex: 2000,
+          background: '#7c6ff0', color: '#fff', fontSize: '12px',
+          padding: '6px 12px', borderRadius: '8px', boxShadow: '0 2px 10px rgba(0,0,0,.3)',
+          maxWidth: '320px', wordBreak: 'break-word',
+        }}>
+          {toast}
+        </div>
+      )}
       {msel.length > 0 && (
         <div style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
@@ -631,6 +673,8 @@ const NotebookTree = forwardRef<TreeHandle, Props>(({ selected, onPageSelect, on
       )}
       <div className="sidebar-top">
         <span className="sidebar-label">Notebooks</span>
+        <button className="icon-btn-sm" title="가져오기 (다른 PC에서 내보낸 .json)"
+          onClick={e => { e.stopPropagation(); handleImport() }}>📥</button>
         <button className="icon-btn-sm" title="New notebook"
           onClick={e => {
             e.stopPropagation()
@@ -684,6 +728,7 @@ const NotebookTree = forwardRef<TreeHandle, Props>(({ selected, onPageSelect, on
               <div className="ctx-item" onClick={handleCopyLink}>🔗 Copy link</div>
             </>
           )}
+          <div className="ctx-item" onClick={handleExport}>📤 내보내기…</div>
           {!isBuiltinNb && <div className="ctx-item ctx-danger" onClick={handleDelete}>Delete</div>}
           {ctxMenu.target.type === 'section' && (
             <>

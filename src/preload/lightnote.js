@@ -35,6 +35,10 @@ contextBridge.exposeInMainWorld('lightnote', {
   // Maintenance: de-duplicate pages that share the same id (old move bug)
   dedupPages: () => ipcRenderer.invoke('lightnote:dedup-pages'),
 
+  // 내보내기/가져오기 (페이지 · 섹션 · 노트북 → 단일 .json 번들)
+  exportNode: (payload) => ipcRenderer.invoke('lightnote:export-node', payload),
+  importBundle: () => ipcRenderer.invoke('lightnote:import-bundle'),
+
   // Trash (soft delete): list, restore, permanently purge, empty, retention
   trashList: () => ipcRenderer.invoke('lightnote:trash:list'),
   trashRestore: (node) => ipcRenderer.invoke('lightnote:trash:restore', node),

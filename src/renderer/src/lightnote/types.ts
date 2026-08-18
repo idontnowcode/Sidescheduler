@@ -147,6 +147,9 @@ declare global {
       listAllPages: () => Promise<PageRefLoc[]>
       copyPageLink: (pageId: string) => Promise<string>
       dedupPages: () => Promise<{ removed: number; separated: number }>
+      exportNode: (payload: { type: 'page' | 'section' | 'notebook'; notebookId: string; sectionId?: string; pageId?: string; suggestedName?: string }) =>
+        Promise<{ success?: boolean; canceled?: boolean; filePath?: string; error?: string }>
+      importBundle: () => Promise<{ success?: boolean; canceled?: boolean; notebookId?: string; notebookName?: string; pageCount?: number; sectionCount?: number; error?: string }>
       getPageRefs: (pageId: string) => Promise<PageRefLoc[]>
       addPageRef: (a: string, b: string) => Promise<{ success: boolean }>
       removePageRef: (a: string, b: string) => Promise<{ success: boolean }>
