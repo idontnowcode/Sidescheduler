@@ -109,13 +109,12 @@ ok('진행 현황 정렬: 먼저 기록이 나중 기록보다 먼저 출력(오
 ok('완료된 액션은 제외, 미완료 액션만 출력', !report.includes('완료된 액션') && report.includes('에러 응답 케이스 정의'))
 ok('해결된 의사결정은 제외, 미해결만 출력', !report.includes('이미 해결된 안건') && report.includes('캐시 TTL 1시간 vs 30분'))
 ok('Action Item 라벨에서 "(미완료)" 제거됨', report.includes('Action Item') && !report.includes('(미완료)'))
-ok('Action 목표 기한 표기: "Action 1 (~MM/DD): 텍스트" (연도 없음)',
-  /Action 1 \(~\d{2}\/\d{2}\): 에러 응답 케이스 정의/.test(report), report.match(/Action 1.*/)?.[0])
-ok('목표 기한 없는 Action은 "(~..)" 생략: "Action 2: 텍스트"',
-  /Action 2: QA 시나리오 작성/.test(report), report.match(/Action 2.*/)?.[0])
-ok('진행 현황 표기: "진행 현황 N (MM\\/DD): 텍스트" (연도 없음, 오름차순 번호)',
-  /진행 현황 1 \(\d{2}\/\d{2}\): 먼저 기록/.test(report) && /진행 현황 2 \(\d{2}\/\d{2}\): 나중 기록/.test(report),
-  `${report.match(/진행 현황 1.*/)?.[0]} | ${report.match(/진행 현황 2.*/)?.[0]}`)
+ok('Action 표기: "- 텍스트 (~MM/DD)" (텍스트가 먼저, 연도 없음)',
+  /- 에러 응답 케이스 정의 \(~\d{2}\/\d{2}\)/.test(report), report.match(/- 에러 응답 케이스 정의.*/)?.[0])
+ok('목표 기한 없는 Action은 "(~..)" 없이 텍스트만', /- QA 시나리오 작성\s*$/m.test(report), report.match(/- QA 시나리오 작성.*/)?.[0])
+ok('진행 현황 표기: "- 텍스트 (MM\\/DD)" (텍스트가 먼저, 연도 없음, 오름차순)',
+  /- 먼저 기록 \(\d{2}\/\d{2}\)/.test(report) && /- 나중 기록 \(\d{2}\/\d{2}\)/.test(report) && report.indexOf('먼저 기록') < report.indexOf('나중 기록'),
+  `${report.match(/- 먼저 기록.*/)?.[0]} | ${report.match(/- 나중 기록.*/)?.[0]}`)
 ok('아무 보고용 필드 없는 B는 목표 기한 한 줄만 출력', /2\. 월간 보고서 취합\n {4}a\. 목표 기한: \d{4}-\d{2}-\d{2}\n\n?$/.test(report) || /2\. 월간 보고서 취합\n {4}a\. 목표 기한: \d{4}-\d{2}-\d{2}\n$/m.test(report))
 
 // 4) NOW exercise the panel's editing affordances (this mutates A's data, but

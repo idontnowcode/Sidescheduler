@@ -32,14 +32,14 @@ function buildItemBlock(index, title, wo) {
 
   const progress = [...(wo.progressLog || [])].sort((a, b) => a.at - b.at); // chronological for the report, regardless of panel (newest-first) order
   if (progress.length) {
-    sections.push({ label: '진행 현황', lines: progress.map((p, i) => `진행 현황 ${i + 1} (${fmtMD(p.at)}): ${p.text}`) });
+    sections.push({ label: '진행 현황', lines: progress.map((p) => `- ${p.text} (${fmtMD(p.at)})`) });
   }
 
   const todoActions = (wo.nextActions || []).filter((a) => !a.done);
   if (todoActions.length) {
     sections.push({
       label: 'Action Item',
-      lines: todoActions.map((a, i) => `Action ${i + 1}${a.due ? ` (~${fmtMD(a.due)})` : ''}: ${a.text}`),
+      lines: todoActions.map((a) => `- ${a.text}${a.due ? ` (~${fmtMD(a.due)})` : ''}`),
     });
   }
 
