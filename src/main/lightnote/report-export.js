@@ -13,6 +13,12 @@ function fmtDate(ts) {
   const d = new Date(ts);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
+// Month/day only (no year) — for Action/진행 현황 line labels.
+function fmtMD(ts) {
+  if (!ts) return null;
+  const d = new Date(ts);
+  return `${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}`;
+}
 
 // Build one work item's block. Empty fields are omitted entirely — the
 // sub-letters (a/b/c…) are assigned to whatever's actually present, in order,
@@ -25,10 +31,17 @@ function buildItemBlock(index, title, wo) {
   if (wo.purpose && wo.purpose.trim()) sections.push({ label: '목적', lines: wo.purpose.trim().split('\n') });
 
   const progress = [...(wo.progressLog || [])].sort((a, b) => a.at - b.at); // chronological for the report, regardless of panel (newest-first) order
-  if (progress.length) sections.push({ label: '진행 현황', lines: progress.map((p) => `- ${fmtDate(p.at)}: ${p.text}`) });
+  if (progress.length) {
+    sections.push({ label: '진행 현황', lines: progress.map((p, i) => `진행 현황 ${i + 1} (${fmtMD(p.at)}): ${p.text}`) });
+  }
 
   const todoActions = (wo.nextActions || []).filter((a) => !a.done);
-  if (todoActions.length) sections.push({ label: 'Action Item (미완료)', lines: todoActions.map((a) => `- ${a.text}`) });
+  if (todoActions.length) {
+    sections.push({
+      label: 'Action Item',
+      lines: todoActions.map((a, i) => `Action ${i + 1}${a.due ? ` (~${fmtMD(a.due)})` : ''}: ${a.text}`),
+    });
+  }
 
   const pending = (wo.pendingDecisions || []).filter((p) => !p.resolved);
   if (pending.length) sections.push({ label: '의사결정 필요 사항', lines: pending.map((p) => `- ${p.text}`) });

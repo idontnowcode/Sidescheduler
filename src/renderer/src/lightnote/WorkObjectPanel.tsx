@@ -146,6 +146,7 @@ export default function WorkObjectPanel({ pageId, noteTitle, onComplete, onOpenP
   }
   const setActionDue = (id: string, due: number | null) =>
     setActions(wo.nextActions.map(a => a.id === id ? { ...a, due } : a))
+  const editAction = (id: string, text: string) => setActions(wo.nextActions.map(a => a.id === id ? { ...a, text } : a))
   const delAction = (id: string) => setActions(wo.nextActions.filter(a => a.id !== id))
   // Calendar C: turn an action into a planner task — uses the action's own date
   // when set, else the note's 기한.
@@ -161,6 +162,10 @@ export default function WorkObjectPanel({ pageId, noteTitle, onComplete, onOpenP
     setNewDecision('')
   }
   const editDecision = (id: string, text: string) => setDecisions(wo.decisions.map(d => d.id === id ? { ...d, text } : d))
+  const editDecisionDate = (id: string, dateStr: string) => {
+    const at = fromDateInput(dateStr); if (at == null) return
+    setDecisions(wo.decisions.map(d => d.id === id ? { ...d, at } : d))
+  }
   const delDecision = (id: string) => {
     if (!confirm('이 결정사항 항목을 삭제할까요? (이력이 지워집니다)')) return
     setDecisions(wo.decisions.filter(d => d.id !== id))
@@ -174,6 +179,10 @@ export default function WorkObjectPanel({ pageId, noteTitle, onComplete, onOpenP
     setNewProgress('')
   }
   const editProgress = (id: string, text: string) => setProgressLog(wo.progressLog.map(p => p.id === id ? { ...p, text } : p))
+  const editProgressDate = (id: string, dateStr: string) => {
+    const at = fromDateInput(dateStr); if (at == null) return
+    setProgressLog(wo.progressLog.map(p => p.id === id ? { ...p, at } : p))
+  }
   const delProgress = (id: string) => {
     if (!confirm('이 진행 현황 항목을 삭제할까요?')) return
     setProgressLog(wo.progressLog.filter(p => p.id !== id))
@@ -185,6 +194,7 @@ export default function WorkObjectPanel({ pageId, noteTitle, onComplete, onOpenP
     setPendingDecisions([...wo.pendingDecisions, { id: uid(), text: t, raisedAt: Date.now(), resolved: false, resolvedAt: null }])
     setNewPending('')
   }
+  const editPending = (id: string, text: string) => setPendingDecisions(wo.pendingDecisions.map(p => p.id === id ? { ...p, text } : p))
   const toggleResolved = (id: string) => {
     setPendingDecisions(wo.pendingDecisions.map(p => p.id === id
       ? { ...p, resolved: !p.resolved, resolvedAt: !p.resolved ? Date.now() : null }
@@ -352,7 +362,7 @@ export default function WorkObjectPanel({ pageId, noteTitle, onComplete, onOpenP
           {wo.nextActions.map(a => (
             <div key={a.id} className={`wo-action${a.done ? ' done' : ''}`}>
               <input type="checkbox" checked={a.done} onChange={() => toggleAction(a.id)} />
-              <span className="wo-action-text">{a.text}</span>
+              <input className="wo-action-text wo-action-text-input" value={a.text} onChange={e => editAction(a.id, e.target.value)} />
               {a.done && a.doneAt && <span className="wo-action-date">{fmtDate(a.doneAt)}</span>}
               <input type="date" className="wo-action-due" title="목표 일정 (액션별)"
                 value={toDateInput(a.due ?? null)} onChange={e => setActionDue(a.id, fromDateInput(e.target.value, true))} />
@@ -370,7 +380,7 @@ export default function WorkObjectPanel({ pageId, noteTitle, onComplete, onOpenP
           <div className="wo-sub-title">결정사항 (이력)</div>
           {wo.decisions.map(d => (
             <div key={d.id} className="wo-decision">
-              <span className="wo-decision-date">{fmtDate(d.at)}</span>
+              <input type="date" className="wo-decision-date-input" value={toDateInput(d.at)} onChange={e => editDecisionDate(d.id, e.target.value)} />
               <input className="wo-decision-text" value={d.text} onChange={e => editDecision(d.id, e.target.value)} />
               <button className="wo-x" title="삭제" onClick={() => delDecision(d.id)}>×</button>
             </div>
@@ -408,7 +418,7 @@ export default function WorkObjectPanel({ pageId, noteTitle, onComplete, onOpenP
                 <div className="wo-sub-title">진행 현황 (날짜별 기록)</div>
                 {wo.progressLog.map(p => (
                   <div key={p.id} className="wo-decision">
-                    <span className="wo-decision-date">{fmtDate(p.at)}</span>
+                    <input type="date" className="wo-decision-date-input" value={toDateInput(p.at)} onChange={e => editProgressDate(p.id, e.target.value)} />
                     <input className="wo-decision-text" value={p.text} onChange={e => editProgress(p.id, e.target.value)} />
                     <button className="wo-x" title="삭제" onClick={() => delProgress(p.id)}>×</button>
                   </div>
@@ -422,7 +432,7 @@ export default function WorkObjectPanel({ pageId, noteTitle, onComplete, onOpenP
                 {wo.pendingDecisions.map(p => (
                   <div key={p.id} className={`wo-action${p.resolved ? ' done' : ''}`}>
                     <input type="checkbox" checked={p.resolved} onChange={() => toggleResolved(p.id)} title="해결됨으로 표시" />
-                    <span className="wo-action-text">{p.text}</span>
+                    <input className="wo-action-text wo-action-text-input" value={p.text} onChange={e => editPending(p.id, e.target.value)} />
                     {p.resolved && p.resolvedAt && <span className="wo-action-date">{fmtDate(p.resolvedAt)}</span>}
                     <button className="wo-x" title="삭제" onClick={() => delPending(p.id)}>×</button>
                   </div>

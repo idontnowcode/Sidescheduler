@@ -1114,6 +1114,11 @@ sup.citation:hover { background: var(--accent-hover); }
 .wo-decision-date { min-width: 30px; }
 .wo-decision-text { flex: 1; background: transparent; border: none; border-bottom: 1px solid transparent; color: var(--text); font-size: 12px; padding: 1px 2px; outline: none; }
 .wo-decision-text:hover, .wo-decision-text:focus { border-bottom-color: var(--border); }
+.wo-decision-date-input { flex-shrink: 0; min-width: 108px; background: transparent; border: none; border-bottom: 1px solid transparent; color: var(--text-dim); font-size: 10px; padding: 1px 2px; outline: none; color-scheme: dark; }
+.wo-decision-date-input:hover, .wo-decision-date-input:focus { border-bottom-color: var(--border); color: var(--text); }
+.wo-action-text-input { flex: 1; background: transparent; border: none; border-bottom: 1px solid transparent; color: var(--text); font-size: 12px; padding: 1px 2px; outline: none; font-family: inherit; }
+.wo-action-text-input:hover, .wo-action-text-input:focus { border-bottom-color: var(--border); }
+.wo-action.done .wo-action-text-input { text-decoration: line-through; color: var(--text-dim); }
 .wo-x { border: none; background: none; color: var(--text-dim); cursor: pointer; font-size: 14px; line-height: 1; padding: 0 2px; }
 .wo-x:hover { color: var(--danger); }
 .wo-inline-input { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 3px 8px; font-size: 12px; color: var(--text); outline: none; margin-top: 2px; }
