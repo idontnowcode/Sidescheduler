@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import type { WorkObject, WorkStatus, WorkPriority, WorkAction, WorkDecision, WorkDocLink, PageRefLoc } from './types'
+import type { WorkObject, WorkStatus, WorkPriority, WorkAction, WorkDecision, WorkDocLink, PageRefLoc, WorkProgressEntry, WorkPendingDecision } from './types'
 
 const STATUSES: WorkStatus[] = ['예정', '진행중', '대기', '완료', '보류']
 const PRIORITIES: WorkPriority[] = ['', '상', '중', '하']
@@ -68,6 +68,12 @@ export default function WorkObjectPanel({ pageId, noteTitle, onComplete, onOpenP
   const [urlLabel, setUrlLabel] = useState('')
   const [pageQuery, setPageQuery] = useState('')
   const [allPages, setAllPages] = useState<PageRefLoc[]>([])
+  // 보고용 정리 (report export fields) — collapsed by default.
+  const [reportOpen, setReportOpen] = useState(false)
+  const [background, setBackground] = useState('')
+  const [purpose, setPurpose] = useState('')
+  const [newProgress, setNewProgress] = useState('')
+  const [newPending, setNewPending] = useState('')
 
   useEffect(() => {
     if (!CALENDAR_SYNC_ENABLED) return
@@ -78,9 +84,10 @@ export default function WorkObjectPanel({ pageId, noteTitle, onComplete, onOpenP
     let alive = true
     setLoaded(false); setError('')
     window.lightnote.workObjectGet(pageId)
-      .then(w => { if (!alive) return; setWo(w); setDepts(w?.depts || ''); setLoaded(true) })
+      .then(w => { if (!alive) return; setWo(w); setDepts(w?.depts || ''); setBackground(w?.background || ''); setPurpose(w?.purpose || ''); setLoaded(true) })
       .catch(() => { if (alive) { setError('업무 속성을 불러오지 못했습니다.'); setLoaded(true) } })
     setAdding(null); setUrlVal(''); setUrlLabel(''); setPageQuery('')
+    setReportOpen(false); setNewProgress(''); setNewPending('')
     return () => { alive = false }
   }, [pageId])
 
@@ -157,6 +164,35 @@ export default function WorkObjectPanel({ pageId, noteTitle, onComplete, onOpenP
   const delDecision = (id: string) => {
     if (!confirm('이 결정사항 항목을 삭제할까요? (이력이 지워집니다)')) return
     setDecisions(wo.decisions.filter(d => d.id !== id))
+  }
+
+  // ── 보고용 정리: 진행 현황(로그) + 의사결정 필요사항(체크리스트) ──────────────
+  const setProgressLog = (next: WorkProgressEntry[]) => { setWo({ ...wo, progressLog: next }); persist({ progressLog: next }) }
+  const addProgress = () => {
+    const t = newProgress.trim(); if (!t) return
+    setProgressLog([{ id: uid(), at: Date.now(), text: t }, ...wo.progressLog])
+    setNewProgress('')
+  }
+  const editProgress = (id: string, text: string) => setProgressLog(wo.progressLog.map(p => p.id === id ? { ...p, text } : p))
+  const delProgress = (id: string) => {
+    if (!confirm('이 진행 현황 항목을 삭제할까요?')) return
+    setProgressLog(wo.progressLog.filter(p => p.id !== id))
+  }
+
+  const setPendingDecisions = (next: WorkPendingDecision[]) => { setWo({ ...wo, pendingDecisions: next }); persist({ pendingDecisions: next }) }
+  const addPending = () => {
+    const t = newPending.trim(); if (!t) return
+    setPendingDecisions([...wo.pendingDecisions, { id: uid(), text: t, raisedAt: Date.now(), resolved: false, resolvedAt: null }])
+    setNewPending('')
+  }
+  const toggleResolved = (id: string) => {
+    setPendingDecisions(wo.pendingDecisions.map(p => p.id === id
+      ? { ...p, resolved: !p.resolved, resolvedAt: !p.resolved ? Date.now() : null }
+      : p))
+  }
+  const delPending = (id: string) => {
+    if (!confirm('이 의사결정 항목을 삭제할까요?')) return
+    setPendingDecisions(wo.pendingDecisions.filter(p => p.id !== id))
   }
 
   // Calendar A: register the note's due as a planner task, linked back.
@@ -342,6 +378,61 @@ export default function WorkObjectPanel({ pageId, noteTitle, onComplete, onOpenP
           <input className="wo-inline-input" placeholder="+ 결정 기록 후 Enter" value={newDecision}
             onChange={e => setNewDecision(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') addDecision() }} />
         </div>
+      </div>
+
+      <div className="wo-report">
+        <button className="wo-report-toggle" onClick={() => setReportOpen(v => !v)}>
+          <span className={`wo-report-arrow${reportOpen ? ' open' : ''}`}>▶</span>
+          📋 보고용 정리
+          <span className="wo-report-hint">— 업무 진행 현황 보고서 export에 쓰이는 필드</span>
+        </button>
+        {reportOpen && (
+          <div className="wo-report-body">
+            <label className="wo-field wo-grow wo-report-text">
+              <span>업무 배경</span>
+              <textarea rows={2} placeholder="이 업무가 왜 시작됐는지"
+                value={background}
+                onChange={e => { setBackground(e.target.value); persistText({ background: e.target.value }) }}
+                onBlur={() => persist({ background })} />
+            </label>
+            <label className="wo-field wo-grow wo-report-text">
+              <span>업무 목적</span>
+              <textarea rows={2} placeholder="이 업무로 무엇을 달성하려는지"
+                value={purpose}
+                onChange={e => { setPurpose(e.target.value); persistText({ purpose: e.target.value }) }}
+                onBlur={() => persist({ purpose })} />
+            </label>
+
+            <div className="wo-lists">
+              <div className="wo-col">
+                <div className="wo-sub-title">진행 현황 (날짜별 기록)</div>
+                {wo.progressLog.map(p => (
+                  <div key={p.id} className="wo-decision">
+                    <span className="wo-decision-date">{fmtDate(p.at)}</span>
+                    <input className="wo-decision-text" value={p.text} onChange={e => editProgress(p.id, e.target.value)} />
+                    <button className="wo-x" title="삭제" onClick={() => delProgress(p.id)}>×</button>
+                  </div>
+                ))}
+                <input className="wo-inline-input" placeholder="+ 진행 현황 기록 후 Enter" value={newProgress}
+                  onChange={e => setNewProgress(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') addProgress() }} />
+              </div>
+
+              <div className="wo-col">
+                <div className="wo-sub-title">의사결정 필요사항</div>
+                {wo.pendingDecisions.map(p => (
+                  <div key={p.id} className={`wo-action${p.resolved ? ' done' : ''}`}>
+                    <input type="checkbox" checked={p.resolved} onChange={() => toggleResolved(p.id)} title="해결됨으로 표시" />
+                    <span className="wo-action-text">{p.text}</span>
+                    {p.resolved && p.resolvedAt && <span className="wo-action-date">{fmtDate(p.resolvedAt)}</span>}
+                    <button className="wo-x" title="삭제" onClick={() => delPending(p.id)}>×</button>
+                  </div>
+                ))}
+                <input className="wo-inline-input" placeholder="+ 의사결정 필요사항 후 Enter" value={newPending}
+                  onChange={e => setNewPending(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') addPending() }} />
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {error && <div className="wo-err wo-err-row">{error}</div>}

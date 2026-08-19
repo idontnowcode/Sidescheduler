@@ -52,6 +52,10 @@ export default function WorkListView({ onOpen, onClose }: Props) {
   const [aFilter, setAFilter] = useState<typeof ACTION_FILTERS[number]>('전체')
   const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>({ key: 'due', dir: 1 })
   const [aSort, setASort] = useState<{ key: ActionSortKey; dir: 1 | -1 }>({ key: 'date', dir: 1 })
+  // 업무 모드 체크박스 선택 → 업무 진행 현황 보고서 export.
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [exporting, setExporting] = useState(false)
+  const [exportMsg, setExportMsg] = useState<string | null>(null)
 
   const reload = useCallback(() => {
     window.lightnote.workObjectList().then(l => { setItems(l); setLoaded(true) }).catch(() => setLoaded(true))
@@ -123,6 +127,36 @@ export default function WorkListView({ onOpen, onClose }: Props) {
     reload()
   }, [reload])
 
+  const toggleSelected = useCallback((pageId: string) => {
+    setSelected(prev => { const s = new Set(prev); if (s.has(pageId)) s.delete(pageId); else s.add(pageId); return s })
+  }, [])
+  const allVisibleSelected = rows.length > 0 && rows.every(r => selected.has(r.pageId))
+  const toggleSelectAllVisible = useCallback(() => {
+    setSelected(prev => {
+      const s = new Set(prev)
+      if (allVisibleSelected) rows.forEach(r => s.delete(r.pageId))
+      else rows.forEach(r => s.add(r.pageId))
+      return s
+    })
+  }, [rows, allVisibleSelected])
+
+  const exportSelected = useCallback(async () => {
+    if (selected.size === 0 || exporting) return
+    setExporting(true); setExportMsg(null)
+    try {
+      const res = await window.lightnote.exportReport(Array.from(selected))
+      if (res?.success) {
+        setExportMsg(`📤 보고서를 내보냈습니다: ${res.filePath?.split(/[\\/]/).pop()}`)
+        setSelected(new Set())
+      } else if (!res?.canceled) {
+        setExportMsg('내보내기에 실패했습니다.')
+      }
+    } finally {
+      setExporting(false)
+      setTimeout(() => setExportMsg(null), 3000)
+    }
+  }, [selected, exporting])
+
   const th = (key: SortKey, label: string) => (
     <th className="wl-th" onClick={() => setSort(s => ({ key, dir: s.key === key ? (s.dir === 1 ? -1 : 1) : 1 }))}>
       {label}{sort.key === key ? (sort.dir === 1 ? ' ▲' : ' ▼') : ''}
@@ -144,6 +178,12 @@ export default function WorkListView({ onOpen, onClose }: Props) {
         </div>
         <button className="wl-refresh" title="새로고침" onClick={reload}>↻</button>
         <div className="wl-spacer" />
+        {exportMsg && <span className="wl-export-msg">{exportMsg}</span>}
+        {mode === 'work' && selected.size > 0 && (
+          <button className="wl-export-btn" onClick={exportSelected} disabled={exporting}>
+            📤 선택 항목 내보내기 ({selected.size})
+          </button>
+        )}
         <button className="wl-close" onClick={onClose}>✕ 닫기</button>
       </div>
 
@@ -178,6 +218,9 @@ export default function WorkListView({ onOpen, onClose }: Props) {
               : (
                 <table className="wl-table">
                   <thead><tr>
+                    <th className="wl-th-check">
+                      <input type="checkbox" checked={allVisibleSelected} onChange={toggleSelectAllVisible} title="현재 목록 전체 선택" />
+                    </th>
                     {th('title', '제목')}{th('status', '상태')}{th('priority', '우선순위')}
                     {th('due', '기한')}<th>D-day</th>{th('progress', '진행률')}<th>남은 액션</th>{th('updatedAt', '최근수정')}
                   </tr></thead>
@@ -186,6 +229,9 @@ export default function WorkListView({ onOpen, onClose }: Props) {
                       const pr = progress(w); const over = isOverdue(w)
                       return (
                         <tr key={w.pageId} className="wl-row" onClick={() => onOpen(w)}>
+                          <td className="wl-cell-check" onClick={e => e.stopPropagation()}>
+                            <input type="checkbox" checked={selected.has(w.pageId)} onChange={() => toggleSelected(w.pageId)} />
+                          </td>
                           <td className="wl-cell-title">{w.title || '(제목 없음)'}<span className="wl-path">{w.notebookName} / {w.sectionName}</span></td>
                           <td><span className={`wl-status wl-s-${w.status}`}>{w.status}</span></td>
                           <td>{w.priority || '—'}</td>

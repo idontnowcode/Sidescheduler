@@ -6,6 +6,7 @@ const storage = require('./storage');
 const linkStorage = require('./link-storage');
 const workObjectStorage = require('./work-object-storage');
 const exportImport = require('./export-import');
+const reportExport = require('./report-export');
 const path = require('path');
 const fs = require('fs').promises;
 const { shell } = require('electron');
@@ -260,6 +261,27 @@ function registerIpcHandlers(ipcMain, getWindow, safeStorage, dialog, app, sched
       return { success: true, ...result };
     } catch (err) {
       return { error: err.message || 'IMPORT_FAILED' };
+    }
+  });
+
+  // 업무 진행 현황 보고서 export (개조식 평문, .md) — selected pages from 업무 현황.
+  ipcMain.handle('lightnote:export-report', async (_, { pageIds }) => {
+    if (!dialog) return { error: 'NO_DIALOG' };
+    if (!Array.isArray(pageIds) || pageIds.length === 0) return { error: 'NO_SELECTION' };
+    try {
+      const { text } = await reportExport.buildReport(pageIds);
+      const win = getWindow();
+      const today = new Date().toISOString().slice(0, 10);
+      const res = await dialog.showSaveDialog(win || undefined, {
+        title: '업무 진행 현황 보고서 내보내기',
+        defaultPath: `업무진행현황_${today}.md`,
+        filters: [{ name: 'Markdown', extensions: ['md'] }, { name: 'Text', extensions: ['txt'] }],
+      });
+      if (res.canceled || !res.filePath) return { canceled: true };
+      await fs.writeFile(res.filePath, text, 'utf-8');
+      return { success: true, filePath: res.filePath };
+    } catch (err) {
+      return { error: err.message || 'EXPORT_FAILED' };
     }
   });
 

@@ -65,6 +65,13 @@ export interface WorkDocLink {
   notebookId?: string
   sectionId?: string
 }
+// A dated progress-log entry — same shape as WorkDecision, kept as its own
+// type so "진행 현황" and "결정사항(이력)" stay conceptually distinct even
+// though they're structurally identical.
+export interface WorkProgressEntry { id: string; at: number; text: string }
+// An open question awaiting a decision. Stays visible (struck through) after
+// resolution — only unresolved items are pulled into the report export.
+export interface WorkPendingDecision { id: string; text: string; raisedAt: number; resolved: boolean; resolvedAt: number | null }
 export interface WorkObject {
   enabled: boolean
   status: WorkStatus
@@ -77,6 +84,13 @@ export interface WorkObject {
   depts: string
   docs: string
   docLinks: WorkDocLink[]
+  // 보고용 정리 (report export fields) — background/purpose free text,
+  // progress log (dated, full history in export), pending decisions
+  // (checklist, only unresolved items in export). AI-free.
+  background: string
+  purpose: string
+  progressLog: WorkProgressEntry[]
+  pendingDecisions: WorkPendingDecision[]
   relatedPages: string[]
   calendarLink: string | null
   updatedAt: number
@@ -150,6 +164,7 @@ declare global {
       exportNode: (payload: { type: 'page' | 'section' | 'notebook'; notebookId: string; sectionId?: string; pageId?: string; suggestedName?: string }) =>
         Promise<{ success?: boolean; canceled?: boolean; filePath?: string; error?: string }>
       importBundle: () => Promise<{ success?: boolean; canceled?: boolean; notebookId?: string; notebookName?: string; pageCount?: number; sectionCount?: number; error?: string }>
+      exportReport: (pageIds: string[]) => Promise<{ success?: boolean; canceled?: boolean; filePath?: string; error?: string }>
       getPageRefs: (pageId: string) => Promise<PageRefLoc[]>
       addPageRef: (a: string, b: string) => Promise<{ success: boolean }>
       removePageRef: (a: string, b: string) => Promise<{ success: boolean }>

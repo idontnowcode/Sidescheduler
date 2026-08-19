@@ -57,6 +57,11 @@ function blank() {
     docs: '',               // 관련 문서 메모 (legacy free text, kept for migration)
     docLinks: [],           // 관련 문서 링크 [{ id, kind:'url'|'page', label, url?, pageId?, notebookId?, sectionId? }]
     relatedPages: [],       // [pageId] internal note links
+    // 보고용 정리 (report export) — 자유 텍스트 2개 + 로그 2개. 전부 AI-free.
+    background: '',         // 업무 배경
+    purpose: '',            // 업무 목적
+    progressLog: [],        // [{ id, at, text }] 진행 현황 — decisions와 동일 구조, export 시 전체 노출
+    pendingDecisions: [],   // [{ id, text, raisedAt, resolved, resolvedAt }] 의사결정 필요사항 — export 시 미해결만
     calendarLink: null,     // linked planner task id (Phase 3)
     updatedAt: Date.now(),
   };
