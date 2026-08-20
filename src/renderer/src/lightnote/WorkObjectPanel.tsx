@@ -39,6 +39,8 @@ interface Props {
   onComplete?: () => void
   // Open a LightNote page (for 관련 문서 page links). Falls back to no-op if absent.
   onOpenPage?: (nbId: string, secId: string, pageId: string, crumb: string) => void
+  // Called when enabled/removed, so the tree's 📋 marker can refresh right away.
+  onEnabledChange?: () => void
 }
 
 const normalizeUrl = (raw: string) => {
@@ -53,7 +55,7 @@ const normalizeUrl = (raw: string) => {
 // The work-object ("업무 속성") panel. Loads/saves its own metadata for the
 // current page; every edit persists immediately. AI-free. Phase 3 adds D-day/
 // overdue badges, auto done-date on 완료, and (DSP-embedded only) calendar sync.
-export default function WorkObjectPanel({ pageId, noteTitle, onComplete, onOpenPage }: Props) {
+export default function WorkObjectPanel({ pageId, noteTitle, onComplete, onOpenPage, onEnabledChange }: Props) {
   const [wo, setWo] = useState<WorkObject | null>(null)
   const [loaded, setLoaded] = useState(false)
   const [error, setError] = useState('')
@@ -106,7 +108,7 @@ export default function WorkObjectPanel({ pageId, noteTitle, onComplete, onOpenP
   if (!wo || !wo.enabled) {
     return (
       <div className="wo-addbar">
-        <button className="wo-add-btn" onClick={() => persist({ enabled: true, start: wo?.start ?? Date.now() })}>
+        <button className="wo-add-btn" onClick={() => persist({ enabled: true, start: wo?.start ?? Date.now() }).then(() => onEnabledChange?.())}>
           ＋ 업무 속성 추가
         </button>
         {wo && !wo.enabled && <span className="wo-hidden-note">이전 입력값 보존됨 · 추가하면 복원</span>}
@@ -219,7 +221,7 @@ export default function WorkObjectPanel({ pageId, noteTitle, onComplete, onOpenP
 
   const removeAll = async () => {
     if (!confirm('업무 속성을 완전히 삭제할까요? 상태·다음 Action·결정사항이 모두 지워집니다.')) return
-    try { await window.lightnote.workObjectRemove(pageId); setWo(null) } catch { setError('삭제에 실패했습니다.') }
+    try { await window.lightnote.workObjectRemove(pageId); setWo(null); onEnabledChange?.() } catch { setError('삭제에 실패했습니다.') }
   }
 
   // ── 관련 문서 links (external URL/file + LightNote page) ────────────────────
@@ -293,7 +295,7 @@ export default function WorkObjectPanel({ pageId, noteTitle, onComplete, onOpenP
             : <button className="wo-cal-btn" onClick={registerCalendar}>📅 캘린더 등록</button>
         )}
         <div className="wo-spacer" />
-        <button className="wo-hide-btn" title="패널 숨기기 (데이터 보존)" onClick={() => persist({ enabled: false })}>숨기기</button>
+        <button className="wo-hide-btn" title="패널 숨기기 (데이터 보존)" onClick={() => persist({ enabled: false }).then(() => onEnabledChange?.())}>숨기기</button>
         <button className="wo-del-btn" title="업무 속성 완전 삭제" onClick={removeAll}>삭제</button>
       </div>
 

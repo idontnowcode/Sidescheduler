@@ -56,6 +56,9 @@ const NotebookTree = forwardRef<TreeHandle, Props>(({ selected, onPageSelect, on
   const [expandedSecs, setExpandedSecs] = useState<Set<string>>(new Set())
   const [sectionsByNb, setSectionsByNb] = useState<Record<string, Section[]>>({})
   const [pagesBySec, setPagesBySec] = useState<Record<string, Page[]>>({})
+  // pageIds with an enabled 업무 속성 — swaps 📄 → 📋 in the tree so work
+  // pages are visually distinguishable at a glance.
+  const [workPageIds, setWorkPageIds] = useState<Set<string>>(new Set())
   const [ctxMenu, setCtxMenu] = useState<ContextMenuState | null>(null)
   const [inputModal, setInputModal] = useState<InputModalState | null>(null)
   const [inputValue, setInputValue] = useState('')
@@ -97,6 +100,14 @@ const NotebookTree = forwardRef<TreeHandle, Props>(({ selected, onPageSelect, on
     return pages
   }, [])
 
+  const loadWorkPageIds = useCallback(async () => {
+    try {
+      const list = await window.lightnote.workObjectList()
+      setWorkPageIds(new Set(list.map(w => w.pageId)))
+    } catch { /* leave previous set on failure */ }
+  }, [])
+  useEffect(() => { loadWorkPageIds() }, [loadWorkPageIds])
+
   // Reload notebooks + sections AND pages of every expanded section, so newly
   // created/moved pages show up without restarting.
   const reload = useCallback(async () => {
@@ -112,7 +123,8 @@ const NotebookTree = forwardRef<TreeHandle, Props>(({ selected, onPageSelect, on
       }
       await walk(tree)
     }
-  }, [loadNotebooks, loadSections, loadPages, expandedNbs, expandedSecs])
+    await loadWorkPageIds()
+  }, [loadNotebooks, loadSections, loadPages, loadWorkPageIds, expandedNbs, expandedSecs])
 
   useImperativeHandle(ref, () => ({
     reload,
@@ -629,7 +641,9 @@ const NotebookTree = forwardRef<TreeHandle, Props>(({ selected, onPageSelect, on
                 }}
                 onContextMenu={e => showCtx(e, { type: 'page', notebookId: nbId, sectionId: sec.id, pageId: page.id })}
               >
-                <span className="page-icon">📄</span>
+                <span className="page-icon" title={workPageIds.has(page.id) ? '업무로 등록됨' : undefined}>
+                  {workPageIds.has(page.id) ? '📋' : '📄'}
+                </span>
                 <span className="page-name">{page.title}</span>
               </div>
             ))}

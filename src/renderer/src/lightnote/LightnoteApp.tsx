@@ -204,6 +204,7 @@ export default function LightnoteApp() {
               noteTitle={breadcrumb.split('›').pop()?.trim()}
               onComplete={moveCurrentToArchives}
               onOpenPage={handlePageSelect}
+              onEnabledChange={() => treeRef.current?.reload()}
             />
           )}
           <Editor
