@@ -172,37 +172,42 @@ export default function WorkObjectPanel({ pageId, noteTitle, onComplete, onOpenP
   }
 
   // ── 보고용 정리: 진행 현황(로그) + 의사결정 필요사항(체크리스트) ──────────────
+  // Defensive fallback (belt-and-suspenders): work-object-storage already
+  // backfills these on every read/write, but a page opened against a stale
+  // cached `wo` (or any future gap) shouldn't blank the whole panel either.
+  const progressLog = wo.progressLog || []
+  const pendingDecisions = wo.pendingDecisions || []
   const setProgressLog = (next: WorkProgressEntry[]) => { setWo({ ...wo, progressLog: next }); persist({ progressLog: next }) }
   const addProgress = () => {
     const t = newProgress.trim(); if (!t) return
-    setProgressLog([{ id: uid(), at: Date.now(), text: t }, ...wo.progressLog])
+    setProgressLog([{ id: uid(), at: Date.now(), text: t }, ...progressLog])
     setNewProgress('')
   }
-  const editProgress = (id: string, text: string) => setProgressLog(wo.progressLog.map(p => p.id === id ? { ...p, text } : p))
+  const editProgress = (id: string, text: string) => setProgressLog(progressLog.map(p => p.id === id ? { ...p, text } : p))
   const editProgressDate = (id: string, dateStr: string) => {
     const at = fromDateInput(dateStr); if (at == null) return
-    setProgressLog(wo.progressLog.map(p => p.id === id ? { ...p, at } : p))
+    setProgressLog(progressLog.map(p => p.id === id ? { ...p, at } : p))
   }
   const delProgress = (id: string) => {
     if (!confirm('이 진행 현황 항목을 삭제할까요?')) return
-    setProgressLog(wo.progressLog.filter(p => p.id !== id))
+    setProgressLog(progressLog.filter(p => p.id !== id))
   }
 
   const setPendingDecisions = (next: WorkPendingDecision[]) => { setWo({ ...wo, pendingDecisions: next }); persist({ pendingDecisions: next }) }
   const addPending = () => {
     const t = newPending.trim(); if (!t) return
-    setPendingDecisions([...wo.pendingDecisions, { id: uid(), text: t, raisedAt: Date.now(), resolved: false, resolvedAt: null }])
+    setPendingDecisions([...pendingDecisions, { id: uid(), text: t, raisedAt: Date.now(), resolved: false, resolvedAt: null }])
     setNewPending('')
   }
-  const editPending = (id: string, text: string) => setPendingDecisions(wo.pendingDecisions.map(p => p.id === id ? { ...p, text } : p))
+  const editPending = (id: string, text: string) => setPendingDecisions(pendingDecisions.map(p => p.id === id ? { ...p, text } : p))
   const toggleResolved = (id: string) => {
-    setPendingDecisions(wo.pendingDecisions.map(p => p.id === id
+    setPendingDecisions(pendingDecisions.map(p => p.id === id
       ? { ...p, resolved: !p.resolved, resolvedAt: !p.resolved ? Date.now() : null }
       : p))
   }
   const delPending = (id: string) => {
     if (!confirm('이 의사결정 항목을 삭제할까요?')) return
-    setPendingDecisions(wo.pendingDecisions.filter(p => p.id !== id))
+    setPendingDecisions(pendingDecisions.filter(p => p.id !== id))
   }
 
   // Calendar A: register the note's due as a planner task, linked back.
@@ -416,7 +421,7 @@ export default function WorkObjectPanel({ pageId, noteTitle, onComplete, onOpenP
             <div className="wo-lists">
               <div className="wo-col">
                 <div className="wo-sub-title">진행 현황 (날짜별 기록)</div>
-                {wo.progressLog.map(p => (
+                {progressLog.map(p => (
                   <div key={p.id} className="wo-decision">
                     <input type="date" className="wo-decision-date-input" value={toDateInput(p.at)} onChange={e => editProgressDate(p.id, e.target.value)} />
                     <input className="wo-decision-text" value={p.text} onChange={e => editProgress(p.id, e.target.value)} />
@@ -429,7 +434,7 @@ export default function WorkObjectPanel({ pageId, noteTitle, onComplete, onOpenP
 
               <div className="wo-col">
                 <div className="wo-sub-title">의사결정 필요사항</div>
-                {wo.pendingDecisions.map(p => (
+                {pendingDecisions.map(p => (
                   <div key={p.id} className={`wo-action${p.resolved ? ' done' : ''}`}>
                     <input type="checkbox" checked={p.resolved} onChange={() => toggleResolved(p.id)} title="해결됨으로 표시" />
                     <input className="wo-action-text wo-action-text-input" value={p.text} onChange={e => editPending(p.id, e.target.value)} />

@@ -67,17 +67,27 @@ function blank() {
   };
 }
 
+// Records created before a field existed (e.g. progressLog/pendingDecisions,
+// added later) are missing that key entirely in the stored JSON — readAll()
+// just returns whatever's on disk verbatim. Merge over blank() on every read
+// so callers always get a fully-shaped object, regardless of when it was
+// created; otherwise a renderer doing `wo.progressLog.map(...)` on an old
+// record throws on undefined and blanks the whole panel.
+function withDefaults(stored) { return { ...blank(), ...stored }; }
+
 async function get(pageId) {
   const map = await readAll();
-  return map[pageId] || null;
+  return map[pageId] ? withDefaults(map[pageId]) : null;
 }
 
 // Merge a partial patch onto the stored object (creating it from blank() if new),
-// always stamping updatedAt. Returns the saved object.
+// always stamping updatedAt. Returns the saved object. Backfills any fields
+// missing from an old pre-existing record (see withDefaults) so the record is
+// fully-shaped on disk from this write onward — self-healing on next touch.
 async function set(pageId, patch) {
   if (!pageId) throw new Error('pageId required');
   const map = await readAll();
-  const base = map[pageId] || blank();
+  const base = withDefaults(map[pageId] || {});
   const next = { ...base, ...(patch || {}), updatedAt: Date.now() };
   map[pageId] = next;
   await writeAll(map);
@@ -104,7 +114,7 @@ async function removeMany(pageIds) {
 // Full list as an array with pageId attached (for the Phase 4 list view).
 async function list() {
   const map = await readAll();
-  return Object.entries(map).map(([pageId, wo]) => ({ pageId, ...wo }));
+  return Object.entries(map).map(([pageId, wo]) => ({ pageId, ...withDefaults(wo) }));
 }
 
 function newId() { return crypto.randomUUID(); }
