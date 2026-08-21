@@ -102,6 +102,9 @@ export type WorkObjectListItem = WorkObject & {
 // A heading extracted from the current page, for the table of contents.
 export interface TocItem { level: number; text: string; index: number }
 
+// A font file found in %APPDATA%/lightnote/fonts at last launch.
+export interface CustomFont { id: string; family: string; dataUrl: string }
+
 // A node in the Trash tree (a deletion root and its materialized subtree).
 export interface TrashNode {
   type: 'notebook' | 'section' | 'page'
@@ -165,6 +168,8 @@ declare global {
         Promise<{ success?: boolean; canceled?: boolean; filePath?: string; error?: string }>
       importBundle: () => Promise<{ success?: boolean; canceled?: boolean; notebookId?: string; notebookName?: string; pageCount?: number; sectionCount?: number; error?: string }>
       exportReport: (pageIds: string[]) => Promise<{ success?: boolean; canceled?: boolean; filePath?: string; error?: string }>
+      listCustomFonts: () => Promise<CustomFont[]>
+      openFontsFolder: () => Promise<{ success?: boolean; error?: string }>
       getPageRefs: (pageId: string) => Promise<PageRefLoc[]>
       addPageRef: (a: string, b: string) => Promise<{ success: boolean }>
       removePageRef: (a: string, b: string) => Promise<{ success: boolean }>

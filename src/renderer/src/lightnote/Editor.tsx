@@ -38,6 +38,28 @@ for (let i = 6; i <= 150; i++) FULL_SIZE_WHITELIST.push(`${i}px`)
   Quill.register(SizeStyle as unknown as Parameters<typeof Quill.register>[0], true)
 }
 
+// Apply a 'size' or 'align' format across the current selection. Dragging a
+// rectangle of table cells (quill-table-up's TableSelection) does NOT leave
+// quill.getSelection() with a usable Range spanning those cells — the normal
+// quill.format() call silently does nothing outside the single cell the
+// drag started in. When a multi-cell selection is active we instead format
+// each selected cell's own content range directly (each cell is its own
+// Parchment ContainerBlot, so it has a normal document offset + length).
+function applyAcrossTableSelection(quillInst: Quill, name: 'size' | 'align', value: string | boolean) {
+  const tableModule = quillInst.getModule(TableUp.moduleName) as TableUp | undefined
+  const tableSelection = tableModule?.getModule?.(TableSelection.moduleName) as TableSelection | undefined
+  const selectedTds = tableSelection?.selectedTds
+  if (selectedTds && selectedTds.length > 0) {
+    for (const cell of selectedTds) {
+      const index = (cell as unknown as { offset: (ctx: unknown) => number }).offset(quillInst.scroll)
+      const length = (cell as unknown as { length: () => number }).length()
+      if (length > 0) quillInst.formatText(index, length, name, value, Quill.sources.USER)
+    }
+    return
+  }
+  quillInst.format(name, value, Quill.sources.USER)
+}
+
 // Two custom BLOCK formats:
 //  • liststart — starts an ordered list at an arbitrary number (data-list-start
 //    on the <li>; the generated CSS below counter-sets list-0 so "5. " → 5).
@@ -389,6 +411,7 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
             // Word-style: the "apply" button applies the current color instantly;
             // the small swatch dropdown next to it changes the current color.
             ['color-apply', { color: SWATCHES }, 'bg-apply', { background: SWATCHES }],
+            [{ align: ['', 'center', 'right'] }],
             [{ list: 'ordered' }, { list: 'bullet' }, { list: 'check' }],
             ['blockquote', 'code-block'],
             ['link', 'image'],
@@ -405,6 +428,16 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
             background: function (this: { quill: typeof quill }, value: string) {
               if (value) { lastBgRef.current = value; syncColorButtons() }
               this.quill.format('background', value || false, Quill.sources.USER)
+            },
+            // size/align: routed through applyAcrossTableSelection so a dragged
+            // rectangle of table cells gets formatted too (see its doc comment) —
+            // plain quill.format() only ever touches the single cell the drag
+            // started in, or does nothing at all outside any table.
+            size: function (this: { quill: typeof quill }, value: string) {
+              applyAcrossTableSelection(this.quill, 'size', value)
+            },
+            align: function (this: { quill: typeof quill }, value: string) {
+              applyAcrossTableSelection(this.quill, 'align', value || false)
             },
           }
         }
@@ -446,6 +479,7 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
         '.ql-header': '제목 스타일 (Heading)',
         '.ql-toclevel': '목차 수준 (Outline level — 크기 변화 없이 목차에만 추가)',
         '.ql-size': '글자 크기 (Size)',
+        '.ql-align': '정렬 (Align) — 표 안에서 여러 셀을 선택하면 셀들에 함께 적용',
       }
       for (const [sel, label] of Object.entries(titles)) {
         tbContainer.querySelectorAll(sel).forEach(el => el.setAttribute('title', label))
@@ -487,7 +521,7 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
           const n = Math.round(parseFloat(input.value))
           if (!n || n < 6 || n > 150) { input.focus(); return }
           // mousedown preventDefault means we never lost the editor selection
-          quill.format('size', `${n}px`, 'user')
+          applyAcrossTableSelection(quill, 'size', `${n}px`)
           // Close the picker by removing the expanded class (Quill convention)
           sizePicker?.classList.remove('ql-expanded')
         }
@@ -537,6 +571,29 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
       if (!range) return
       const fmt = quill.getFormat(range)
       quill.format('code-block', !fmt['code-block'], 'user')
+    })
+
+    // Paste: normalize inline font-size on pasted HTML to the app's own
+    // integer-px scale (6..150px whitelist above). Word/Excel/PowerPoint —
+    // and some browser copy sources — carry font-size in pt (or a non-integer
+    // px value), neither of which matches the whitelist; Quill's built-in
+    // style matcher then silently drops the size attribute entirely, so the
+    // pasted text falls back to the editor's base size and visibly clashes
+    // with sizes set elsewhere in the note. Converting to a clamped integer
+    // px keeps the size format instead of losing it.
+    quill.clipboard.addMatcher(Node.ELEMENT_NODE, (node: Node, delta: { ops?: Array<{ insert?: unknown; attributes?: Record<string, unknown> }> }) => {
+      const raw = (node as HTMLElement).style?.fontSize
+      if (!raw) return delta
+      const m = raw.match(/^([\d.]+)(px|pt|em|rem)$/)
+      if (!m) return delta
+      const num = parseFloat(m[1])
+      const unit = m[2]
+      const px = unit === 'px' ? num : unit === 'pt' ? num * 96 / 72 : num * 16 // em/rem: assume a 16px baseline
+      const sizeVal = `${Math.min(150, Math.max(6, Math.round(px)))}px`
+      return {
+        ...delta,
+        ops: (delta.ops || []).map(op => typeof op.insert === 'string' ? { ...op, attributes: { ...op.attributes, size: sizeVal } } : op),
+      }
     })
 
     // Paste: handle image clipboard items in CAPTURE phase and stop further

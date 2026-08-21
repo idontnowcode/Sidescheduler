@@ -7,6 +7,7 @@ const linkStorage = require('./link-storage');
 const workObjectStorage = require('./work-object-storage');
 const exportImport = require('./export-import');
 const reportExport = require('./report-export');
+const customFonts = require('./custom-fonts');
 const path = require('path');
 const fs = require('fs').promises;
 const { shell } = require('electron');
@@ -21,12 +22,14 @@ const { shell } = require('electron');
  */
 function registerIpcHandlers(ipcMain, getWindow, safeStorage, dialog, app, scheduler) {
   // Data root: use appData so it matches the standalone LightNote install location
-  const DATA_ROOT = path.join(app.getPath('appData'), 'lightnote', 'lightnote-data');
+  const APP_ROOT = path.join(app.getPath('appData'), 'lightnote');
+  const DATA_ROOT = path.join(APP_ROOT, 'lightnote-data');
 
   noteStorage.init(DATA_ROOT);
   imageHandler.init(DATA_ROOT);
   linkStorage.init(DATA_ROOT);
   workObjectStorage.init(DATA_ROOT);
+  customFonts.init(APP_ROOT);
   storage.init(safeStorage);
   // Seed the fixed PARA notebooks if they don't exist yet (built-in defaults).
   noteStorage.ensureDefaultNotebooks().catch((e) => console.error('ensureDefaultNotebooks:', e));
@@ -283,6 +286,15 @@ function registerIpcHandlers(ipcMain, getWindow, safeStorage, dialog, app, sched
     } catch (err) {
       return { error: err.message || 'EXPORT_FAILED' };
     }
+  });
+
+  // 사용자 폰트 폴더 — %APPDATA%/lightnote/fonts 에 넣은 폰트 파일을 스캔해
+  // data: URI로 돌려준다(파일 시스템 워처 없음: 다음 실행부터 반영).
+  ipcMain.handle('lightnote:fonts:list', async () => customFonts.list());
+  ipcMain.handle('lightnote:fonts:open-folder', async () => {
+    await customFonts.ensureDir();
+    const err = await shell.openPath(customFonts.folderPath());
+    return err ? { error: err } : { success: true };
   });
 
   // Calendar bridge (only meaningful when embedded in the DSP planner). All local
