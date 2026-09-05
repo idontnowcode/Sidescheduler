@@ -220,6 +220,12 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
   const [counts, setCounts] = useState({ chars: 0, words: 0 })
   // Format painter: holds the copied inline formats while "armed".
   const painterRef = useRef<Record<string, unknown> | null>(null)
+  // 페이지 내 찾기/바꾸기 (Ctrl+F / Ctrl+H)
+  const [findOpen, setFindOpen] = useState(false)
+  const [findText, setFindText] = useState('')
+  const [replaceText, setReplaceText] = useState('')
+  const [findHits, setFindHits] = useState<{ total: number; at: number }>({ total: 0, at: 0 })
+  const findIdxRef = useRef(0)
   const [showOrganize, setShowOrganize] = useState(false)
   const [organizeText, setOrganizeText] = useState('')
   const [isOrganizing, setIsOrganizing] = useState(false)
@@ -1219,6 +1225,88 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
 
   const stClass = saveState === 'saving' ? 'saving' : saveState === 'error' ? 'error' : ''
 
+  // ── 페이지 내 찾기/바꾸기 ────────────────────────────────────────────────
+  // Quill has no built-in find; match over the flat text (which shares its
+  // index space with the document) so setSelection can jump straight to a hit.
+  const findAll = useCallback((needle: string): number[] => {
+    const q = quillRef.current
+    if (!q || !needle) return []
+    const hay = q.getText().toLowerCase()
+    const nd = needle.toLowerCase()
+    const out: number[] = []
+    let i = hay.indexOf(nd)
+    while (i !== -1) { out.push(i); i = hay.indexOf(nd, i + nd.length) }
+    return out
+  }, [])
+
+  const gotoHit = useCallback((hits: number[], n: number) => {
+    const q = quillRef.current
+    if (!q || hits.length === 0) return
+    const idx = ((n % hits.length) + hits.length) % hits.length
+    findIdxRef.current = idx
+    q.setSelection(hits[idx], findText.length, 'user')
+    setFindHits({ total: hits.length, at: idx + 1 })
+  }, [findText])
+
+  const runFind = useCallback((step: number) => {
+    const hits = findAll(findText)
+    if (hits.length === 0) { setFindHits({ total: 0, at: 0 }); return }
+    gotoHit(hits, findIdxRef.current + step)
+  }, [findAll, findText, gotoHit])
+
+  // Re-count as the user types in the find box (without moving the cursor).
+  useEffect(() => {
+    if (!findOpen) return
+    const hits = findAll(findText)
+    findIdxRef.current = 0
+    setFindHits({ total: hits.length, at: hits.length ? 1 : 0 })
+  }, [findText, findOpen, findAll])
+
+  // Replaces the hit the counter is pointing at (1/3 …) rather than whatever
+  // the caret happens to be on — clicking the button blurs the editor, so the
+  // live selection isn't a reliable source of truth here.
+  const replaceOne = useCallback(() => {
+    const q = quillRef.current
+    if (!q || !findText) return
+    const hits = findAll(findText)
+    if (hits.length === 0) { setFindHits({ total: 0, at: 0 }); return }
+    const idx = ((findIdxRef.current % hits.length) + hits.length) % hits.length
+    const at = hits[idx]
+    q.deleteText(at, findText.length, 'user')
+    if (replaceText) q.insertText(at, replaceText, 'user')
+    const after = findAll(findText)
+    if (after.length === 0) { setFindHits({ total: 0, at: 0 }); return }
+    findIdxRef.current = Math.min(idx, after.length - 1)
+    gotoHit(after, findIdxRef.current)
+  }, [findText, replaceText, findAll, gotoHit])
+
+  const replaceAll = useCallback(() => {
+    const q = quillRef.current
+    if (!q || !findText) return
+    // Walk backwards so earlier indices stay valid as lengths change.
+    const hits = findAll(findText)
+    for (let i = hits.length - 1; i >= 0; i--) {
+      q.deleteText(hits[i], findText.length, 'user')
+      if (replaceText) q.insertText(hits[i], replaceText, 'user')
+    }
+    setFindHits({ total: 0, at: 0 })
+  }, [findText, replaceText, findAll])
+
+  // Ctrl+F / Ctrl+H open the panel; Esc closes it.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'f' || e.key === 'h')) {
+        e.preventDefault()
+        setFindOpen(true)
+        setTimeout(() => (document.getElementById('ln-find-input') as HTMLInputElement | null)?.focus(), 30)
+      } else if (e.key === 'Escape' && findOpen) {
+        setFindOpen(false)
+      }
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [findOpen])
+
   return (
     <div className="editor-area">
       {/* Always mounted — Quill must stay on the same DOM node */}
@@ -1248,6 +1336,34 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
             </span>
           </div>
         </div>
+        {findOpen && (
+          <div className="ln-find-bar">
+            <input
+              id="ln-find-input"
+              className="ln-find-in"
+              placeholder="찾기"
+              value={findText}
+              onChange={e => setFindText(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter') { e.preventDefault(); runFind(e.shiftKey ? -1 : 1) }
+                if (e.key === 'Escape') setFindOpen(false)
+              }}
+            />
+            <span className="ln-find-count">{findHits.total ? `${findHits.at}/${findHits.total}` : '없음'}</span>
+            <button onMouseDown={e => e.preventDefault()} className="ln-find-btn" title="이전 (Shift+Enter)" onClick={() => runFind(-1)}>▲</button>
+            <button onMouseDown={e => e.preventDefault()} className="ln-find-btn" title="다음 (Enter)" onClick={() => runFind(1)}>▼</button>
+            <input
+              className="ln-find-in"
+              placeholder="바꾸기"
+              value={replaceText}
+              onChange={e => setReplaceText(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Escape') setFindOpen(false) }}
+            />
+            <button onMouseDown={e => e.preventDefault()} className="ln-find-btn wide" onClick={replaceOne}>바꾸기</button>
+            <button onMouseDown={e => e.preventDefault()} className="ln-find-btn wide" onClick={replaceAll}>모두 바꾸기</button>
+            <button onMouseDown={e => e.preventDefault()} className="ln-find-btn" title="닫기 (Esc)" onClick={() => setFindOpen(false)}>✕</button>
+          </div>
+        )}
         <div
           className="quill-wrapper"
           style={{ position: 'relative' }}

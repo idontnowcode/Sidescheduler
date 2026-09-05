@@ -1227,6 +1227,15 @@ sup.citation:hover { background: var(--accent-hover); }
 .wl-done-mark.on { border-color: #2f9e44; color: #6bd68a; font-weight: 700; }
 .wl-done-mark:hover { border-color: var(--accent); }
 
+/* 페이지 내 찾기/바꾸기 바 (Ctrl+F / Ctrl+H) */
+.ln-find-bar { display: flex; align-items: center; gap: 6px; padding: 6px 12px; background: var(--bg2); border-bottom: 1px solid var(--border); flex-shrink: 0; }
+.ln-find-in { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 4px 8px; font-size: 12px; color: var(--text); outline: none; min-width: 130px; }
+.ln-find-in:focus { border-color: var(--accent); }
+.ln-find-count { font-size: 11px; color: var(--text-dim); min-width: 46px; text-align: center; }
+.ln-find-btn { border: 1px solid var(--border); background: transparent; color: var(--text-dim); border-radius: 6px; cursor: pointer; font-size: 11px; padding: 4px 7px; }
+.ln-find-btn.wide { padding: 4px 10px; }
+.ln-find-btn:hover { border-color: var(--accent); color: var(--accent); }
+
 /* 글자 수/단어 수 표시 + 서식 복사 버튼의 "장전됨" 상태 */
 .ln-counts { font-size: 11px; color: var(--text-dim); white-space: nowrap; margin-right: 8px; }
 .ql-toolbar button.ql-format-painter.ln-painter-armed { background: var(--accent); border-radius: 4px; }
