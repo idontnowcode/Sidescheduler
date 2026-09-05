@@ -1227,6 +1227,14 @@ sup.citation:hover { background: var(--accent-hover); }
 .wl-done-mark.on { border-color: #2f9e44; color: #6bd68a; font-weight: 700; }
 .wl-done-mark:hover { border-color: var(--accent); }
 
+/* 페이지 템플릿 선택 목록 */
+.ln-tpl-list { display: flex; flex-direction: column; gap: 4px; max-height: 320px; overflow-y: auto; margin: 4px 0 10px; }
+.ln-tpl-row { display: flex; gap: 4px; }
+.ln-tpl-pick { flex: 1; text-align: left; font-size: 13px; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--border); background: transparent; color: var(--text); cursor: pointer; }
+.ln-tpl-pick:hover { border-color: var(--accent); color: var(--accent); }
+.ln-tpl-del { border: 1px solid var(--border); background: transparent; color: var(--text-dim); border-radius: 8px; cursor: pointer; padding: 0 10px; font-size: 14px; }
+.ln-tpl-del:hover { border-color: var(--danger); color: var(--danger); }
+
 /* 첨부 파일 링크를 칩처럼 표시 */
 .ql-editor a[href^="lnfile://"] {
   display: inline-block; background: var(--bg3); border: 1px solid var(--border);

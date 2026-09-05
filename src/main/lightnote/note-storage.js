@@ -234,11 +234,14 @@ async function getPages(notebookId, sectionId) {
   return (await readJson(pagesPath(notebookId, sectionId))) || [];
 }
 
-async function createPage(notebookId, sectionId, title = '제목 없음') {
+async function createPage(notebookId, sectionId, title = '제목 없음', parentId = null) {
   const pages = await getPages(notebookId, sectionId);
   const id = crypto.randomUUID();
   const now = Date.now();
+  // parentId: optional sub-page nesting WITHIN a section (OneNote-style).
+  // A dangling parentId (parent deleted) simply renders at the top level.
   const pageMeta = { id, title, createdAt: now, updatedAt: now, order: pages.length };
+  if (parentId) pageMeta.parentId = parentId;
   pages.push(pageMeta);
   await writeJson(pagesPath(notebookId, sectionId), pages);
   await writeJson(pageJsonPath(notebookId, sectionId, id), {

@@ -19,7 +19,7 @@ contextBridge.exposeInMainWorld('lightnote', {
 
   // 페이지
   getPages: (notebookId, sectionId) => ipcRenderer.invoke('lightnote:get-pages', { notebookId, sectionId }),
-  createPage: (notebookId, sectionId, title) => ipcRenderer.invoke('lightnote:create-page', { notebookId, sectionId, title }),
+  createPage: (notebookId, sectionId, title, parentId) => ipcRenderer.invoke('lightnote:create-page', { notebookId, sectionId, title, parentId }),
   loadPage: (notebookId, sectionId, pageId) => ipcRenderer.invoke('lightnote:load-page', { notebookId, sectionId, pageId }),
   savePage: (data) => ipcRenderer.invoke('lightnote:save-page', data),
   renamePage: (notebookId, sectionId, id, title) => ipcRenderer.invoke('lightnote:rename-page', { notebookId, sectionId, id, title }),
@@ -41,6 +41,12 @@ contextBridge.exposeInMainWorld('lightnote', {
 
   // 업무 진행 현황 보고서 내보내기 (선택한 업무들 → 개조식 평문 .md)
   exportReport: (pageIds) => ipcRenderer.invoke('lightnote:export-report', { pageIds }),
+
+  // 페이지 템플릿
+  listTemplates: () => ipcRenderer.invoke('lightnote:templates:list'),
+  getTemplate: (id) => ipcRenderer.invoke('lightnote:templates:get', { id }),
+  saveTemplate: (name, delta) => ipcRenderer.invoke('lightnote:templates:save', { name, delta }),
+  removeTemplate: (id) => ipcRenderer.invoke('lightnote:templates:remove', { id }),
 
   // PDF 내보내기
   exportPdf: (title, html) => ipcRenderer.invoke('lightnote:export-pdf', { title, html }),

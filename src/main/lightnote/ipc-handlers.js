@@ -10,6 +10,7 @@ const reportExport = require('./report-export');
 const customFonts = require('./custom-fonts');
 const pageVersions = require('./page-versions');
 const attachments = require('./attachments');
+const templates = require('./templates');
 const path = require('path');
 const fs = require('fs').promises;
 const { shell } = require('electron');
@@ -40,6 +41,7 @@ function registerIpcHandlers(ipcMain, getWindow, safeStorage, dialog, app, sched
   customFonts.init(APP_ROOT);
   pageVersions.init(DATA_ROOT);
   attachments.init(DATA_ROOT);
+  templates.init(DATA_ROOT);
   storage.init(safeStorage);
   // Seed the fixed PARA notebooks if they don't exist yet (built-in defaults).
   noteStorage.ensureDefaultNotebooks().catch((e) => console.error('ensureDefaultNotebooks:', e));
@@ -106,8 +108,8 @@ function registerIpcHandlers(ipcMain, getWindow, safeStorage, dialog, app, sched
   ipcMain.handle('lightnote:get-pages', async (_, { notebookId, sectionId }) =>
     noteStorage.getVisiblePages(notebookId, sectionId));
 
-  ipcMain.handle('lightnote:create-page', async (_, { notebookId, sectionId, title }) =>
-    noteStorage.createPage(notebookId, sectionId, title || '제목 없음'));
+  ipcMain.handle('lightnote:create-page', async (_, { notebookId, sectionId, title, parentId }) =>
+    noteStorage.createPage(notebookId, sectionId, title || '제목 없음', parentId || null));
 
   ipcMain.handle('lightnote:load-page', async (_, { notebookId, sectionId, pageId }) => {
     await noteStorage.saveLastOpened(notebookId, sectionId, pageId);
@@ -322,6 +324,12 @@ function registerIpcHandlers(ipcMain, getWindow, safeStorage, dialog, app, sched
       return { error: err.message || 'EXPORT_FAILED' };
     }
   });
+
+  // === 페이지 템플릿 ===
+  ipcMain.handle('lightnote:templates:list', async () => templates.list());
+  ipcMain.handle('lightnote:templates:get', async (_, { id }) => templates.get(id));
+  ipcMain.handle('lightnote:templates:save', async (_, { name, delta }) => templates.save(name, delta));
+  ipcMain.handle('lightnote:templates:remove', async (_, { id }) => templates.remove(id));
 
   // === PDF 내보내기 ===
   // 편집기 본문 HTML을 그대로 넘겨받아, 화면 UI가 섞이지 않도록 보이지 않는

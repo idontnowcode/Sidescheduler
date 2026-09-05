@@ -18,6 +18,7 @@ export interface Section {
 export interface Page {
   id: string
   title: string
+  parentId?: string | null   // sub-page nesting within a section
 }
 
 export interface Selected {
@@ -105,6 +106,9 @@ export interface TocItem { level: number; text: string; index: number }
 // A font file found in %APPDATA%/lightnote/fonts at last launch.
 export interface CustomFont { id: string; family: string; dataUrl: string }
 
+// A reusable page skeleton saved from an existing page.
+export interface PageTemplate { id: string; name: string; at: number }
+
 // A saved snapshot of a page's earlier content.
 export interface PageVersion { id: string; at: number }
 
@@ -139,7 +143,7 @@ declare global {
       reorderSection: (nbId: string, secId: string, refSecId: string, placeAfter: boolean) => Promise<{ success?: boolean; error?: string }>
       deleteSection: (notebookId: string, id: string) => Promise<void>
       getPages: (notebookId: string, sectionId: string) => Promise<Page[]>
-      createPage: (notebookId: string, sectionId: string, title: string) => Promise<Page>
+      createPage: (notebookId: string, sectionId: string, title: string, parentId?: string | null) => Promise<Page>
       loadPage: (notebookId: string, sectionId: string, pageId: string) => Promise<{ title: string; delta: unknown }>
       savePage: (args: { notebookId: string; sectionId: string; pageId: string; delta: unknown; title: string; snapshot?: boolean }) => Promise<void>
       renamePage: (notebookId: string, sectionId: string, id: string, title: string) => Promise<Page>
@@ -171,6 +175,10 @@ declare global {
         Promise<{ success?: boolean; canceled?: boolean; filePath?: string; error?: string }>
       importBundle: () => Promise<{ success?: boolean; canceled?: boolean; notebookId?: string; notebookName?: string; pageCount?: number; sectionCount?: number; error?: string }>
       exportReport: (pageIds: string[]) => Promise<{ success?: boolean; canceled?: boolean; filePath?: string; error?: string }>
+      listTemplates: () => Promise<PageTemplate[]>
+      getTemplate: (id: string) => Promise<{ id: string; name: string; delta: unknown } | null>
+      saveTemplate: (name: string, delta: unknown) => Promise<PageTemplate>
+      removeTemplate: (id: string) => Promise<{ success: boolean }>
       exportPdf: (title: string, html: string) => Promise<{ success?: boolean; canceled?: boolean; filePath?: string; error?: string }>
       attachPick: (pageId: string) => Promise<{ success?: boolean; canceled?: boolean; files?: { stored: string; name: string; size: number }[]; error?: string }>
       attachOpen: (pageId: string, stored: string) => Promise<{ success?: boolean; error?: string }>

@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef, forwardRef, useImperativeHandle } from 'react'
-import type { Notebook, Section, Page, Selected, TrashNode } from './types'
+import type { Notebook, Section, Page, Selected, TrashNode, PageTemplate } from './types'
 import TrashPanel, { type TrashPanelHandle } from './TrashPanel'
 
 interface ContextMenuState {
@@ -41,6 +41,34 @@ function buildSectionTree(sections: Section[]): Section[] {
   return roots
 }
 
+// Flatten a section's pages into display order with a nesting depth, so
+// sub-pages (page.parentId) render indented under their parent. A parentId
+// pointing at a page that no longer exists just renders at the top level.
+function orderPagesWithDepth(pages: Page[]): { page: Page; depth: number }[] {
+  const ROOT = '__root__'
+  const ids = new Set(pages.map(p => p.id))
+  const byParent = new Map<string, Page[]>()
+  for (const p of pages) {
+    const key = p.parentId && ids.has(p.parentId) && p.parentId !== p.id ? p.parentId : ROOT
+    if (!byParent.has(key)) byParent.set(key, [])
+    byParent.get(key)!.push(p)
+  }
+  const out: { page: Page; depth: number }[] = []
+  const seen = new Set<string>()
+  const walk = (key: string, depth: number) => {
+    for (const p of byParent.get(key) || []) {
+      if (seen.has(p.id)) continue // cycle guard
+      seen.add(p.id)
+      out.push({ page: p, depth })
+      walk(p.id, depth + 1)
+    }
+  }
+  walk(ROOT, 0)
+  // Anything unreachable (part of a cycle) still gets shown, at the top level.
+  for (const p of pages) if (!seen.has(p.id)) out.push({ page: p, depth: 0 })
+  return out
+}
+
 function findSection(sections: Section[], id: string): Section | undefined {
   for (const s of sections) {
     if (s.id === id) return s
@@ -59,6 +87,8 @@ const NotebookTree = forwardRef<TreeHandle, Props>(({ selected, onPageSelect, on
   // pageIds with an enabled 업무 속성 — swaps 📄 → 📋 in the tree so work
   // pages are visually distinguishable at a glance.
   const [workPageIds, setWorkPageIds] = useState<Set<string>>(new Set())
+  // 템플릿에서 새 페이지 만들기 (대상 섹션 + 템플릿 목록)
+  const [templatePicker, setTemplatePicker] = useState<{ notebookId: string; sectionId: string; list: PageTemplate[] } | null>(null)
   const [ctxMenu, setCtxMenu] = useState<ContextMenuState | null>(null)
   const [inputModal, setInputModal] = useState<InputModalState | null>(null)
   const [inputValue, setInputValue] = useState('')
@@ -206,6 +236,73 @@ const NotebookTree = forwardRef<TreeHandle, Props>(({ selected, onPageSelect, on
       openInputModal('Rename page', pg?.title || '', async (val) => { await window.lightnote.renamePage(notebookId, sectionId, pageId, val); await reload() })
     }
   }, [ctxMenu, hideCtx, notebooks, sectionsByNb, pagesBySec, openInputModal, reload])
+
+  // ── 페이지 템플릿 ────────────────────────────────────────────────────────
+  const handleSaveAsTemplate = useCallback(async () => {
+    if (!ctxMenu || ctxMenu.target.type !== 'page') return
+    const { notebookId, sectionId, pageId } = ctxMenu.target
+    hideCtx()
+    if (!sectionId || !pageId) return
+    const pg = (pagesBySec[sectionId] || []).find(p => p.id === pageId)
+    openInputModal('템플릿 이름', pg?.title || '', async (name) => {
+      const content = await window.lightnote.loadPage(notebookId, sectionId, pageId)
+      await window.lightnote.saveTemplate(name, content.delta)
+      showToast(`📋 "${name}" 템플릿으로 저장했습니다.`)
+    })
+  }, [ctxMenu, hideCtx, pagesBySec, openInputModal])
+
+  const openTemplatePicker = useCallback(async () => {
+    if (!ctxMenu || ctxMenu.target.type !== 'section' || !ctxMenu.target.sectionId) return
+    const { notebookId, sectionId } = ctxMenu.target
+    hideCtx()
+    const list = await window.lightnote.listTemplates().catch(() => [])
+    if (list.length === 0) {
+      showToast('저장된 템플릿이 없습니다. 페이지 우클릭 → "템플릿으로 저장"으로 먼저 만들어 주세요.')
+      return
+    }
+    setTemplatePicker({ notebookId, sectionId, list })
+  }, [ctxMenu, hideCtx])
+
+  const createFromTemplate = useCallback(async (t: PageTemplate) => {
+    const tp = templatePicker
+    if (!tp) return
+    setTemplatePicker(null)
+    const full = await window.lightnote.getTemplate(t.id).catch(() => null)
+    if (!full) { showToast('템플릿을 불러오지 못했습니다.'); return }
+    const nb = notebooks.find(n => n.id === tp.notebookId)
+    const sec = findSection(sectionsByNb[tp.notebookId] || [], tp.sectionId)
+    const page = await window.lightnote.createPage(tp.notebookId, tp.sectionId, t.name)
+    await window.lightnote.savePage({
+      notebookId: tp.notebookId, sectionId: tp.sectionId, pageId: page.id,
+      title: t.name, delta: full.delta,
+    })
+    setExpandedSecs(prev => new Set([...prev, tp.sectionId]))
+    await reload()
+    await loadPages(tp.notebookId, tp.sectionId)
+    onPageSelect(tp.notebookId, tp.sectionId, page.id, `${nb?.name || ''} › ${sec?.name || ''} › ${t.name}`)
+  }, [templatePicker, notebooks, sectionsByNb, reload, loadPages, onPageSelect])
+
+  const deleteTemplate = useCallback(async (t: PageTemplate) => {
+    if (!confirm(`"${t.name}" 템플릿을 삭제할까요?`)) return
+    await window.lightnote.removeTemplate(t.id).catch(() => {})
+    setTemplatePicker(prev => prev ? { ...prev, list: prev.list.filter(x => x.id !== t.id) } : prev)
+  }, [])
+
+  // 하위 페이지: 클릭한 페이지 밑에 들여쓴 자식 페이지를 만든다(같은 섹션 안).
+  const handleAddSubpage = useCallback(async () => {
+    if (!ctxMenu || ctxMenu.target.type !== 'page') return
+    const { notebookId, sectionId, pageId } = ctxMenu.target
+    hideCtx()
+    if (!sectionId || !pageId) return
+    openInputModal('하위 페이지 제목', '', async (val) => {
+      const nb = notebooks.find(n => n.id === notebookId)
+      const sec = findSection(sectionsByNb[notebookId] || [], sectionId)
+      const page = await window.lightnote.createPage(notebookId, sectionId, val || 'Untitled', pageId)
+      await reload()
+      await loadPages(notebookId, sectionId)
+      onPageSelect(notebookId, sectionId, page.id, `${nb?.name || ''} › ${sec?.name || ''} › ${page.title}`)
+    })
+  }, [ctxMenu, hideCtx, openInputModal, notebooks, sectionsByNb, reload, loadPages, onPageSelect])
 
   const handleDuplicate = useCallback(async () => {
     if (!ctxMenu || ctxMenu.target.type !== 'page') return
@@ -609,9 +706,10 @@ const NotebookTree = forwardRef<TreeHandle, Props>(({ selected, onPageSelect, on
             }}
           >
             {sec.children?.map(child => renderSection(nbId, child, nbName, depth + 1))}
-            {pages.map(page => (
+            {orderPagesWithDepth(pages).map(({ page, depth: pDepth }) => (
               <div
                 key={page.id}
+                style={pDepth ? { paddingLeft: 12 + pDepth * 14 } : undefined}
                 className={`page-item${selected.pageId === page.id ? ' selected' : ''}${mselIds.has(page.id) ? ' multi-selected' : ''}${
                   dropPagePos?.id === page.id ? ` drop-${dropPagePos.pos}` : ''}`}
                 draggable
@@ -738,6 +836,8 @@ const NotebookTree = forwardRef<TreeHandle, Props>(({ selected, onPageSelect, on
           {!isBuiltinNb && <div className="ctx-item" onClick={handleRename}>Rename</div>}
           {ctxMenu.target.type === 'page' && (
             <>
+              <div className="ctx-item" onClick={handleAddSubpage}>📑 하위 페이지 추가</div>
+              <div className="ctx-item" onClick={handleSaveAsTemplate}>💾 템플릿으로 저장</div>
               <div className="ctx-item" onClick={handleDuplicate}>📋 Duplicate</div>
               <div className="ctx-item" onClick={handleCopyLink}>🔗 Copy link</div>
             </>
@@ -749,6 +849,7 @@ const NotebookTree = forwardRef<TreeHandle, Props>(({ selected, onPageSelect, on
               <div className="ctx-sep" />
               <div className="ctx-item" onClick={handleAddSubsection}>📁 Add subfolder</div>
               <div className="ctx-item" onClick={handleAddChild}>📄 Add page</div>
+              <div className="ctx-item" onClick={openTemplatePicker}>📑 템플릿에서 페이지 추가</div>
             </>
           )}
           {ctxMenu.target.type === 'notebook' && (
@@ -765,6 +866,26 @@ const NotebookTree = forwardRef<TreeHandle, Props>(({ selected, onPageSelect, on
         </div>
         )
       })()}
+
+      {/* 템플릿 선택 */}
+      {templatePicker && (
+        <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) setTemplatePicker(null) }}>
+          <div className="modal-box">
+            <div className="modal-title">📑 템플릿에서 페이지 추가</div>
+            <div className="ln-tpl-list">
+              {templatePicker.list.map(t => (
+                <div key={t.id} className="ln-tpl-row">
+                  <button className="ln-tpl-pick" onClick={() => createFromTemplate(t)}>{t.name}</button>
+                  <button className="ln-tpl-del" title="템플릿 삭제" onClick={() => deleteTemplate(t)}>×</button>
+                </div>
+              ))}
+            </div>
+            <div className="modal-actions">
+              <button className="btn-secondary" onClick={() => setTemplatePicker(null)}>취소</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Input modal */}
       {inputModal && (
