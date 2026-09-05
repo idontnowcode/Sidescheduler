@@ -60,6 +60,139 @@ function applyAcrossTableSelection(quillInst: Quill, name: 'size' | 'align', val
   quillInst.format(name, value, Quill.sources.USER)
 }
 
+// ── 표 스타일 프리셋 / 텍스트 ↔ 표 변환 ────────────────────────────────────
+// quill-table-up이 셀에 허용하는 style은 background-color / border / height
+// 뿐이라, 프리셋은 "셀 배경 + 헤더 굵게"만 건드린다 (그래서 지우기로 항상
+// 원래대로 되돌릴 수 있다).
+const TABLE_HEADER_BG = '#e7f0fb'
+const TABLE_STRIPE_BG = '#f4f6f8'
+
+type CellBlot = { offset: (ctx: unknown) => number; length: () => number; domNode: HTMLElement }
+
+// 커서(또는 드래그 선택)가 놓인 표의 wrapper DOM. 표 밖이면 null.
+function tableWrapperAt(quillInst: Quill): HTMLElement | null {
+  const range = quillInst.getSelection()
+  if (!range) return null
+  const [leaf] = quillInst.getLeaf(range.index)
+  const node = (leaf as unknown as { domNode?: Node })?.domNode
+  const el = node ? (node.nodeType === 1 ? (node as HTMLElement) : node.parentElement) : null
+  return el?.closest('.ql-table-wrapper') as HTMLElement | null
+}
+
+// 표의 셀들을 행 단위로 묶어서 반환한다 (DOM 순서 = 문서 순서).
+function cellsByRow(tableEl: HTMLElement): CellBlot[][] {
+  return Array.from(tableEl.querySelectorAll('tr')).map((tr) =>
+    Array.from(tr.querySelectorAll('.ql-table-cell-inner'))
+      .map((el) => Quill.find(el) as unknown as CellBlot)
+      .filter(Boolean))
+}
+
+// 표 전체(또는 일부 행)에 프리셋을 적용한다.
+function applyTablePreset(quillInst: Quill, preset: string) {
+  const tableEl = tableWrapperAt(quillInst)
+  if (!tableEl) return
+  const tableModule = quillInst.getModule(TableUp.moduleName) as TableUp | undefined
+  if (!tableModule) return
+  const rows = cellsByRow(tableEl)
+  if (!rows.length) return
+
+  const setBg = (cells: CellBlot[], color: string) => {
+    if (cells.length) tableModule.setCellAttrs(cells as never[], 'background-color', color, true)
+  }
+  const setBold = (cells: CellBlot[], on: boolean) => {
+    for (const c of cells) {
+      const len = c.length()
+      if (len > 0) quillInst.formatText(c.offset(quillInst.scroll), len, 'bold', on || false, Quill.sources.USER)
+    }
+  }
+
+  const all = rows.flat()
+  // 어떤 프리셋이든 먼저 초기화해서, 프리셋끼리 겹쳐 쌓이지 않게 한다.
+  setBg(all, '')
+  setBold(all, false)
+  if (preset === 'clear') return
+
+  setBg(rows[0], TABLE_HEADER_BG)
+  setBold(rows[0], true)
+  if (preset === 'stripe') {
+    for (let r = 1; r < rows.length; r++) if (r % 2 === 0) setBg(rows[r], TABLE_STRIPE_BG)
+  }
+}
+
+// 선택한 여러 줄을 표로 바꾼다. 탭이 있으면 탭 기준, 없으면 쉼표 기준으로
+// 열을 나눈다 (엑셀에서 복사한 내용은 탭 구분이라 그대로 붙는다).
+function textToTable(quillInst: Quill): string | null {
+  const range = quillInst.getSelection()
+  if (!range || range.length === 0) return '표로 만들 텍스트를 먼저 선택하세요.'
+  const raw = quillInst.getText(range.index, range.length)
+  const lines = raw.split('\n').filter((l) => l.trim() !== '')
+  if (!lines.length) return '표로 만들 내용이 없습니다.'
+  const sep = lines.some((l) => l.includes('\t')) ? '\t' : ','
+  const matrix = lines.map((l) => l.split(sep).map((c) => c.trim()))
+  const cols = Math.max(...matrix.map((r) => r.length))
+  const rows = matrix.length
+  if (rows > 100 || cols > 30) return '표가 너무 큽니다 (최대 100행 × 30열).'
+
+  const tableModule = quillInst.getModule(TableUp.moduleName) as TableUp | undefined
+  if (!tableModule) return '표 모듈을 사용할 수 없습니다.'
+
+  quillInst.deleteText(range.index, range.length, Quill.sources.USER)
+  quillInst.setSelection(range.index, 0, Quill.sources.SILENT)
+  // 줄 전체를 골라 지웠으면 빈 문단 하나가 남는다. 표를 넣은 뒤 그 껍데기만
+  // 걷어내려고, 지금 시점에 비어 있었는지 기억해 둔다.
+  const [emptiedLine] = quillInst.getLine(range.index) as unknown as [{ length: () => number; domNode: HTMLElement } | null]
+  const hadEmptyLine = !!emptiedLine && emptiedLine.length() === 1 && (emptiedLine.domNode.textContent || '') === ''
+
+  const root = quillInst.root
+  const before = new Set(Array.from(root.querySelectorAll('.ql-table-wrapper')))
+  tableModule.insertTable(rows, cols)
+  const tableEl = Array.from(root.querySelectorAll('.ql-table-wrapper')).find((el) => !before.has(el)) as HTMLElement | undefined
+  if (!tableEl) return '표를 만들지 못했습니다.'
+
+  if (hadEmptyLine) {
+    const at = (Quill.find(tableEl) as unknown as CellBlot | null)?.offset(quillInst.scroll) ?? -1
+    if (at > 0) {
+      const [prev] = quillInst.getLine(at - 1) as unknown as [{ length: () => number; domNode: HTMLElement } | null]
+      if (prev && prev.length() === 1 && (prev.domNode.textContent || '') === '') {
+        quillInst.deleteText(at - 1, 1, Quill.sources.USER)
+      }
+    }
+  }
+
+  // 뒤에서부터 채운다 — 앞 셀에 글을 넣으면 뒤 셀의 문서 위치가 밀리기 때문.
+  const grid = cellsByRow(tableEl)
+  for (let r = grid.length - 1; r >= 0; r--) {
+    for (let c = grid[r].length - 1; c >= 0; c--) {
+      const text = matrix[r]?.[c]
+      if (!text) continue
+      quillInst.insertText(grid[r][c].offset(quillInst.scroll), text, Quill.sources.USER)
+    }
+  }
+  return null
+}
+
+// 커서가 놓인 표를 탭으로 구분된 여러 줄 텍스트로 되돌린다.
+function tableToText(quillInst: Quill): string | null {
+  const tableEl = tableWrapperAt(quillInst)
+  if (!tableEl) return '표 안에 커서를 두고 눌러주세요.'
+  const lines = cellsByRow(tableEl).map((row) =>
+    row.map((c) => (c.domNode.textContent || '').replace(/\s+/g, ' ').trim()).join('\t'))
+  const blot = Quill.find(tableEl) as unknown as CellBlot | null
+  if (!blot) return '표를 찾지 못했습니다.'
+  let at = blot.offset(quillInst.scroll)
+  let len = blot.length()
+  // quill-table-up은 표 앞뒤에 커서를 둘 수 있도록 빈 문단을 붙여 둔다. 표가
+  // 텍스트로 돌아가면 그 앞 문단은 쓸모없는 빈 줄이 되므로 같이 걷어낸다.
+  if (at > 0) {
+    const [prev] = quillInst.getLine(at - 1) as unknown as [{ length: () => number; domNode: HTMLElement } | null]
+    if (prev && prev.length() === 1 && (prev.domNode.textContent || '') === '') { at -= 1; len += 1 }
+  }
+  quillInst.deleteText(at, len, Quill.sources.USER)
+  quillInst.insertText(at, lines.join('\n') + '\n', Quill.sources.USER)
+  quillInst.setSelection(at, 0, Quill.sources.USER)
+  return null
+}
+
 // Two custom BLOCK formats:
 //  • liststart — starts an ordered list at an arbitrary number (data-list-start
 //    on the <li>; the generated CSS below counter-sets list-0 so "5. " → 5).
@@ -225,6 +358,8 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
   const [currentPage, setCurrentPage] = useState<{ notebookId: string; sectionId: string; pageId: string } | null>(null)
   const [titleValue, setTitleValue] = useState('')
   const [saveState, setSaveState] = useState<SaveState>('saved')
+  // 표 변환처럼 조용히 실패할 수 있는 동작의 짧은 안내 메시지.
+  const [toast, setToast] = useState('')
   const [isDirty, setIsDirty] = useState(false)
   const [counts, setCounts] = useState({ chars: 0, words: 0 })
   // Format painter: holds the copied inline formats while "armed".
@@ -467,7 +602,8 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
             [{ list: 'ordered' }, { list: 'bullet' }, { list: 'check' }, { indent: '-1' }, { indent: '+1' }],
             ['blockquote', 'code-block'],
             ['link', 'image', 'attach'],
-            [{ [TableUp.toolName]: [] }], // table insert picker (quill-table-up)
+            // 표: 삽입 피커 + 스타일 프리셋 + 텍스트↔표 변환
+            [{ [TableUp.toolName]: [] }, { 'table-style': ['header', 'stripe', 'clear'] }, 'text-to-table', 'table-to-text'],
             ['clean'],
           ],
           handlers: {
@@ -519,6 +655,19 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
             // rectangle of table cells gets formatted too (see its doc comment) —
             // plain quill.format() only ever touches the single cell the drag
             // started in, or does nothing at all outside any table.
+            // 표 프리셋(머리행/줄무늬/지우기)과 텍스트↔표 변환. 셋 다 Quill
+            // 포맷이 아니므로 생성 시점 handlers에 있어야 버튼이 동작한다.
+            'table-style': function (this: { quill: typeof quill }, value: string) {
+              if (value) applyTablePreset(this.quill, value)
+            },
+            'text-to-table': function (this: { quill: typeof quill }) {
+              const err = textToTable(this.quill)
+              if (err) setToast(err)
+            },
+            'table-to-text': function (this: { quill: typeof quill }) {
+              const err = tableToText(this.quill)
+              if (err) setToast(err)
+            },
             size: function (this: { quill: typeof quill }, value: string) {
               applyAcrossTableSelection(this.quill, 'size', value)
             },
@@ -1411,6 +1560,12 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
     return () => document.removeEventListener('keydown', onKey)
   }, [findOpen])
 
+  useEffect(() => {
+    if (!toast) return
+    const t = setTimeout(() => setToast(''), 2600)
+    return () => clearTimeout(t)
+  }, [toast])
+
   return (
     <div className="editor-area">
       {/* Always mounted — Quill must stay on the same DOM node */}
@@ -1788,6 +1943,7 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
         </div>
       )}
 
+      {toast && <div className="ln-toast">{toast}</div>}
     </div>
   )
 })

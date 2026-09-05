@@ -468,6 +468,7 @@ html, body {
 /* ── Editor area ─────────────────────────────── */
 .editor-area {
   flex: 1;
+  position: relative; /* .ln-toast 기준점 */
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -1276,3 +1277,28 @@ sup.citation:hover { background: var(--accent-hover); }
 /* Brief highlight when jumping to a heading from the TOC. */
 .ln-toc-flash { animation: tocFlash 0.9s ease; border-radius: 3px; }
 @keyframes tocFlash { 0% { background: rgba(124,111,240,0.30); } 100% { background: transparent; } }
+
+/* ── 표 스타일 프리셋 피커 + 텍스트↔표 변환 버튼 ───────────────────────── */
+.ql-snow .ql-picker.ql-table-style { width: 84px; }
+.ql-snow .ql-picker.ql-table-style .ql-picker-label::before { content: '표 스타일'; font-size: 13px; line-height: 22px; }
+.ql-snow .ql-picker.ql-table-style .ql-picker-label { padding-left: 6px; padding-right: 16px; font-size: 12px; }
+.ql-snow .ql-picker.ql-table-style .ql-picker-label,
+.ql-snow .ql-picker.ql-table-style .ql-picker-label::before { white-space: nowrap; }
+.ql-snow .ql-picker.ql-table-style .ql-picker-options { width: 120px; }
+.ql-snow .ql-picker.ql-table-style .ql-picker-item[data-value="header"]::before { content: '머리행 강조'; }
+.ql-snow .ql-picker.ql-table-style .ql-picker-item[data-value="stripe"]::before { content: '머리행 + 줄무늬'; }
+.ql-snow .ql-picker.ql-table-style .ql-picker-item[data-value="clear"]::before { content: '스타일 지우기'; }
+
+.ql-snow .ql-toolbar button.ql-text-to-table::after,
+.ql-snow.ql-toolbar button.ql-text-to-table::after { content: '⇥▦'; font-size: 13px; }
+.ql-snow .ql-toolbar button.ql-table-to-text::after,
+.ql-snow.ql-toolbar button.ql-table-to-text::after { content: '▦⇤'; font-size: 13px; }
+button.ql-text-to-table, button.ql-table-to-text { width: 30px !important; }
+
+/* 짧은 안내 토스트 */
+.ln-toast {
+  position: absolute; left: 50%; bottom: 26px; transform: translateX(-50%);
+  background: rgba(32, 36, 44, 0.94); color: #fff; font-size: 12.5px;
+  padding: 7px 14px; border-radius: 6px; z-index: 60; pointer-events: none;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+}
