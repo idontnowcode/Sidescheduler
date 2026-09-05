@@ -608,7 +608,11 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
             // Word-style: the "apply" button applies the current color instantly;
             // the small swatch dropdown next to it changes the current color.
             ['color-apply', { color: SWATCHES }, 'bg-apply', { background: SWATCHES }],
-            [{ align: ['', 'center', 'right'] }],
+            // 정렬은 드롭다운이 아니라 버튼 3개로 둔다. 표 위에 뜨는 흰
+            // 박스(quill-table-up의 '표 전체 정렬')와 아이콘이 똑같아서,
+            // 글자 정렬을 하려던 사람이 그쪽을 눌러 아무 일도 안 일어나는
+            // 일이 잦았다. 툴바 쪽을 눈에 띄게 만들어 구분한다.
+            [{ align: '' }, { align: 'center' }, { align: 'right' }],
             [{ list: 'ordered' }, { list: 'bullet' }, { list: 'check' }, { indent: '-1' }, { indent: '+1' }],
             ['blockquote', 'code-block'],
             ['link', 'image', 'attach'],
@@ -741,7 +745,9 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
         '.ql-header': '제목 스타일 (Heading)',
         '.ql-toclevel': '목차 수준 (Outline level — 크기 변화 없이 목차에만 추가)',
         '.ql-size': '글자 크기 (Size)',
-        '.ql-align': '정렬 (Align) — 표 안에서 여러 셀을 선택하면 셀들에 함께 적용',
+        '.ql-align[value=""]': '글자 왼쪽 정렬 — 표 안에서는 셀 안 글자에 적용된다 (표 자체를 옮기려면 표 위에 뜨는 표 정렬 박스를 쓸 것)',
+        '.ql-align[value="center"]': '글자 가운데 정렬 — 표 안에서는 셀 안 글자에 적용된다. 여러 셀을 드래그해 선택하면 그 셀들에 함께 적용',
+        '.ql-align[value="right"]': '글자 오른쪽 정렬 — 표 안에서는 셀 안 글자에 적용된다. 여러 셀을 드래그해 선택하면 그 셀들에 함께 적용',
         '.ql-script[value="super"]': '위 첨자 (Superscript)',
         '.ql-script[value="sub"]': '아래 첨자 (Subscript)',
         '.ql-indent[value="+1"]': '들여쓰기 (Indent) — 번호 목록은 1. → 가. → 1) 로 단계 변경',
@@ -755,6 +761,18 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
       for (const [sel, label] of Object.entries(titles)) {
         tbContainer.querySelectorAll(sel).forEach(el => el.setAttribute('title', label))
       }
+      // quill-table-up이 표 위에 띄우는 정렬 박스는 툴바의 글자 정렬과
+      // 아이콘이 똑같아서, 글자를 가운데로 두려던 사람이 여길 눌러 아무
+      // 일도 안 일어나는 일이 잦다. 무엇을 움직이는 버튼인지 이름을 붙인다.
+      const TABLE_ALIGN_TIPS: Record<string, string> = {
+        left: '표 전체를 왼쪽으로 (셀 안 글자가 아니라 표 자체가 움직인다)',
+        center: '표 전체를 가운데로 (셀 안 글자는 툴바의 정렬 버튼으로)',
+        right: '표 전체를 오른쪽으로 (셀 안 글자는 툴바의 정렬 버튼으로)',
+      }
+      document.querySelectorAll('.table-up-align [data-align]').forEach((el) => {
+        const k = (el as HTMLElement).dataset.align || ''
+        if (TABLE_ALIGN_TIPS[k]) el.setAttribute('title', TABLE_ALIGN_TIPS[k])
+      })
       // The custom apply-buttons render empty — give them an "A" glyph (text) and
       // a highlighter glyph (bg); their underbar color comes from --ln-cur (CSS).
       const fpBtn = tbContainer.querySelector('.ql-format-painter') as HTMLElement | null

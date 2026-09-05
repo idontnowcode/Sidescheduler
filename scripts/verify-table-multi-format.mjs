@@ -92,11 +92,11 @@ const singleCellSize = await ln.evaluate(() => {
 ok('single-cell size change still works (no regression)', singleCellSize === '20px', singleCellSize)
 
 // ── 2) A genuine text-align control now exists, and applies to selected cells ──
-ok('align toolbar control exists', await ln.locator('.ql-align').count() > 0)
+ok('정렬이 버튼 3개로 노출됨 (드롭다운 아님)',
+  await ln.locator('.ql-toolbar button.ql-align').count() === 3,
+  String(await ln.locator('.ql-toolbar button.ql-align').count()))
 await dragSelect(0, 1)
-await ln.locator('.ql-align .ql-picker-label').click()
-await ln.waitForTimeout(150)
-await ln.locator('.ql-align .ql-picker-item[data-value="center"]').click()
+await ln.locator('.ql-align[value="center"]').click()
 await ln.waitForTimeout(400)
 const alignsAfter = await ln.evaluate(() =>
   Array.from(document.querySelectorAll('.ql-editor td')).slice(0, 2).map(td => {
@@ -116,15 +116,27 @@ await ln.evaluate(() => {
   editor.appendChild(p)
 })
 await ln.locator('.ql-editor').getByText('표 밖 문단').click({ clickCount: 3 })
-await ln.locator('.ql-align .ql-picker-label').click()
-await ln.waitForTimeout(150)
-await ln.locator('.ql-align .ql-picker-item[data-value="right"]').click()
+await ln.locator('.ql-align[value="right"]').click()
 await ln.waitForTimeout(400)
 const outsideAlign = await ln.evaluate(() => {
   const p = Array.from(document.querySelectorAll('.ql-editor > p')).find(el => el.textContent.includes('표 밖 문단'))
   return p ? getComputedStyle(p).textAlign : null
 })
 ok('align works normally on a plain paragraph outside any table', outsideAlign === 'right', outsideAlign)
+
+// 두 정렬 컨트롤을 구분할 수 있어야 한다 — 툴바는 '글자', 표 위 흰 박스는 '표 전체'.
+const tips = await ln.evaluate(() => ({
+  toolbar: Array.from(document.querySelectorAll('.ql-toolbar button.ql-align'))
+    .map(b => b.getAttribute('title') || ''),
+  tableBox: Array.from(document.querySelectorAll('.table-up-align [data-align]'))
+    .map(b => b.getAttribute('title') || ''),
+}))
+ok('툴바 정렬 3개가 글자 정렬임을 밝힘',
+  tips.toolbar.length === 3 && tips.toolbar.every(t => t.includes('글자')),
+  JSON.stringify(tips.toolbar))
+ok('표 위 정렬 박스가 표 전체를 움직인다고 밝힘',
+  tips.tableBox.length === 3 && tips.tableBox.every(t => t.includes('표 전체')),
+  JSON.stringify(tips.tableBox))
 
 await app.close()
 const passed = results.filter(Boolean).length
