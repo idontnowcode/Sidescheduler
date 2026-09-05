@@ -1227,6 +1227,13 @@ sup.citation:hover { background: var(--accent-hover); }
 .wl-done-mark.on { border-color: #2f9e44; color: #6bd68a; font-weight: 700; }
 .wl-done-mark:hover { border-color: var(--accent); }
 
+/* 첨부 파일 링크를 칩처럼 표시 */
+.ql-editor a[href^="lnfile://"] {
+  display: inline-block; background: var(--bg3); border: 1px solid var(--border);
+  border-radius: 6px; padding: 1px 8px; text-decoration: none; color: var(--text);
+}
+.ql-editor a[href^="lnfile://"]:hover { border-color: var(--accent); color: var(--accent); }
+
 /* 페이지 버전 기록 */
 .ln-ver-btn { font-size: 12px; padding: 5px 10px; border-radius: 8px; border: 1px solid var(--border); background: transparent; color: var(--text-dim); cursor: pointer; white-space: nowrap; }
 .ln-ver-btn:hover { border-color: var(--accent); color: var(--accent); }

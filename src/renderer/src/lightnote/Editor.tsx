@@ -118,6 +118,15 @@ function applyAcrossTableSelection(quillInst: Quill, name: 'size' | 'align', val
   }
 }
 
+// Attachments are stored next to the page and referenced by a custom link
+// protocol; Quill's Link blot drops unknown protocols, so widen its whitelist.
+{
+  const Link = Quill.import('formats/link') as unknown as { PROTOCOL_WHITELIST: string[] }
+  if (Array.isArray(Link.PROTOCOL_WHITELIST) && !Link.PROTOCOL_WHITELIST.includes('lnfile')) {
+    Link.PROTOCOL_WHITELIST.push('lnfile')
+  }
+}
+
 // Inline formats the format painter copies (and clears on the target first).
 const PAINTABLE = ['bold', 'italic', 'underline', 'strike', 'color', 'background', 'size', 'script', 'font']
 
@@ -457,11 +466,31 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
             [{ align: ['', 'center', 'right'] }],
             [{ list: 'ordered' }, { list: 'bullet' }, { list: 'check' }, { indent: '-1' }, { indent: '+1' }],
             ['blockquote', 'code-block'],
-            ['link', 'image'],
+            ['link', 'image', 'attach'],
             [{ [TableUp.toolName]: [] }], // table insert picker (quill-table-up)
             ['clean'],
           ],
           handlers: {
+            // 파일 첨부: 고른 파일을 페이지 폴더로 복사하고 델타에는 링크만
+            // 남긴다. ('attach'는 Quill 포맷이 아니라서 생성 시점 handlers에
+            // 있어야 버튼이 살아난다 — addHandler로 나중에 붙이면 무시됨.)
+            attach: async function (this: { quill: typeof quill }) {
+              const q = this.quill
+              const cp = currentPageRef.current
+              if (!cp) return
+              const res = await window.lightnote.attachPick(cp.pageId).catch(() => null)
+              if (!res?.success || !res.files?.length) return
+              const range = q.getSelection(true)
+              let at = range ? range.index : q.getLength()
+              for (const f of res.files) {
+                const label = `📎 ${f.name}`
+                q.insertText(at, label, { link: `lnfile://${f.stored}` }, Quill.sources.USER)
+                at += label.length
+                q.insertText(at, '\n', Quill.sources.USER)
+                at += 1
+              }
+              q.setSelection(at, 0, Quill.sources.USER)
+            },
             // 서식 복사(Format Painter): 첫 클릭은 현재 선택의 인라인 서식을
             // "집어오고", 다음에 사용자가 드래그로 선택하는 범위에 그대로
             // 붙여넣은 뒤 자동 해제된다(한 번 더 누르면 취소).
@@ -559,6 +588,7 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
         '.ql-indent[value="+1"]': '들여쓰기 (Indent) — 번호 목록은 1. → 가. → 1) 로 단계 변경',
         '.ql-indent[value="-1"]': '내어쓰기 (Outdent)',
         '.ql-format-painter': '서식 복사 — 서식을 복사할 글자를 선택하고 클릭한 뒤, 적용할 범위를 드래그',
+        '.ql-attach': '파일 첨부 (PDF·엑셀 등) — 클릭하면 기본 프로그램으로 열림',
       }
       for (const [sel, label] of Object.entries(titles)) {
         tbContainer.querySelectorAll(sel).forEach(el => el.setAttribute('title', label))
@@ -567,6 +597,8 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
       // a highlighter glyph (bg); their underbar color comes from --ln-cur (CSS).
       const fpBtn = tbContainer.querySelector('.ql-format-painter') as HTMLElement | null
       if (fpBtn) fpBtn.textContent = '🖌'
+      const atBtn = tbContainer.querySelector('.ql-attach') as HTMLElement | null
+      if (atBtn) atBtn.textContent = '📎'
       const caBtn = tbContainer.querySelector('.ql-color-apply') as HTMLElement | null
       if (caBtn) caBtn.textContent = '가'
       const baBtn = tbContainer.querySelector('.ql-bg-apply') as HTMLElement | null
@@ -638,6 +670,20 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
       addHandler: (name: string, fn: () => void) => void
       container: HTMLElement
     }
+    // Attachment links open in the default app instead of navigating.
+    quill.root.addEventListener('click', (e: MouseEvent) => {
+      const a = (e.target as HTMLElement)?.closest?.('a[href^="lnfile://"]') as HTMLAnchorElement | null
+      if (!a) return
+      e.preventDefault()
+      e.stopPropagation()
+      const cp = currentPageRef.current
+      if (!cp) return
+      const stored = a.getAttribute('href')!.replace('lnfile://', '')
+      window.lightnote.attachOpen(cp.pageId, stored).then(r => {
+        if (r?.error === 'MISSING') alert('첨부 파일을 찾을 수 없습니다. 다른 PC에서 가져온 노트라면 파일은 함께 오지 않습니다.')
+      }).catch(() => {})
+    }, true)
+
     toolbar.addHandler('image', () => {
       const input = document.createElement('input')
       input.type = 'file'; input.accept = 'image/*'

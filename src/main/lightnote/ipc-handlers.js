@@ -9,6 +9,7 @@ const exportImport = require('./export-import');
 const reportExport = require('./report-export');
 const customFonts = require('./custom-fonts');
 const pageVersions = require('./page-versions');
+const attachments = require('./attachments');
 const path = require('path');
 const fs = require('fs').promises;
 const { shell } = require('electron');
@@ -32,6 +33,7 @@ function registerIpcHandlers(ipcMain, getWindow, safeStorage, dialog, app, sched
   workObjectStorage.init(DATA_ROOT);
   customFonts.init(APP_ROOT);
   pageVersions.init(DATA_ROOT);
+  attachments.init(DATA_ROOT);
   storage.init(safeStorage);
   // Seed the fixed PARA notebooks if they don't exist yet (built-in defaults).
   noteStorage.ensureDefaultNotebooks().catch((e) => console.error('ensureDefaultNotebooks:', e));
@@ -164,6 +166,7 @@ function registerIpcHandlers(ipcMain, getWindow, safeStorage, dialog, app, sched
     // Permanently deleted pages lose their work-object metadata too (no orphans).
     workObjectStorage.removeMany(pageIds).catch((e) => console.error('workObject cleanup:', e));
     pageVersions.removeAll(pageIds).catch((e) => console.error('version cleanup:', e));
+    attachments.removeAll(pageIds).catch((e) => console.error('attachment cleanup:', e));
   };
 
   ipcMain.handle('lightnote:trash:purge', async (_, node) => {
@@ -312,6 +315,39 @@ function registerIpcHandlers(ipcMain, getWindow, safeStorage, dialog, app, sched
     } catch (err) {
       return { error: err.message || 'EXPORT_FAILED' };
     }
+  });
+
+  // === 파일 첨부 (이미지 외 문서: PDF/xlsx/…) ===
+  // 파일은 페이지 폴더로 복사하고, 델타에는 링크만 남긴다(노트 JSON 비대화 방지).
+  ipcMain.handle('lightnote:attach:pick', async (_, { pageId }) => {
+    if (!dialog) return { error: 'NO_DIALOG' };
+    try {
+      const win = getWindow();
+      const res = await dialog.showOpenDialog(win || undefined, {
+        title: '파일 첨부', properties: ['openFile', 'multiSelections'],
+      });
+      if (res.canceled || !res.filePaths?.length) return { canceled: true };
+      const added = [];
+      for (const p of res.filePaths) added.push(await attachments.add(pageId, p));
+      return { success: true, files: added };
+    } catch (err) {
+      return { error: err.message || 'ATTACH_FAILED' };
+    }
+  });
+
+  ipcMain.handle('lightnote:attach:open', async (_, { pageId, stored }) => {
+    const full = attachments.resolve(pageId, stored);
+    if (!full) return { error: 'BAD_PATH' };
+    if (!(await attachments.exists(pageId, stored))) return { error: 'MISSING' };
+    const err = await shell.openPath(full);
+    return err ? { error: err } : { success: true };
+  });
+
+  ipcMain.handle('lightnote:attach:reveal', async (_, { pageId, stored }) => {
+    const full = attachments.resolve(pageId, stored);
+    if (!full) return { error: 'BAD_PATH' };
+    shell.showItemInFolder(full);
+    return { success: true };
   });
 
   // 사용자 폰트 폴더 — %APPDATA%/lightnote/fonts 에 넣은 폰트 파일을 스캔해
