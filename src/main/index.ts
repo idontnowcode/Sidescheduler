@@ -146,19 +146,23 @@ function applyMovable() {
   mainWindow.setMovable(!loadSettings().locked)
 }
 
-// "Peek mode": the sidebar stays visible but lets clicks/scroll pass through to
-// whatever is behind it, until the user presses the toggle hotkey. peekActive
-// is the runtime override that makes it interactive again.
-let peekActive = false
+// "Peek mode": the sidebar can let clicks/scroll pass straight through to
+// whatever is behind it. Ctrl+Shift+S toggles that pass-through on and off.
+//
+// The pass-through lock always starts OFF — even when peek mode is enabled the
+// sidebar is clickable the moment the app launches, and the user opts into
+// pass-through with the hotkey. Starting locked meant every launch began with a
+// sidebar that silently ignored the mouse, which reads as the app being broken.
+let sidebarInteractive = true
 function applyMouseMode() {
   if (!mainWindow) return
   const peek = !!loadSettings().clickThrough
-  if (peek && !peekActive) {
+  if (peek && !sidebarInteractive) {
     mainWindow.setIgnoreMouseEvents(true) // fully click-through; no hover/expand until the hotkey
     mainWindow.webContents.send('sidebar:peek', { enabled: true, active: false })
   } else {
     mainWindow.setIgnoreMouseEvents(false)
-    mainWindow.webContents.send('sidebar:peek', { enabled: peek, active: peek ? peekActive : false })
+    mainWindow.webContents.send('sidebar:peek', { enabled: peek, active: peek ? sidebarInteractive : false })
   }
 }
 
@@ -584,7 +588,8 @@ ipcMain.handle('db:tasks:get',  (_e, { id }: { id: string }) => getTaskById(id) 
 ipcMain.handle('settings:get', () => loadSettings())
 ipcMain.handle('settings:set', (_e, patch: Partial<WindowSettings>) => {
   const next = saveSettings(patch)
-  if ('clickThrough' in patch) peekActive = false // reset override when toggling the mode
+  // 모드를 껐다 켜도 잠금이 아니라 '선택 가능'에서 다시 시작한다.
+  if ('clickThrough' in patch) sidebarInteractive = true
   applyBounds()
   applyMovable()
   applyMouseMode()
@@ -976,9 +981,9 @@ app.whenReady().then(() => {
   try {
     globalShortcut.register('CommandOrControl+Shift+S', () => {
       if (!loadSettings().clickThrough) return // only meaningful when peek mode is on
-      peekActive = !peekActive
+      sidebarInteractive = !sidebarInteractive
       applyMouseMode()
-      if (peekActive) mainWindow?.show()
+      if (sidebarInteractive) mainWindow?.show()
       else if (windowExpanded) { windowExpanded = false; applyBounds() } // collapse when leaving interactive
     })
   } catch { /* hotkey may be taken by another app */ }

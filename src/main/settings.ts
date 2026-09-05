@@ -22,6 +22,7 @@ const DEFAULT: WindowSettings = {
   edge: 'right',
   width: 40,
   locked: false,
+  clickThrough: false,
   workStartHour: 9,
   workEndHour: 18,
   reminderEnabled: true
