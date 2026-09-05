@@ -1227,6 +1227,10 @@ sup.citation:hover { background: var(--accent-hover); }
 .wl-done-mark.on { border-color: #2f9e44; color: #6bd68a; font-weight: 700; }
 .wl-done-mark:hover { border-color: var(--accent); }
 
+/* 글자 수/단어 수 표시 + 서식 복사 버튼의 "장전됨" 상태 */
+.ln-counts { font-size: 11px; color: var(--text-dim); white-space: nowrap; margin-right: 8px; }
+.ql-toolbar button.ql-format-painter.ln-painter-armed { background: var(--accent); border-radius: 4px; }
+
 /* Draggable dividers to resize the left tree / right TOC panels. */
 .ln-resizer { flex: 0 0 5px; width: 5px; cursor: col-resize; background: transparent; position: relative; z-index: 5; }
 .ln-resizer:hover, .ln-resizer:active { background: var(--accent); opacity: 0.5; }

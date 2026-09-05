@@ -89,10 +89,37 @@ function applyAcrossTableSelection(quillInst: Quill, name: 'size' | 'align', val
     // and the next item's default +1 yields n+1.
     let css = ''
     for (let n = 2; n <= 200; n++) css += `.ql-editor li[data-list=ordered][data-list-start="${n}"]:first-child{counter-increment:list-0 0;counter-set:list-0 ${n}}`
+
+    // Multi-level numbering in the Korean 공문서 style. Quill's stock CSS
+    // cycles decimal → lower-alpha → lower-roman per indent level (1. → a. →
+    // i.), which reads wrong in a Korean report. Override each level to the
+    // conventional 1. → 가. → 1) → 가) → (1) → (가) ladder ("hangul" is the
+    // 가/나/다 counter style).
+    const LEVELS = [
+      null, // level 0 keeps Quill's default "1. "
+      { style: 'hangul', pre: '', post: '. ' },   // 가.
+      { style: 'decimal', pre: '', post: ') ' },  // 1)
+      { style: 'hangul', pre: '', post: ') ' },   // 가)
+      { style: 'decimal', pre: '(', post: ') ' }, // (1)
+      { style: 'hangul', pre: '(', post: ') ' },  // (가)
+      { style: 'decimal', pre: '', post: '. ' },
+      { style: 'hangul', pre: '', post: '. ' },
+      { style: 'decimal', pre: '', post: ') ' },
+    ]
+    LEVELS.forEach((lv, i) => {
+      if (!lv) return
+      const q = (t: string) => (t ? `"${t}"` : '')
+      const parts = [q(lv.pre), `counter(list-${i}, ${lv.style})`, q(lv.post)].filter(Boolean).join(' ')
+      css += `.ql-editor ol li[data-list=ordered].ql-indent-${i}::before{content:${parts}}`
+    })
+
     s.textContent = css
     document.head.appendChild(s)
   }
 }
+
+// Inline formats the format painter copies (and clears on the target first).
+const PAINTABLE = ['bold', 'italic', 'underline', 'strike', 'color', 'background', 'size', 'script', 'font']
 
 export interface EditorHandle {
   loadPage: (nbId: string, secId: string, pageId: string) => Promise<void>
@@ -190,6 +217,9 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
   const [titleValue, setTitleValue] = useState('')
   const [saveState, setSaveState] = useState<SaveState>('saved')
   const [isDirty, setIsDirty] = useState(false)
+  const [counts, setCounts] = useState({ chars: 0, words: 0 })
+  // Format painter: holds the copied inline formats while "armed".
+  const painterRef = useRef<Record<string, unknown> | null>(null)
   const [showOrganize, setShowOrganize] = useState(false)
   const [organizeText, setOrganizeText] = useState('')
   const [isOrganizing, setIsOrganizing] = useState(false)
@@ -407,18 +437,32 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
           container: [
             [{ header: [1, 2, 3, false] }, { toclevel: [false, '1', '2', '3'] }],
             [{ size: SIZE_LIST }],
-            ['bold', 'italic', 'underline', 'strike'],
+            ['bold', 'italic', 'underline', 'strike', { script: 'super' }, { script: 'sub' }, 'format-painter'],
             // Word-style: the "apply" button applies the current color instantly;
             // the small swatch dropdown next to it changes the current color.
             ['color-apply', { color: SWATCHES }, 'bg-apply', { background: SWATCHES }],
             [{ align: ['', 'center', 'right'] }],
-            [{ list: 'ordered' }, { list: 'bullet' }, { list: 'check' }],
+            [{ list: 'ordered' }, { list: 'bullet' }, { list: 'check' }, { indent: '-1' }, { indent: '+1' }],
             ['blockquote', 'code-block'],
             ['link', 'image'],
             [{ [TableUp.toolName]: [] }], // table insert picker (quill-table-up)
             ['clean'],
           ],
           handlers: {
+            // 서식 복사(Format Painter): 첫 클릭은 현재 선택의 인라인 서식을
+            // "집어오고", 다음에 사용자가 드래그로 선택하는 범위에 그대로
+            // 붙여넣은 뒤 자동 해제된다(한 번 더 누르면 취소).
+            'format-painter': function (this: { quill: typeof quill }) {
+              const q = this.quill
+              if (painterRef.current) { painterRef.current = null; syncPainterButton(); return }
+              const range = q.getSelection()
+              if (!range) return
+              const fmt = q.getFormat(range) as Record<string, unknown>
+              const picked: Record<string, unknown> = {}
+              for (const k of PAINTABLE) if (fmt[k] !== undefined) picked[k] = fmt[k]
+              painterRef.current = picked
+              syncPainterButton()
+            },
             'color-apply': function (this: { quill: typeof quill }) { this.quill.format('color', lastColorRef.current, Quill.sources.USER) },
             'bg-apply': function (this: { quill: typeof quill }) { this.quill.format('background', lastBgRef.current, Quill.sources.USER) },
             color: function (this: { quill: typeof quill }, value: string) {
@@ -444,6 +488,23 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
       }
     })
     quillRef.current = quill
+
+    // Format painter: armed-state highlight + apply-on-next-selection.
+    const syncPainterButton = () => {
+      const tb = (quill.getModule('toolbar') as { container: HTMLElement }).container
+      const b = tb?.querySelector('.ql-format-painter') as HTMLElement | null
+      if (b) b.classList.toggle('ln-painter-armed', !!painterRef.current)
+    }
+    quill.on('selection-change', (range, _old, source) => {
+      if (!painterRef.current || !range || range.length === 0 || source !== 'user') return
+      const fmts = painterRef.current
+      painterRef.current = null
+      // Replace (not merge) formatting, the way Word's painter behaves: clear
+      // every paintable inline format first, then stamp the captured ones.
+      for (const k of PAINTABLE) quill.formatText(range.index, range.length, k, false, Quill.sources.USER)
+      for (const [k, v] of Object.entries(fmts)) quill.formatText(range.index, range.length, k, v as string, Quill.sources.USER)
+      syncPainterButton()
+    })
 
     // Reflect the current text/highlight color on the "apply" buttons' underbar.
     const syncColorButtons = () => {
@@ -480,12 +541,19 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
         '.ql-toclevel': '목차 수준 (Outline level — 크기 변화 없이 목차에만 추가)',
         '.ql-size': '글자 크기 (Size)',
         '.ql-align': '정렬 (Align) — 표 안에서 여러 셀을 선택하면 셀들에 함께 적용',
+        '.ql-script[value="super"]': '위 첨자 (Superscript)',
+        '.ql-script[value="sub"]': '아래 첨자 (Subscript)',
+        '.ql-indent[value="+1"]': '들여쓰기 (Indent) — 번호 목록은 1. → 가. → 1) 로 단계 변경',
+        '.ql-indent[value="-1"]': '내어쓰기 (Outdent)',
+        '.ql-format-painter': '서식 복사 — 서식을 복사할 글자를 선택하고 클릭한 뒤, 적용할 범위를 드래그',
       }
       for (const [sel, label] of Object.entries(titles)) {
         tbContainer.querySelectorAll(sel).forEach(el => el.setAttribute('title', label))
       }
       // The custom apply-buttons render empty — give them an "A" glyph (text) and
       // a highlighter glyph (bg); their underbar color comes from --ln-cur (CSS).
+      const fpBtn = tbContainer.querySelector('.ql-format-painter') as HTMLElement | null
+      if (fpBtn) fpBtn.textContent = '🖌'
       const caBtn = tbContainer.querySelector('.ql-color-apply') as HTMLElement | null
       if (caBtn) caBtn.textContent = '가'
       const baBtn = tbContainer.querySelector('.ql-bg-apply') as HTMLElement | null
@@ -536,7 +604,14 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
       }
     }
 
+    const updateCounts = () => {
+      const t = quill.getText().replace(/\n+$/, '')
+      setCounts({ chars: t.length, words: (t.match(/\S+/g) || []).length })
+    }
+    updateCounts()
+
     quill.on('text-change', () => {
+      updateCounts()
       if (!currentPageRef.current) return
       isDirtyRef.current = true
       setIsDirty(true)
@@ -1165,6 +1240,9 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
               disabled={isOrganizing}
               onClick={handleOrganize}
             >✨ AI Organize</button>
+            <span className="ln-counts" title="글자 수 / 단어 수">
+              {counts.chars.toLocaleString()}자 · {counts.words.toLocaleString()}단어
+            </span>
             <span className={`save-indicator${stClass ? ' ' + stClass : ''}`}>
               {saveStateText(saveState)}
             </span>
