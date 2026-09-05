@@ -42,6 +42,9 @@ contextBridge.exposeInMainWorld('lightnote', {
   // 업무 진행 현황 보고서 내보내기 (선택한 업무들 → 개조식 평문 .md)
   exportReport: (pageIds) => ipcRenderer.invoke('lightnote:export-report', { pageIds }),
 
+  // PDF 내보내기
+  exportPdf: (title, html) => ipcRenderer.invoke('lightnote:export-pdf', { title, html }),
+
   // 파일 첨부
   attachPick: (pageId) => ipcRenderer.invoke('lightnote:attach:pick', { pageId }),
   attachOpen: (pageId, stored) => ipcRenderer.invoke('lightnote:attach:open', { pageId, stored }),

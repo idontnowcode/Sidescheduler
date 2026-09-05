@@ -171,6 +171,7 @@ declare global {
         Promise<{ success?: boolean; canceled?: boolean; filePath?: string; error?: string }>
       importBundle: () => Promise<{ success?: boolean; canceled?: boolean; notebookId?: string; notebookName?: string; pageCount?: number; sectionCount?: number; error?: string }>
       exportReport: (pageIds: string[]) => Promise<{ success?: boolean; canceled?: boolean; filePath?: string; error?: string }>
+      exportPdf: (title: string, html: string) => Promise<{ success?: boolean; canceled?: boolean; filePath?: string; error?: string }>
       attachPick: (pageId: string) => Promise<{ success?: boolean; canceled?: boolean; files?: { stored: string; name: string; size: number }[]; error?: string }>
       attachOpen: (pageId: string, stored: string) => Promise<{ success?: boolean; error?: string }>
       attachReveal: (pageId: string, stored: string) => Promise<{ success?: boolean; error?: string }>

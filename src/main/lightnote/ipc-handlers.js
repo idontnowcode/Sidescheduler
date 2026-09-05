@@ -14,6 +14,12 @@ const path = require('path');
 const fs = require('fs').promises;
 const { shell } = require('electron');
 
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, (c) => (
+    { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+  ));
+}
+
 /**
  * Register all LightNote IPC handlers.
  * @param {Electron.IpcMain} ipcMain
@@ -314,6 +320,51 @@ function registerIpcHandlers(ipcMain, getWindow, safeStorage, dialog, app, sched
       return { success: true, filePath: res.filePath };
     } catch (err) {
       return { error: err.message || 'EXPORT_FAILED' };
+    }
+  });
+
+  // === PDF 내보내기 ===
+  // 편집기 본문 HTML을 그대로 넘겨받아, 화면 UI가 섞이지 않도록 보이지 않는
+  // 창에 인쇄용 스타일로 렌더한 뒤 printToPDF 한다.
+  ipcMain.handle('lightnote:export-pdf', async (_, { title, html }) => {
+    if (!dialog) return { error: 'NO_DIALOG' };
+    let win = null;
+    try {
+      const parent = getWindow();
+      const res = await dialog.showSaveDialog(parent || undefined, {
+        title: 'PDF로 내보내기',
+        defaultPath: `${String(title || 'note').replace(/[\\/:*?"<>|]/g, '_')}.pdf`,
+        filters: [{ name: 'PDF', extensions: ['pdf'] }],
+      });
+      if (res.canceled || !res.filePath) return { canceled: true };
+
+      const doc = `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(title || '')}</title>
+<style>
+  @page { margin: 18mm 16mm; }
+  body { font-family: 'Malgun Gothic', 'Segoe UI', sans-serif; color: #111; font-size: 11pt; line-height: 1.6; }
+  h1.ln-doc-title { font-size: 18pt; margin: 0 0 14px; border-bottom: 1px solid #ccc; padding-bottom: 8px; }
+  img { max-width: 100%; }
+  table { border-collapse: collapse; }
+  table td, table th { border: 1px solid #999; padding: 4px 6px; }
+  blockquote { border-left: 3px solid #ccc; margin-left: 0; padding-left: 12px; color: #444; }
+  pre, .ql-code-block-container { background: #f4f4f4; padding: 8px; border-radius: 4px; white-space: pre-wrap; }
+  a { color: #0b57d0; }
+  ol, ul { padding-left: 22px; }
+</style></head>
+<body><h1 class="ln-doc-title">${escapeHtml(title || '')}</h1>${html || ''}</body></html>`;
+
+      const { BrowserWindow } = require('electron');
+      win = new BrowserWindow({ show: false, webPreferences: { offscreen: true, javascript: false } });
+      await win.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(doc));
+      // Give embedded images a beat to decode before capturing.
+      await new Promise((r) => setTimeout(r, 350));
+      const pdf = await win.webContents.printToPDF({ printBackground: true, pageSize: 'A4' });
+      await fs.writeFile(res.filePath, pdf);
+      return { success: true, filePath: res.filePath };
+    } catch (err) {
+      return { error: err.message || 'PDF_FAILED' };
+    } finally {
+      if (win && !win.isDestroyed()) win.destroy();
     }
   });
 

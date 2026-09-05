@@ -1348,6 +1348,18 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
     setFindHits({ total: 0, at: 0 })
   }, [findText, replaceText, findAll])
 
+  // ── PDF 내보내기 ────────────────────────────────────────────────────────
+  // 편집기 본문 HTML을 그대로 넘긴다(이미지는 델타에 base64로 들어있어 그대로
+  // 실려 나가고, 첨부 링크는 인쇄본에서 텍스트로 남는다).
+  const exportPdf = useCallback(async () => {
+    const q = quillRef.current
+    if (!q) return
+    if (isDirtyRef.current) await savePage()
+    const title = (document.getElementById('ln-page-title') as HTMLInputElement)?.value?.trim() || 'Untitled'
+    const r = await window.lightnote.exportPdf(title, q.root.innerHTML).catch(() => null)
+    if (r?.error) alert('PDF 내보내기에 실패했습니다.')
+  }, [savePage])
+
   // ── 페이지 버전 기록 ────────────────────────────────────────────────────
   const openVersions = useCallback(async () => {
     const cp = currentPageRef.current
@@ -1415,6 +1427,7 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
             onKeyDown={handleTitleKeyDown}
           />
           <div className="editor-header-right">
+            <button className="ln-ver-btn" title="PDF로 내보내기" onClick={exportPdf}>🖨 PDF</button>
             <button className="ln-ver-btn" title="버전 기록 — 이전 내용으로 되돌리기" onClick={openVersions}>🕘 버전</button>
             <button
               className="organize-btn"
