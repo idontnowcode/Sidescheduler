@@ -64,8 +64,13 @@ function applyAcrossTableSelection(quillInst: Quill, name: 'size' | 'align', val
 // quill-table-up이 셀에 허용하는 style은 background-color / border / height
 // 뿐이라, 프리셋은 "셀 배경 + 헤더 굵게"만 건드린다 (그래서 지우기로 항상
 // 원래대로 되돌릴 수 있다).
-const TABLE_HEADER_BG = '#e7f0fb'
-const TABLE_STRIPE_BG = '#f4f6f8'
+// 프리셋은 표 전체를 '인쇄물 같은 밝은 표'로 통일한다 — 배경만 칠하고
+// 글자색을 그대로 두면 다크 테마에서 밝은 배경 위에 밝은 글자가 남아
+// 읽을 수 없게 되기 때문. 그래서 배경과 글자색을 항상 같이 바꾼다.
+const TABLE_HEADER_BG = '#dbe7f6'
+const TABLE_BODY_BG = '#ffffff'
+const TABLE_STRIPE_BG = '#f1f4f8'
+const TABLE_TEXT = '#1f2430'
 
 type CellBlot = { offset: (ctx: unknown) => number; length: () => number; domNode: HTMLElement }
 
@@ -99,24 +104,26 @@ function applyTablePreset(quillInst: Quill, preset: string) {
   const setBg = (cells: CellBlot[], color: string) => {
     if (cells.length) tableModule.setCellAttrs(cells as never[], 'background-color', color, true)
   }
-  const setBold = (cells: CellBlot[], on: boolean) => {
+  const setText = (cells: CellBlot[], name: 'bold' | 'color', value: string | boolean) => {
     for (const c of cells) {
       const len = c.length()
-      if (len > 0) quillInst.formatText(c.offset(quillInst.scroll), len, 'bold', on || false, Quill.sources.USER)
+      if (len > 0) quillInst.formatText(c.offset(quillInst.scroll), len, name, value, Quill.sources.USER)
     }
   }
 
   const all = rows.flat()
   // 어떤 프리셋이든 먼저 초기화해서, 프리셋끼리 겹쳐 쌓이지 않게 한다.
   setBg(all, '')
-  setBold(all, false)
+  setText(all, 'bold', false)
+  setText(all, 'color', false)
   if (preset === 'clear') return
 
-  setBg(rows[0], TABLE_HEADER_BG)
-  setBold(rows[0], true)
-  if (preset === 'stripe') {
-    for (let r = 1; r < rows.length; r++) if (r % 2 === 0) setBg(rows[r], TABLE_STRIPE_BG)
+  setText(all, 'color', TABLE_TEXT)
+  for (let r = 1; r < rows.length; r++) {
+    setBg(rows[r], preset === 'stripe' && r % 2 === 0 ? TABLE_STRIPE_BG : TABLE_BODY_BG)
   }
+  setBg(rows[0], TABLE_HEADER_BG)
+  setText(rows[0], 'bold', true)
 }
 
 // 선택한 여러 줄을 표로 바꾼다. 탭이 있으면 탭 기준, 없으면 쉼표 기준으로

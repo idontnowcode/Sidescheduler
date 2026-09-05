@@ -81,18 +81,26 @@ const afterHeader = await ln.evaluate(() =>
     Array.from(tr.querySelectorAll('td')).map(td => ({
       bg: td.style.backgroundColor || '',
       bold: !!td.querySelector('strong'),
+      // 실제로 눈에 보이는 색 — 굵게가 걸리면 색이 <strong>에 붙기도 해서
+      // 태그를 가리지 않고 계산된 색으로 확인한다.
+      // 굵게가 걸린 머리행은 색이 <strong>에, 본문은 <span>에 붙는다.
+      fg: (td.querySelector('[style*="color"]'))?.style.color || '',
     }))))
 ok('머리행 프리셋: 1행에 배경색', afterHeader[0]?.every(c => c.bg !== ''), JSON.stringify(afterHeader[0]))
 ok('머리행 프리셋: 1행이 굵게', afterHeader[0]?.every(c => c.bold), JSON.stringify(afterHeader[0]))
-ok('머리행 프리셋: 본문 행은 배경 없음',
-  afterHeader.slice(1).every(r => r.every(c => c.bg === '')), JSON.stringify(afterHeader.slice(1)))
+ok('머리행 프리셋: 본문 행은 흰 배경(머리행과 다른 색)',
+  afterHeader.slice(1).every(r => r.every(c => c.bg !== '' && c.bg !== afterHeader[0][0].bg)),
+  JSON.stringify(afterHeader.slice(1).map(r => r.map(c => c.bg))))
+ok('머리행 프리셋: 밝은 배경 위 글자색이 어둡게 지정됨',
+  afterHeader.flat().every(c => c.fg === 'rgb(31, 36, 48)'),
+  JSON.stringify(afterHeader.flat().map(c => c.fg)))
 
 await pickStyle('stripe')
 const afterStripe = await ln.evaluate(() =>
   Array.from(document.querySelectorAll('.ql-editor table tr')).map(tr =>
     Array.from(tr.querySelectorAll('td')).map(td => td.style.backgroundColor || '')))
 ok('줄무늬 프리셋: 1행 배경 유지', afterStripe[0]?.every(b => b !== ''), JSON.stringify(afterStripe))
-ok('줄무늬 프리셋: 2행(홀수 본문)은 배경 없음', afterStripe[1]?.every(b => b === ''), JSON.stringify(afterStripe[1]))
+ok('줄무늬 프리셋: 2행(홀수 본문)은 흰 배경', afterStripe[1]?.every(b => b === 'rgb(255, 255, 255)'), JSON.stringify(afterStripe[1]))
 ok('줄무늬 프리셋: 3행(짝수 본문)에 배경', afterStripe[2]?.every(b => b !== ''), JSON.stringify(afterStripe[2]))
 ok('머리행 배경과 줄무늬 배경은 다른 색', afterStripe[0][0] !== afterStripe[2][0], `${afterStripe[0][0]} vs ${afterStripe[2][0]}`)
 
@@ -100,9 +108,11 @@ await pickStyle('clear')
 const afterClear = await ln.evaluate(() => ({
   bgs: Array.from(document.querySelectorAll('.ql-editor table td')).map(td => td.style.backgroundColor || ''),
   bolds: document.querySelectorAll('.ql-editor table strong').length,
+  colored: document.querySelectorAll('.ql-editor table [style*="color"]').length,
 }))
 ok('지우기 프리셋: 모든 배경 제거', afterClear.bgs.every(b => b === ''), JSON.stringify(afterClear.bgs))
 ok('지우기 프리셋: 굵게도 해제', afterClear.bolds === 0, String(afterClear.bolds))
+ok('지우기 프리셋: 글자색도 테마 기본으로 복귀', afterClear.colored === 0, String(afterClear.colored))
 
 // ── 표 → 텍스트 ──────────────────────────────────────────────────────────
 await ln.locator('.ql-editor .ql-table-cell-inner').first().click()
