@@ -250,7 +250,10 @@ function tableToText(quillInst: Quill): string | null {
       if (!lv) return
       const q = (t: string) => (t ? `"${t}"` : '')
       const parts = [q(lv.pre), `counter(list-${i}, ${lv.style})`, q(lv.post)].filter(Boolean).join(' ')
-      css += `.ql-editor ol li[data-list=ordered].ql-indent-${i}::before{content:${parts}}`
+      // Quill 2는 목록 마커를 li::before가 아니라 li > .ql-ui::before 에 그린다.
+      // li::before에 걸면 Quill 기본 마커가 그대로 남은 채 그 위에 겹쳐 그려져
+      // '가'와 'a'가 포개진 이상한 글자로 보인다. 반드시 .ql-ui를 덮어써야 한다.
+      css += `.ql-editor li[data-list="ordered"].ql-indent-${i} > .ql-ui::before{content:${parts}}`
     })
 
     s.textContent = css
