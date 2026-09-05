@@ -745,6 +745,9 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
         '.ql-indent[value="-1"]': '내어쓰기 (Outdent)',
         '.ql-format-painter': '서식 복사 — 서식을 복사할 글자를 선택하고 클릭한 뒤, 적용할 범위를 드래그',
         '.ql-attach': '파일 첨부 (PDF·엑셀 등) — 클릭하면 기본 프로그램으로 열림',
+        '.ql-table-style': '표 스타일 — 머리행 강조 / 줄무늬 / 지우기 (표 안에 커서를 두고 사용)',
+        '.ql-text-to-table': '텍스트 → 표 — 여러 줄을 선택하면 탭(없으면 쉼표) 기준으로 잘라 표로 변환',
+        '.ql-table-to-text': '표 → 텍스트 — 커서가 놓인 표를 탭 구분 텍스트로 되돌림',
       }
       for (const [sel, label] of Object.entries(titles)) {
         tbContainer.querySelectorAll(sel).forEach(el => el.setAttribute('title', label))

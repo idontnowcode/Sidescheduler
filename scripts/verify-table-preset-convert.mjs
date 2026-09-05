@@ -37,6 +37,10 @@ ok('툴바에 표 스타일 피커', await ln.locator('.ql-toolbar select.ql-tab
   && await ln.locator('.ql-toolbar span.ql-picker.ql-table-style .ql-picker-item').count() === 3)
 ok('툴바에 텍스트→표 버튼', await ln.locator('.ql-toolbar button.ql-text-to-table').count() === 1)
 ok('툴바에 표→텍스트 버튼', await ln.locator('.ql-toolbar button.ql-table-to-text').count() === 1)
+// 아이콘만으로는 뜻을 알 수 없으므로 마우스를 올렸을 때 설명이 떠야 한다.
+const tips = await ln.evaluate(() => ['.ql-table-style', '.ql-text-to-table', '.ql-table-to-text']
+  .map(sel => document.querySelector(`.ql-toolbar ${sel}`)?.getAttribute('title') || ''))
+ok('새 표 컨트롤 3개에 설명 툴팁', tips.every(t => t.length > 10), JSON.stringify(tips))
 
 // ── 텍스트 → 표 ──────────────────────────────────────────────────────────
 await ln.locator('.ql-editor').click()
