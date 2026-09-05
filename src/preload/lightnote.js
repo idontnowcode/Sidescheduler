@@ -42,6 +42,12 @@ contextBridge.exposeInMainWorld('lightnote', {
   // 업무 진행 현황 보고서 내보내기 (선택한 업무들 → 개조식 평문 .md)
   exportReport: (pageIds) => ipcRenderer.invoke('lightnote:export-report', { pageIds }),
 
+  // 페이지 버전 기록
+  listVersions: (pageId) => ipcRenderer.invoke('lightnote:versions:list', { pageId }),
+  getVersion: (pageId, versionId) => ipcRenderer.invoke('lightnote:versions:get', { pageId, versionId }),
+  restoreVersion: (notebookId, sectionId, pageId, versionId) =>
+    ipcRenderer.invoke('lightnote:versions:restore', { notebookId, sectionId, pageId, versionId }),
+
   // 사용자 폰트 폴더 (%APPDATA%/lightnote/fonts)
   listCustomFonts: () => ipcRenderer.invoke('lightnote:fonts:list'),
   openFontsFolder: () => ipcRenderer.invoke('lightnote:fonts:open-folder'),

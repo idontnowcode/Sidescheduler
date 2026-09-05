@@ -3,7 +3,7 @@ import Quill from 'quill'
 import TableUp, { defaultCustomSelect, TableAlign, TableMenuContextmenu, TableResizeLine, TableSelection } from 'quill-table-up'
 import 'quill-table-up/index.css'
 import 'quill-table-up/table-creator.css'
-import type { PageRefLoc } from './types'
+import type { PageRefLoc, PageVersion } from './types'
 import { serializeForOrganize, markdownToQuillDelta, type ImageOp } from './organize-utils'
 
 // Full table support (insert/delete row+column, MERGE/SPLIT cells, resize) via
@@ -226,6 +226,10 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
   const [replaceText, setReplaceText] = useState('')
   const [findHits, setFindHits] = useState<{ total: number; at: number }>({ total: 0, at: 0 })
   const findIdxRef = useRef(0)
+  // 페이지 버전 기록
+  const [showVersions, setShowVersions] = useState(false)
+  const [versions, setVersions] = useState<PageVersion[]>([])
+  const [versionPreview, setVersionPreview] = useState<{ id: string; text: string } | null>(null)
   const [showOrganize, setShowOrganize] = useState(false)
   const [organizeText, setOrganizeText] = useState('')
   const [isOrganizing, setIsOrganizing] = useState(false)
@@ -330,14 +334,17 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
     reloadRelated()
   }, [reloadRelated])
 
-  const savePage = useCallback(async () => {
+  // `snapshot: true` forces a version checkpoint of the content being replaced
+  // (autosave otherwise throttles snapshots) — used right before destructive
+  // rewrites like AI Organize.
+  const savePage = useCallback(async (snapshot = false) => {
     const cp = currentPageRef.current
     if (!cp || !quillRef.current) return
     const delta = quillRef.current.getContents()
     const title = (document.getElementById('ln-page-title') as HTMLInputElement)?.value?.trim() || 'Untitled'
     try {
       setSaveState('saving')
-      await window.lightnote.savePage({ ...cp, delta, title })
+      await window.lightnote.savePage({ ...cp, delta, title, snapshot })
       setSaveState('saved')
       isDirtyRef.current = false
       setIsDirty(false)
@@ -1214,8 +1221,11 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
     }
   }
 
-  const applyOrganize = () => {
+  const applyOrganize = async () => {
     if (!organizeText || !quillRef.current) return
+    // AI Organize replaces the whole body — force a version checkpoint first
+    // so it's always undoable from 버전 기록.
+    await savePage(true)
     const delta = markdownToQuillDelta(organizeText, organizeImagesRef.current)
     quillRef.current.setContents(delta as Parameters<typeof quillRef.current.setContents>[0], 'user')
     setShowOrganize(false)
@@ -1292,6 +1302,42 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
     setFindHits({ total: 0, at: 0 })
   }, [findText, replaceText, findAll])
 
+  // ── 페이지 버전 기록 ────────────────────────────────────────────────────
+  const openVersions = useCallback(async () => {
+    const cp = currentPageRef.current
+    if (!cp) return
+    if (isDirtyRef.current) await savePage()
+    setVersions(await window.lightnote.listVersions(cp.pageId).catch(() => []))
+    setVersionPreview(null)
+    setShowVersions(true)
+  }, [savePage])
+
+  const previewVersion = useCallback(async (versionId: string) => {
+    const cp = currentPageRef.current
+    if (!cp) return
+    const v = await window.lightnote.getVersion(cp.pageId, versionId).catch(() => null)
+    if (!v) return
+    // Render the snapshot's plain text for a quick "is this the one?" check.
+    const ops = (v.delta as { ops?: Array<{ insert?: unknown }> })?.ops || []
+    const text = ops.map(o => (typeof o.insert === 'string' ? o.insert : '🖼')).join('')
+    setVersionPreview({ id: versionId, text: text.slice(0, 4000) })
+  }, [])
+
+  const restoreVersion = useCallback(async (versionId: string) => {
+    const cp = currentPageRef.current
+    if (!cp) return
+    if (!confirm('이 버전으로 되돌릴까요? 지금 내용은 새 버전으로 저장되어 다시 되돌릴 수 있습니다.')) return
+    const r = await window.lightnote.restoreVersion(cp.notebookId, cp.sectionId, cp.pageId, versionId).catch(() => null)
+    if (!r?.success) { alert('복원에 실패했습니다.'); return }
+    if (quillRef.current && r.delta) {
+      quillRef.current.setContents(r.delta as Parameters<typeof quillRef.current.setContents>[0], 'silent')
+    }
+    if (r.title) setTitleValue(r.title)
+    isDirtyRef.current = false
+    setIsDirty(false)
+    setShowVersions(false)
+  }, [])
+
   // Ctrl+F / Ctrl+H open the panel; Esc closes it.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -1323,6 +1369,7 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
             onKeyDown={handleTitleKeyDown}
           />
           <div className="editor-header-right">
+            <button className="ln-ver-btn" title="버전 기록 — 이전 내용으로 되돌리기" onClick={openVersions}>🕘 버전</button>
             <button
               className="organize-btn"
               disabled={isOrganizing}
@@ -1546,6 +1593,47 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
           </div>
         )}
       </div>
+
+      {showVersions && (
+        <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) setShowVersions(false) }}>
+          <div className="modal-box ln-ver-box">
+            <div className="modal-title">🕘 버전 기록</div>
+            <div className="ln-ver-hint">
+              저장할 때마다 직전 내용이 보관됩니다(최근 30개). AI Organize 직전 시점은 항상 남습니다.
+            </div>
+            {versions.length === 0 ? (
+              <div className="ln-ver-empty">아직 보관된 이전 버전이 없습니다.</div>
+            ) : (
+              <div className="ln-ver-body">
+                <div className="ln-ver-list">
+                  {versions.map(v => (
+                    <button
+                      key={v.id}
+                      className={`ln-ver-item${versionPreview?.id === v.id ? ' on' : ''}`}
+                      onClick={() => previewVersion(v.id)}
+                    >
+                      {new Date(v.at).toLocaleString('ko-KR', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                    </button>
+                  ))}
+                </div>
+                <div className="ln-ver-preview">
+                  {versionPreview
+                    ? <pre>{versionPreview.text}</pre>
+                    : <div className="ln-ver-empty">왼쪽에서 시점을 선택하면 내용을 미리 볼 수 있습니다.</div>}
+                </div>
+              </div>
+            )}
+            <div className="modal-actions">
+              <button className="btn-secondary" onClick={() => setShowVersions(false)}>닫기</button>
+              <button
+                className="btn-primary"
+                disabled={!versionPreview}
+                onClick={() => versionPreview && restoreVersion(versionPreview.id)}
+              >이 버전으로 되돌리기</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showPagePicker && (
         <div

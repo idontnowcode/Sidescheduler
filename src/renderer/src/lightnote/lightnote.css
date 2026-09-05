@@ -1227,6 +1227,20 @@ sup.citation:hover { background: var(--accent-hover); }
 .wl-done-mark.on { border-color: #2f9e44; color: #6bd68a; font-weight: 700; }
 .wl-done-mark:hover { border-color: var(--accent); }
 
+/* 페이지 버전 기록 */
+.ln-ver-btn { font-size: 12px; padding: 5px 10px; border-radius: 8px; border: 1px solid var(--border); background: transparent; color: var(--text-dim); cursor: pointer; white-space: nowrap; }
+.ln-ver-btn:hover { border-color: var(--accent); color: var(--accent); }
+.ln-ver-box { width: 720px; max-width: 92vw; }
+.ln-ver-hint { font-size: 11px; color: var(--text-dim); margin: -4px 0 10px; }
+.ln-ver-empty { font-size: 12px; color: var(--text-dim); padding: 18px; text-align: center; }
+.ln-ver-body { display: flex; gap: 10px; height: 320px; }
+.ln-ver-list { width: 170px; flex-shrink: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 3px; }
+.ln-ver-item { text-align: left; font-size: 12px; padding: 6px 9px; border-radius: 6px; border: 1px solid var(--border); background: transparent; color: var(--text); cursor: pointer; }
+.ln-ver-item:hover { border-color: var(--accent); }
+.ln-ver-item.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+.ln-ver-preview { flex: 1; overflow: auto; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); padding: 10px; }
+.ln-ver-preview pre { margin: 0; font-family: inherit; font-size: 12px; color: var(--text); white-space: pre-wrap; word-break: break-word; }
+
 /* 페이지 내 찾기/바꾸기 바 (Ctrl+F / Ctrl+H) */
 .ln-find-bar { display: flex; align-items: center; gap: 6px; padding: 6px 12px; background: var(--bg2); border-bottom: 1px solid var(--border); flex-shrink: 0; }
 .ln-find-in { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 4px 8px; font-size: 12px; color: var(--text); outline: none; min-width: 130px; }

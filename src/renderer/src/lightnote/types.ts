@@ -105,6 +105,9 @@ export interface TocItem { level: number; text: string; index: number }
 // A font file found in %APPDATA%/lightnote/fonts at last launch.
 export interface CustomFont { id: string; family: string; dataUrl: string }
 
+// A saved snapshot of a page's earlier content.
+export interface PageVersion { id: string; at: number }
+
 // A node in the Trash tree (a deletion root and its materialized subtree).
 export interface TrashNode {
   type: 'notebook' | 'section' | 'page'
@@ -138,7 +141,7 @@ declare global {
       getPages: (notebookId: string, sectionId: string) => Promise<Page[]>
       createPage: (notebookId: string, sectionId: string, title: string) => Promise<Page>
       loadPage: (notebookId: string, sectionId: string, pageId: string) => Promise<{ title: string; delta: unknown }>
-      savePage: (args: { notebookId: string; sectionId: string; pageId: string; delta: unknown; title: string }) => Promise<void>
+      savePage: (args: { notebookId: string; sectionId: string; pageId: string; delta: unknown; title: string; snapshot?: boolean }) => Promise<void>
       renamePage: (notebookId: string, sectionId: string, id: string, title: string) => Promise<Page>
       deletePage: (notebookId: string, sectionId: string, id: string) => Promise<void>
       duplicatePage: (notebookId: string, sectionId: string, id: string) => Promise<Page>
@@ -168,6 +171,10 @@ declare global {
         Promise<{ success?: boolean; canceled?: boolean; filePath?: string; error?: string }>
       importBundle: () => Promise<{ success?: boolean; canceled?: boolean; notebookId?: string; notebookName?: string; pageCount?: number; sectionCount?: number; error?: string }>
       exportReport: (pageIds: string[]) => Promise<{ success?: boolean; canceled?: boolean; filePath?: string; error?: string }>
+      listVersions: (pageId: string) => Promise<PageVersion[]>
+      getVersion: (pageId: string, versionId: string) => Promise<{ at: number; title: string; delta: unknown } | null>
+      restoreVersion: (notebookId: string, sectionId: string, pageId: string, versionId: string) =>
+        Promise<{ success?: boolean; title?: string; delta?: unknown; error?: string }>
       listCustomFonts: () => Promise<CustomFont[]>
       openFontsFolder: () => Promise<{ success?: boolean; error?: string }>
       getPageRefs: (pageId: string) => Promise<PageRefLoc[]>

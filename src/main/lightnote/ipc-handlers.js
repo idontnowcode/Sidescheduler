@@ -8,6 +8,7 @@ const workObjectStorage = require('./work-object-storage');
 const exportImport = require('./export-import');
 const reportExport = require('./report-export');
 const customFonts = require('./custom-fonts');
+const pageVersions = require('./page-versions');
 const path = require('path');
 const fs = require('fs').promises;
 const { shell } = require('electron');
@@ -30,6 +31,7 @@ function registerIpcHandlers(ipcMain, getWindow, safeStorage, dialog, app, sched
   linkStorage.init(DATA_ROOT);
   workObjectStorage.init(DATA_ROOT);
   customFonts.init(APP_ROOT);
+  pageVersions.init(DATA_ROOT);
   storage.init(safeStorage);
   // Seed the fixed PARA notebooks if they don't exist yet (built-in defaults).
   noteStorage.ensureDefaultNotebooks().catch((e) => console.error('ensureDefaultNotebooks:', e));
@@ -104,10 +106,33 @@ function registerIpcHandlers(ipcMain, getWindow, safeStorage, dialog, app, sched
     return noteStorage.loadPage(notebookId, sectionId, pageId);
   });
 
-  ipcMain.handle('lightnote:save-page', async (_, { notebookId, sectionId, pageId, delta, title }) => {
+  ipcMain.handle('lightnote:save-page', async (_, { notebookId, sectionId, pageId, delta, title, snapshot }) => {
+    // Snapshot what's being replaced BEFORE overwriting (throttled inside;
+    // `snapshot: true` forces one, used before AI Organize rewrites).
+    try {
+      const prev = await noteStorage.loadPage(notebookId, sectionId, pageId);
+      await pageVersions.snapshot(pageId, prev, !!snapshot);
+    } catch (e) { console.error('page snapshot:', e); }
     const result = await noteStorage.savePage(notebookId, sectionId, pageId, delta, title);
     noteIndexer.invalidateCache(pageId);
     return result;
+  });
+
+  // === 페이지 버전 기록 ===
+  ipcMain.handle('lightnote:versions:list', async (_, { pageId }) => pageVersions.list(pageId));
+  ipcMain.handle('lightnote:versions:get', async (_, { pageId, versionId }) => pageVersions.get(pageId, versionId));
+  // Restore = write the old content back as the current one; the version this
+  // replaces is itself snapshotted first (forced), so a restore is undoable.
+  ipcMain.handle('lightnote:versions:restore', async (_, { notebookId, sectionId, pageId, versionId }) => {
+    const v = await pageVersions.get(pageId, versionId);
+    if (!v) return { error: 'NOT_FOUND' };
+    try {
+      const prev = await noteStorage.loadPage(notebookId, sectionId, pageId);
+      await pageVersions.snapshot(pageId, prev, true);
+    } catch (e) { console.error('pre-restore snapshot:', e); }
+    await noteStorage.savePage(notebookId, sectionId, pageId, v.delta, v.title || 'Untitled');
+    noteIndexer.invalidateCache(pageId);
+    return { success: true, title: v.title, delta: v.delta };
   });
 
   ipcMain.handle('lightnote:rename-page', async (_, { notebookId, sectionId, id, title }) =>
@@ -138,6 +163,7 @@ function registerIpcHandlers(ipcMain, getWindow, safeStorage, dialog, app, sched
     for (const pid of pageIds) { linkStorage.removePageLinks(pid); noteIndexer.invalidateCache(pid); }
     // Permanently deleted pages lose their work-object metadata too (no orphans).
     workObjectStorage.removeMany(pageIds).catch((e) => console.error('workObject cleanup:', e));
+    pageVersions.removeAll(pageIds).catch((e) => console.error('version cleanup:', e));
   };
 
   ipcMain.handle('lightnote:trash:purge', async (_, node) => {
