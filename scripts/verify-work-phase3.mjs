@@ -8,6 +8,16 @@ import { join } from 'node:path'
 const results = []
 const ok = (n, p, i = '') => { results.push(p); console.log(`${p ? 'PASS' : 'FAIL'}  ${n}${i ? '  ·  ' + i : ''}`) }
 
+// 기록은 이제 목록 하나 + 종류 칩. 칩을 고르고 한 칸에 적는다.
+const addEntry = async (kind, text) => {
+  await ln.locator(`.wo-kinds .wo-kind-${kind}`).click()
+  await ln.waitForTimeout(150)
+  const inp = ln.locator('.wo-entry .wo-inline-input')
+  await inp.fill(text)
+  await inp.press('Enter')
+  await ln.waitForTimeout(500)
+}
+
 // 업무 속성은 오른쪽 열의 '업무' 탭 안에 있다. 폼을 만지려면 탭을 먼저 연다.
 const openWorkTab = async () => {
   const t = ln.locator('.rp-tab', { hasText: '업무' })
@@ -74,8 +84,7 @@ ok('overdue badge shows 지연 for past due', (await ln.locator('.wo-badge').tex
 // Calendar UI is switched OFF (일정은 Outlook으로 관리) — buttons must not render,
 // but the underlying IPC bridge stays intact so it can be re-enabled later.
 ok('캘린더 등록 button is hidden', await ln.locator('.wo-cal-btn').count() === 0)
-await ln.locator('.wo-col', { hasText: '다음 Action' }).locator('.wo-inline-input').fill('VTS 생성')
-await ln.locator('.wo-col', { hasText: '다음 Action' }).locator('.wo-inline-input').press('Enter')
+await addEntry('action', 'VTS 생성')
 await ln.waitForTimeout(200)
 ok('per-action 📅 button is hidden', await ln.locator('.wo-action-cal').count() === 0)
 

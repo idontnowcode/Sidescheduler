@@ -15,6 +15,16 @@ import { join } from 'node:path'
 const results = []
 const ok = (n, p, i = '') => { results.push(p); console.log(`${p ? 'PASS' : 'FAIL'}  ${n}${i ? '  ·  ' + i : ''}`) }
 
+// 기록은 이제 목록 하나 + 종류 칩. 칩을 고르고 한 칸에 적는다.
+const addEntry = async (kind, text) => {
+  await ln.locator(`.wo-kinds .wo-kind-${kind}`).click()
+  await ln.waitForTimeout(150)
+  const inp = ln.locator('.wo-entry .wo-inline-input')
+  await inp.fill(text)
+  await inp.press('Enter')
+  await ln.waitForTimeout(500)
+}
+
 const tempRoot = mkdtempSync(join(tmpdir(), 'dsp-migrate-'))
 const woPath = join(tempRoot, 'lightnote', 'lightnote-data', 'work-objects.json')
 
@@ -98,8 +108,7 @@ ok('의사결정 필요사항 목록이 빈 배열로 정상 렌더링 (0개, �
 ok('렌더링 중 uncaught JS 예외 없음', pageErrors.length === 0, JSON.stringify(pageErrors))
 
 // And the panel is still fully usable afterward — add a new progress entry.
-await ln.locator('.wo-report-body .wo-col', { hasText: '진행 현황' }).locator('.wo-inline-input').fill('복구 후 첫 기록')
-await ln.locator('.wo-report-body .wo-col', { hasText: '진행 현황' }).locator('.wo-inline-input').press('Enter')
+await addEntry('progress', '복구 후 첫 기록')
 await ln.waitForTimeout(400)
 const afterAdd = await ln.evaluate((pid) => window.lightnote.workObjectGet(pid), ids.pageId)
 ok('복구 후 새 진행 현황 기록 추가 가능', afterAdd.progressLog?.some((p) => p.text === '복구 후 첫 기록'), JSON.stringify(afterAdd.progressLog))

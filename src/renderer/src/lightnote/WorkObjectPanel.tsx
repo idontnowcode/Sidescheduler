@@ -7,6 +7,12 @@ const PRIORITIES: WorkPriority[] = ['', '상', '중', '하']
 // 그대로 두고 버튼·배지만 숨긴다. 다시 필요해지면 이 상수만 true로.
 const CALENDAR_SYNC_ENABLED = false
 const uid = () => (crypto as Crypto).randomUUID()
+
+// 기록 한 줄의 종류. 저장은 예전대로 네 배열로 나뉘지만 화면에선 한 목록이다.
+type EntryKind = 'action' | 'progress' | 'decision' | 'pending'
+const KIND_LABEL: Record<EntryKind, string> = {
+  action: '할일', progress: '진행', decision: '결정', pending: '질문',
+}
 const DAY = 86400000
 
 const toDateInput = (ts: number | null) => {
@@ -63,8 +69,10 @@ export default function WorkObjectPanel({ pageId, noteTitle, onComplete, onOpenP
   const [error, setError] = useState('')
   const [hasScheduler, setHasScheduler] = useState(false)
   const [depts, setDepts] = useState('')
-  const [newAction, setNewAction] = useState('')
-  const [newDecision, setNewDecision] = useState('')
+  // 기록 입력은 칸 하나 + 종류 칩. 예전엔 할일·결정·진행·질문마다 입력칸이
+  // 따로 있어서, 뭘 적든 먼저 '어느 칸이지'를 찾아야 했다.
+  const [newEntry, setNewEntry] = useState('')
+  const [newKind, setNewKind] = useState<EntryKind>('action')
   const textTimer = useRef<ReturnType<typeof setTimeout>>()
   // 관련 문서 link editor.
   const [adding, setAdding] = useState<null | 'url' | 'page'>(null)
@@ -86,8 +94,7 @@ export default function WorkObjectPanel({ pageId, noteTitle, onComplete, onOpenP
   const [reportOpen, setReportOpen] = useState(false)
   const [background, setBackground] = useState('')
   const [purpose, setPurpose] = useState('')
-  const [newProgress, setNewProgress] = useState('')
-  const [newPending, setNewPending] = useState('')
+
 
   useEffect(() => {
     if (!CALENDAR_SYNC_ENABLED) return
@@ -101,7 +108,7 @@ export default function WorkObjectPanel({ pageId, noteTitle, onComplete, onOpenP
       .then(w => { if (!alive) return; setWo(w); setDepts(w?.depts || ''); setBackground(w?.background || ''); setPurpose(w?.purpose || ''); setLoaded(true) })
       .catch(() => { if (alive) { setError('업무 속성을 불러오지 못했습니다.'); setLoaded(true) } })
     setAdding(null); setUrlVal(''); setUrlLabel(''); setPageQuery('')
-    setReportOpen(false); setNewProgress(''); setNewPending('')
+    setReportOpen(false); setNewEntry(''); setNewKind('action')
     return () => { alive = false }
   }, [pageId, refreshKey])
 
@@ -208,6 +215,17 @@ export default function WorkObjectPanel({ pageId, noteTitle, onComplete, onOpenP
   }
 
   const setPendingDecisions = (next: WorkPendingDecision[]) => { setWo({ ...wo, pendingDecisions: next }); persist({ pendingDecisions: next }) }
+  // 한 입력칸에서 종류만 골라 넣는다. 저장 위치는 예전 그대로 네 배열로
+  // 나뉘어 있어서 보고서 export 형식은 하나도 바뀌지 않는다.
+  const addEntry = () => {
+    const t = newEntry.trim(); if (!t) return
+    if (newKind === 'action') setActions([...wo.nextActions, { id: uid(), text: t, done: false, doneAt: null, due: null, taskId: null }])
+    else if (newKind === 'progress') setProgressLog([{ id: uid(), at: Date.now(), text: t }, ...progressLog])
+    else if (newKind === 'decision') setDecisions([{ id: uid(), at: Date.now(), text: t }, ...wo.decisions])
+    else setPendingDecisions([...pendingDecisions, { id: uid(), text: t, raisedAt: Date.now(), resolved: false, resolvedAt: null }])
+    setNewEntry('')
+  }
+
   const addPending = () => {
     const t = newPending.trim(); if (!t) return
     setPendingDecisions([...pendingDecisions, { id: uid(), text: t, raisedAt: Date.now(), resolved: false, resolvedAt: null }])
@@ -271,6 +289,71 @@ export default function WorkObjectPanel({ pageId, noteTitle, onComplete, onOpenP
     const rows = q ? allPages.filter(p => `${p.path || ''} ${p.pageName || p.title || ''}`.toLowerCase().includes(q)) : allPages
     return rows.filter(p => p.pageId !== pageId).slice(0, 8)
   })()
+
+  // 네 배열을 한 목록으로 합친 화면용 모델. 저장 형태는 그대로다.
+  type Row =
+    | { kind: 'action'; id: string; a: WorkAction }
+    | { kind: 'progress'; id: string; p: WorkProgressEntry }
+    | { kind: 'decision'; id: string; d: WorkDecision }
+    | { kind: 'pending'; id: string; q: WorkPendingDecision }
+  const open: Row[] = [
+    ...wo.nextActions.filter(a => !a.done)
+      .sort((x, y) => (x.due ?? Infinity) - (y.due ?? Infinity))
+      .map(a => ({ kind: 'action', id: a.id, a } as Row)),
+    ...pendingDecisions.filter(q => !q.resolved)
+      .map(q => ({ kind: 'pending', id: q.id, q } as Row)),
+  ]
+  const past: Row[] = [
+    ...progressLog.map(p => ({ kind: 'progress', id: p.id, p, at: p.at })),
+    ...wo.decisions.map(d => ({ kind: 'decision', id: d.id, d, at: d.at })),
+    ...wo.nextActions.filter(a => a.done).map(a => ({ kind: 'action', id: a.id, a, at: a.doneAt ?? 0 })),
+    ...pendingDecisions.filter(q => q.resolved).map(q => ({ kind: 'pending', id: q.id, q, at: q.resolvedAt ?? 0 })),
+  ].sort((x, y) => (y as { at: number }).at - (x as { at: number }).at) as Row[]
+
+  const renderRow = (row: Row) => {
+    const chip = <span className={`wo-kind wo-kind-${row.kind}`}>{KIND_LABEL[row.kind]}</span>
+    if (row.kind === 'action') {
+      const a = row.a
+      return (
+        <div key={`a${a.id}`} className={`wo-action${a.done ? ' done' : ''}`}>
+          <input type="checkbox" checked={a.done} onChange={() => toggleAction(a.id)} />
+          {chip}
+          <input className="wo-action-text wo-action-text-input" value={a.text} onChange={e => editAction(a.id, e.target.value)} />
+          {a.done && a.doneAt && <span className="wo-action-date">{fmtDate(a.doneAt)}</span>}
+          <input type="date" className="wo-action-due" title="목표 기한"
+            value={toDateInput(a.due ?? null)} onChange={e => setActionDue(a.id, fromDateInput(e.target.value, true))} />
+          {CALENDAR_SYNC_ENABLED && hasScheduler && (a.taskId
+            ? <span className="wo-action-linked" title="캘린더에 등록됨">📅</span>
+            : <button className="wo-action-cal" title="이 액션을 캘린더에 등록" onClick={() => actionToTask(a)}>📅</button>)}
+          <button className="wo-x" title="삭제" onClick={() => delAction(a.id)}>×</button>
+        </div>
+      )
+    }
+    if (row.kind === 'pending') {
+      const q = row.q
+      return (
+        <div key={`q${q.id}`} className={`wo-action${q.resolved ? ' done' : ''}`}>
+          <input type="checkbox" checked={q.resolved} onChange={() => toggleResolved(q.id)} title="해결됨으로 표시" />
+          {chip}
+          <input className="wo-action-text wo-action-text-input" value={q.text} onChange={e => editPending(q.id, e.target.value)} />
+          {q.resolved && q.resolvedAt && <span className="wo-action-date">{fmtDate(q.resolvedAt)}</span>}
+          <button className="wo-x" title="삭제" onClick={() => delPending(q.id)}>×</button>
+        </div>
+      )
+    }
+    const isProg = row.kind === 'progress'
+    const item = isProg ? row.p : row.d
+    return (
+      <div key={`${row.kind}${item.id}`} className="wo-decision">
+        <input type="date" className="wo-decision-date-input" value={toDateInput(item.at)}
+          onChange={e => (isProg ? editProgressDate : editDecisionDate)(item.id, e.target.value)} />
+        {chip}
+        <input className="wo-decision-text" value={item.text}
+          onChange={e => (isProg ? editProgress : editDecision)(item.id, e.target.value)} />
+        <button className="wo-x" title="삭제" onClick={() => (isProg ? delProgress : delDecision)(item.id)}>×</button>
+      </div>
+    )
+  }
 
   // ── 읽기용 요약 ────────────────────────────────────────────────────────
   // 빈 항목은 줄째로 빼서, 적어둔 것만 보이게 한다.
@@ -426,38 +509,35 @@ export default function WorkObjectPanel({ pageId, noteTitle, onComplete, onOpenP
         </div>
       </div>
 
-      <div className="wo-lists">
-        <div className="wo-col">
-          <div className="wo-sub-title">다음 Action</div>
-          {wo.nextActions.map(a => (
-            <div key={a.id} className={`wo-action${a.done ? ' done' : ''}`}>
-              <input type="checkbox" checked={a.done} onChange={() => toggleAction(a.id)} />
-              <input className="wo-action-text wo-action-text-input" value={a.text} onChange={e => editAction(a.id, e.target.value)} />
-              {a.done && a.doneAt && <span className="wo-action-date">{fmtDate(a.doneAt)}</span>}
-              <input type="date" className="wo-action-due" title="목표 일정 (액션별)"
-                value={toDateInput(a.due ?? null)} onChange={e => setActionDue(a.id, fromDateInput(e.target.value, true))} />
-              {CALENDAR_SYNC_ENABLED && hasScheduler && (a.taskId
-                ? <span className="wo-action-linked" title="캘린더에 등록됨">📅</span>
-                : <button className="wo-action-cal" title="이 액션을 캘린더에 등록" onClick={() => actionToTask(a)}>📅</button>)}
-              <button className="wo-x" title="삭제" onClick={() => delAction(a.id)}>×</button>
-            </div>
-          ))}
-          <input className="wo-inline-input" placeholder="+ 항목 추가 후 Enter" value={newAction}
-            onChange={e => setNewAction(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') addAction() }} />
+      {/* 할일·진행·결정·질문을 한 목록으로. 앞으로 할 것과 지나온 것만
+          나눠 놓는다 — 미래 기한(할일)과 과거 발생일(진행/결정)을 한 줄로
+          섞으면 시간순이 오히려 읽기 어려워진다. */}
+      <div className="wo-log">
+        <div className="wo-sub-title">기록</div>
+
+        <div className="wo-entry">
+          <div className="wo-kinds">
+            {(['action', 'progress', 'decision', 'pending'] as EntryKind[]).map(k => (
+              <button key={k} type="button"
+                className={`wo-kind wo-kind-${k}${newKind === k ? ' active' : ''}`}
+                onClick={() => setNewKind(k)}>{KIND_LABEL[k]}</button>
+            ))}
+          </div>
+          <input className="wo-inline-input" value={newEntry}
+            placeholder={`+ ${KIND_LABEL[newKind]} 적고 Enter`}
+            onChange={e => setNewEntry(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') addEntry() }} />
         </div>
 
-        <div className="wo-col">
-          <div className="wo-sub-title">결정사항 (이력)</div>
-          {wo.decisions.map(d => (
-            <div key={d.id} className="wo-decision">
-              <input type="date" className="wo-decision-date-input" value={toDateInput(d.at)} onChange={e => editDecisionDate(d.id, e.target.value)} />
-              <input className="wo-decision-text" value={d.text} onChange={e => editDecision(d.id, e.target.value)} />
-              <button className="wo-x" title="삭제" onClick={() => delDecision(d.id)}>×</button>
-            </div>
-          ))}
-          <input className="wo-inline-input" placeholder="+ 결정 기록 후 Enter" value={newDecision}
-            onChange={e => setNewDecision(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') addDecision() }} />
-        </div>
+        {open.length > 0 && <div className="wo-log-zone">열린 것</div>}
+        {open.map(row => renderRow(row))}
+
+        {past.length > 0 && <div className="wo-log-zone">지나온 것</div>}
+        {past.map(row => renderRow(row))}
+
+        {open.length === 0 && past.length === 0 && (
+          <div className="wo-log-empty">아직 기록이 없습니다. 위에서 종류를 고르고 한 줄 적어보세요.</div>
+        )}
       </div>
 
       <div className="wo-report">
@@ -482,35 +562,6 @@ export default function WorkObjectPanel({ pageId, noteTitle, onComplete, onOpenP
                 onChange={e => { setPurpose(e.target.value); persistText({ purpose: e.target.value }) }}
                 onBlur={() => persist({ purpose })} />
             </label>
-
-            <div className="wo-lists">
-              <div className="wo-col">
-                <div className="wo-sub-title">진행 현황 (날짜별 기록)</div>
-                {progressLog.map(p => (
-                  <div key={p.id} className="wo-decision">
-                    <input type="date" className="wo-decision-date-input" value={toDateInput(p.at)} onChange={e => editProgressDate(p.id, e.target.value)} />
-                    <input className="wo-decision-text" value={p.text} onChange={e => editProgress(p.id, e.target.value)} />
-                    <button className="wo-x" title="삭제" onClick={() => delProgress(p.id)}>×</button>
-                  </div>
-                ))}
-                <input className="wo-inline-input" placeholder="+ 진행 현황 기록 후 Enter" value={newProgress}
-                  onChange={e => setNewProgress(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') addProgress() }} />
-              </div>
-
-              <div className="wo-col">
-                <div className="wo-sub-title">의사결정 필요사항</div>
-                {pendingDecisions.map(p => (
-                  <div key={p.id} className={`wo-action${p.resolved ? ' done' : ''}`}>
-                    <input type="checkbox" checked={p.resolved} onChange={() => toggleResolved(p.id)} title="해결됨으로 표시" />
-                    <input className="wo-action-text wo-action-text-input" value={p.text} onChange={e => editPending(p.id, e.target.value)} />
-                    {p.resolved && p.resolvedAt && <span className="wo-action-date">{fmtDate(p.resolvedAt)}</span>}
-                    <button className="wo-x" title="삭제" onClick={() => delPending(p.id)}>×</button>
-                  </div>
-                ))}
-                <input className="wo-inline-input" placeholder="+ 의사결정 필요사항 후 Enter" value={newPending}
-                  onChange={e => setNewPending(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') addPending() }} />
-              </div>
-            </div>
           </div>
         )}
       </div>

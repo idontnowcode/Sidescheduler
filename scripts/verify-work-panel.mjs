@@ -9,6 +9,16 @@ import { join } from 'node:path'
 const results = []
 const ok = (n, p, i = '') => { results.push(p); console.log(`${p ? 'PASS' : 'FAIL'}  ${n}${i ? '  ·  ' + i : ''}`) }
 
+// 기록은 이제 목록 하나 + 종류 칩. 칩을 고르고 한 칸에 적는다.
+const addEntry = async (kind, text) => {
+  await ln.locator(`.wo-kinds .wo-kind-${kind}`).click()
+  await ln.waitForTimeout(150)
+  const inp = ln.locator('.wo-entry .wo-inline-input')
+  await inp.fill(text)
+  await inp.press('Enter')
+  await ln.waitForTimeout(500)
+}
+
 // 업무 속성은 오른쪽 열의 '업무' 탭 안에 있다. 폼을 만지려면 탭을 먼저 연다.
 const openWorkTab = async () => {
   const t = ln.locator('.rp-tab', { hasText: '업무' })
@@ -70,8 +80,7 @@ w = await wo()
 ok('due date persists', w.due != null && new Date(w.due).getMonth() === 11, `${w.due}`)
 
 // Next action: add + check.
-await ln.locator('.wo-col', { hasText: '다음 Action' }).locator('.wo-inline-input').fill('VPLM 아이템 생성')
-await ln.locator('.wo-col', { hasText: '다음 Action' }).locator('.wo-inline-input').press('Enter')
+await addEntry('action', 'VPLM 아이템 생성')
 await ln.waitForTimeout(200)
 await ln.locator('.wo-action input[type="checkbox"]').first().check()
 await ln.waitForTimeout(200)
@@ -81,8 +90,7 @@ ok('next action added + checked records done + doneAt',
 ok('checked action shows strikethrough', await ln.locator('.wo-action.done').count() === 1)
 
 // Decision log: add.
-await ln.locator('.wo-col', { hasText: '결정사항' }).locator('.wo-inline-input').fill('4M 변경으로 진행')
-await ln.locator('.wo-col', { hasText: '결정사항' }).locator('.wo-inline-input').press('Enter')
+await addEntry('decision', '4M 변경으로 진행')
 await ln.waitForTimeout(200)
 w = await wo()
 ok('decision logged with date + text', w.decisions.length === 1 && w.decisions[0].text === '4M 변경으로 진행' && w.decisions[0].at > 0, JSON.stringify(w.decisions))

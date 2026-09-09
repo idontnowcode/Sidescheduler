@@ -1474,3 +1474,33 @@ button.ql-text-to-table, button.ql-table-to-text { width: 30px !important; }
 .rp-body .wo-inline-input { width: 100%; box-sizing: border-box; }
 .rp-body .wo-report-toggle { text-align: left; }
 .rp-body .wo-report-hint { display: none; }
+
+/* ── 업무 기록: 할일·진행·결정·질문을 한 목록으로 ────────────────────── */
+.wo-log { display: flex; flex-direction: column; gap: 3px; }
+.wo-entry { display: flex; flex-direction: column; gap: 5px; margin-bottom: 6px; }
+.wo-kinds { display: flex; gap: 4px; flex-wrap: wrap; }
+.wo-kind {
+  font-size: 10.5px; line-height: 1.4;
+  padding: 2px 8px; border-radius: 999px;
+  border: 1px solid var(--border); background: transparent;
+  color: var(--text-dim); cursor: default; white-space: nowrap;
+}
+button.wo-kind { cursor: pointer; }
+button.wo-kind:hover { color: var(--text); background: var(--bg3); }
+.wo-kind.active { color: #fff; border-color: transparent; font-weight: 600; }
+.wo-kind-action.active   { background: #2f6fd0; }
+.wo-kind-progress.active { background: #2f8f5b; }
+.wo-kind-decision.active { background: #7a5cd0; }
+.wo-kind-pending.active  { background: #c07a1e; }
+/* 목록 안의 칩은 눌리지 않는 표시용 — 색만 옅게 */
+.wo-action .wo-kind, .wo-decision .wo-kind { flex: 0 0 auto; opacity: 0.85; }
+.wo-action .wo-kind-action   { color: #7aa9ee; border-color: rgba(47,111,208,0.45); }
+.wo-decision .wo-kind-progress { color: #6cc596; border-color: rgba(47,143,91,0.45); }
+.wo-decision .wo-kind-decision { color: #ad94ec; border-color: rgba(122,92,208,0.45); }
+.wo-action .wo-kind-pending  { color: #e0a94e; border-color: rgba(192,122,30,0.45); }
+
+.wo-log-zone {
+  font-size: 10.5px; color: var(--text-dim); letter-spacing: 0.04em;
+  margin: 8px 0 2px; padding-top: 6px; border-top: 1px solid var(--border);
+}
+.wo-log-empty { font-size: 11.5px; color: var(--text-dim); padding: 6px 2px; line-height: 1.6; }
