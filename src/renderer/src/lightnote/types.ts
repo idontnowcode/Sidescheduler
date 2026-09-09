@@ -1,3 +1,12 @@
+// 편집기 탭 하나 — 앱을 껐다 켜도 복원된다.
+export interface OpenTab {
+  notebookId: string
+  sectionId: string
+  pageId: string
+  title: string
+  crumb: string
+}
+
 export interface Notebook {
   id: string
   name: string
@@ -201,6 +210,8 @@ declare global {
       saveApiKey: (key: string) => Promise<{ success: boolean; error?: string; verified?: boolean; warning?: string }>
       checkApiKey: () => Promise<{ exists: boolean }>
       getLastOpened: () => Promise<{ notebookId: string; sectionId: string; pageId: string } | null>
+      getOpenTabs: () => Promise<OpenTab[]>
+      saveOpenTabs: (tabs: OpenTab[]) => Promise<{ success: boolean }>
       getLinkedItems: (pageId: string) => Promise<{
         events: { id: string; title: string; start_at: number }[]
         tasks: { id: string; title: string; done: number }[]

@@ -652,6 +652,10 @@ function registerIpcHandlers(ipcMain, getWindow, safeStorage, dialog, app, sched
   // === 설정 ===
   ipcMain.handle('lightnote:get-last-opened', async () => noteStorage.getLastOpened());
 
+  // 열려 있는 탭 목록 — 앱을 다시 켜도 같은 작업 세트로 돌아오게 한다.
+  ipcMain.handle('lightnote:get-open-tabs', async () => noteStorage.getOpenTabs());
+  ipcMain.handle('lightnote:save-open-tabs', async (_, { tabs }) => noteStorage.saveOpenTabs(tabs));
+
   // === 노트 링크 ===
   ipcMain.handle('lightnote:links:add', async (_, { pageId, notebookId, sectionId, kind, itemId }) => {
     linkStorage.addLink(pageId, notebookId, sectionId, kind, itemId);

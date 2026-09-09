@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
 import 'quill/dist/quill.snow.css'
 import './lightnote.css'
-import type { Selected, TrashNode, SearchResult, TocItem } from './types'
+import type { Selected, TrashNode, SearchResult, TocItem, OpenTab } from './types'
 import NotebookTree, { type TreeHandle } from './NotebookTree'
 import Editor, { type EditorHandle } from './Editor'
 import TrashViewer from './TrashViewer'
@@ -11,10 +11,18 @@ import WorkObjectPanel from './WorkObjectPanel'
 import WorkListView from './WorkListView'
 import AIAssistant from './AIAssistant'
 import SettingsModal, { initAppearance } from './SettingsModal'
+import TabBar from './TabBar'
 
 export default function LightnoteApp() {
   const [selected, setSelected] = useState<Selected>({ notebookId: null, sectionId: null, pageId: null })
   const [breadcrumb, setBreadcrumb] = useState('')
+  // 열려 있는 탭들. 에디터는 하나뿐이라 탭 전환 = 그 에디터에 다른 페이지를
+  // 읽히는 것. 목록은 저장돼서 앱을 다시 켜도 같은 노트들이 열려 있다.
+  const [tabs, setTabs] = useState<OpenTab[]>([])
+  const tabsRef = useRef<OpenTab[]>([])
+  useEffect(() => { tabsRef.current = tabs }, [tabs])
+  const selectedRef = useRef<Selected>({ notebookId: null, sectionId: null, pageId: null })
+  useEffect(() => { selectedRef.current = selected }, [selected])
   const [trashNode, setTrashNode] = useState<TrashNode | null>(null)
   const [isAiOpen, setIsAiOpen] = useState(false)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
@@ -81,6 +89,21 @@ export default function LightnoteApp() {
       .then((p) => { if (p?.pageId) navigateToPageId(p.pageId) })
       .catch(() => {})
 
+    // 저장된 탭들을 먼저 되살린다. 페이지가 지워졌을 수 있으니 실제로
+    // 존재하는 것만 남긴다 (없어진 탭이 계속 살아남지 않게).
+    window.lightnote.getOpenTabs?.().then(async (saved) => {
+      if (!saved?.length) return
+      const alive: OpenTab[] = []
+      for (const t of saved) {
+        try {
+          const pages = await window.lightnote.getPages(t.notebookId, t.sectionId)
+          const pg = pages.find(p => p.id === t.pageId)
+          if (pg) alive.push({ ...t, title: pg.title || t.title })
+        } catch { /* 노트북/섹션이 사라졌으면 그 탭은 버린다 */ }
+      }
+      if (alive.length) setTabs(alive)
+    }).catch(() => {})
+
     // Restore last opened page
     window.lightnote.getLastOpened().then(async (last) => {
       if (last?.notebookId && last?.sectionId && last?.pageId) {
@@ -104,10 +127,86 @@ export default function LightnoteApp() {
     setTrashNode(null) // opening a live page leaves the trash view
     setSelected({ notebookId: nbId, sectionId: secId, pageId })
     setBreadcrumb(crumb)
+    // 이미 열린 탭이면 그 탭으로 가고, 아니면 끝에 새로 연다.
+    setTabs((prev) => {
+      const title = crumb.split('›').pop()?.trim() || 'Untitled'
+      const at = prev.findIndex(t => t.pageId === pageId)
+      if (at >= 0) {
+        const next = prev.slice()
+        next[at] = { ...next[at], title, crumb }
+        return next
+      }
+      return [...prev, { notebookId: nbId, sectionId: secId, pageId, title, crumb }]
+    })
     if (editorRef.current) {
       await editorRef.current.loadPage(nbId, secId, pageId)
     }
   }, [])
+
+  // 탭을 닫으면 오른쪽 탭으로, 없으면 왼쪽 탭으로 넘어간다 (브라우저와 동일).
+  const closeTab = useCallback((pageId: string) => {
+    const prev = tabsRef.current
+    const at = prev.findIndex(t => t.pageId === pageId)
+    if (at < 0) return
+    const next = prev.filter(t => t.pageId !== pageId)
+    setTabs(next)
+    setSelected((sel) => {
+      if (sel.pageId !== pageId) return sel
+      const to = next[at] || next[at - 1]
+      if (!to) {
+        setBreadcrumb('')
+        editorRef.current?.clearEditor()
+        return { notebookId: null, sectionId: null, pageId: null }
+      }
+      setBreadcrumb(to.crumb)
+      editorRef.current?.loadPage(to.notebookId, to.sectionId, to.pageId)
+      return { notebookId: to.notebookId, sectionId: to.sectionId, pageId: to.pageId }
+    })
+  }, [])
+
+  const closeOtherTabs = useCallback((keepId: string) => {
+    const keep = tabsRef.current.find(t => t.pageId === keepId)
+    if (!keep) return
+    setTabs([keep])
+    handlePageSelect(keep.notebookId, keep.sectionId, keep.pageId, keep.crumb)
+  }, [handlePageSelect])
+
+  const closeAllTabs = useCallback(() => {
+    setTabs([])
+    setSelected({ notebookId: null, sectionId: null, pageId: null })
+    setBreadcrumb('')
+    editorRef.current?.clearEditor()
+  }, [])
+
+  // 탭 목록이 바뀔 때마다 저장 (다음 실행 때 그대로 복원).
+  useEffect(() => {
+    const t = setTimeout(() => { window.lightnote.saveOpenTabs(tabs).catch(() => {}) }, 400)
+    return () => clearTimeout(t)
+  }, [tabs])
+
+  // Ctrl+W 닫기 / Ctrl+Tab 다음 / Ctrl+Shift+Tab 이전.
+  // Ctrl+W는 Electron 기본 동작(창 닫기)을 막아야 한다.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey)) return
+      const cur = tabsRef.current
+      if (e.key === 'w' || e.key === 'W') {
+        if (!selectedRef.current.pageId) return
+        e.preventDefault()
+        closeTab(selectedRef.current.pageId)
+        return
+      }
+      if (e.key === 'Tab' && cur.length > 1) {
+        e.preventDefault()
+        const at = cur.findIndex(t => t.pageId === selectedRef.current.pageId)
+        const step = e.shiftKey ? -1 : 1
+        const to = cur[(((at < 0 ? 0 : at) + step) % cur.length + cur.length) % cur.length]
+        if (to) handlePageSelect(to.notebookId, to.sectionId, to.pageId, to.crumb)
+      }
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [closeTab, handlePageSelect])
 
   const restoreTrash = useCallback(async (node: TrashNode) => {
     await window.lightnote.trashRestore(node)
@@ -197,6 +296,16 @@ export default function LightnoteApp() {
         <div className="ln-resizer" onMouseDown={(e) => startResize(e, 'left')} title="너비 조절" />
 
         <div style={{ flex: 1, minWidth: 0, position: 'relative', display: 'flex', flexDirection: 'column' }}>
+          {!trashNode && (
+            <TabBar
+              tabs={tabs}
+              activeId={selected.pageId}
+              onSelect={(t) => handlePageSelect(t.notebookId, t.sectionId, t.pageId, t.crumb)}
+              onClose={closeTab}
+              onCloseOthers={closeOtherTabs}
+              onCloseAll={closeAllTabs}
+            />
+          )}
           {!trashNode && selected.pageId && (
             <WorkObjectPanel
               key={selected.pageId}
@@ -212,7 +321,12 @@ export default function LightnoteApp() {
             onOpenSettings={() => setIsSettingsOpen(true)}
             onOpenPage={handlePageSelect}
             onHeadingsChange={setToc}
-            onTitleChange={(nbId, secId, pageId, title) => treeRef.current?.updatePageTitle(nbId, secId, pageId, title)}
+            onTitleChange={(nbId, secId, pageId, title) => {
+              treeRef.current?.updatePageTitle(nbId, secId, pageId, title)
+              // 탭 이름도 같이 바뀌어야 한다 (이름을 고쳤는데 탭만 옛 이름이면 헷갈린다)
+              setTabs(prev => prev.map(t => t.pageId === pageId
+                ? { ...t, title, crumb: t.crumb.replace(/[^›]*$/, ` ${title}`) } : t))
+            }}
           />
           {trashNode && (
             <TrashViewer

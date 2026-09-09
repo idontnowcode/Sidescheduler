@@ -633,6 +633,33 @@ async function saveLastOpened(notebookId, sectionId, pageId) {
   await writeJson(settingsPath(), data);
 }
 
+// Open editor tabs, so reopening the app restores the same working set.
+// Stored next to lastOpened; a bad/stale entry is dropped on restore rather
+// than blocking startup.
+const MAX_TABS = 30;
+
+async function getOpenTabs() {
+  const data = await readJson(settingsPath());
+  const tabs = Array.isArray(data?.openTabs) ? data.openTabs : [];
+  return tabs
+    .filter(t => t && t.notebookId && t.sectionId && t.pageId)
+    .slice(0, MAX_TABS);
+}
+
+async function saveOpenTabs(tabs) {
+  const data = (await readJson(settingsPath())) || {};
+  data.openTabs = (Array.isArray(tabs) ? tabs : [])
+    .filter(t => t && t.notebookId && t.sectionId && t.pageId)
+    .slice(0, MAX_TABS)
+    .map(t => ({
+      notebookId: t.notebookId, sectionId: t.sectionId, pageId: t.pageId,
+      title: String(t.title || '').slice(0, 120),
+      crumb: String(t.crumb || '').slice(0, 300),
+    }));
+  await writeJson(settingsPath(), data);
+  return { success: true };
+}
+
 // === DEFAULT (PARA) NOTEBOOKS =============================================
 // The PARA method notebooks are fixed built-ins: seeded once, not renamable or
 // deletable. They give every user a consistent top-level structure.
@@ -730,6 +757,7 @@ async function deduplicatePages() {
 }
 
 module.exports = {
+  getOpenTabs, saveOpenTabs,
   init, ensureDefaultNotebooks, deduplicatePages, getNotebooks, createNotebook, renameNotebook, deleteNotebook,
   setNotebookPinned, reorderNotebooks,
   getSections, createSection, renameSection, deleteSection, moveSection, reorderSection,

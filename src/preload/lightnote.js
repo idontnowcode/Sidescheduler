@@ -116,6 +116,8 @@ contextBridge.exposeInMainWorld('lightnote', {
 
   // 설정
   getLastOpened: () => ipcRenderer.invoke('lightnote:get-last-opened'),
+  getOpenTabs: () => ipcRenderer.invoke('lightnote:get-open-tabs'),
+  saveOpenTabs: (tabs) => ipcRenderer.invoke('lightnote:save-open-tabs', { tabs }),
 
   // 에러
   onError: (cb) => ipcRenderer.on('lightnote:error', (_, d) => cb(d)),

@@ -1302,3 +1302,65 @@ button.ql-text-to-table, button.ql-table-to-text { width: 30px !important; }
   padding: 7px 14px; border-radius: 6px; z-index: 60; pointer-events: none;
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
 }
+
+/* ── 편집기 탭 줄 ─────────────────────────────────────────────────────── */
+.ln-tabbar {
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+  padding: 4px 6px 0;
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+  flex: 0 0 auto;
+}
+.ln-tabbar::-webkit-scrollbar { height: 4px; }
+.ln-tabbar::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+.ln-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 190px;
+  min-width: 84px;
+  padding: 6px 6px 6px 10px;
+  border: 1px solid transparent;
+  border-bottom: none;
+  border-radius: 6px 6px 0 0;
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 12.5px;
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+.ln-tab:hover { background: var(--bg3); color: var(--text); }
+.ln-tab.active {
+  background: var(--bg);
+  color: var(--text);
+  border-color: var(--border);
+  /* 아래 테두리를 지워 본문과 이어 붙인 것처럼 보이게 */
+  box-shadow: 0 1px 0 0 var(--bg);
+}
+.ln-tab-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ln-tab-x {
+  flex: 0 0 auto;
+  width: 16px; height: 16px;
+  line-height: 14px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  opacity: 0.45;
+  font-size: 14px;
+  cursor: pointer;
+  padding: 0;
+}
+.ln-tab-x:hover { opacity: 1; background: var(--bg4); }
+.ln-tab.active .ln-tab-x { opacity: 0.7; }

@@ -1015,6 +1015,15 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
         // click event firing — we called preventDefault on mousedown.)
         resizeTargetRef.current = drag.img
         positionBoxOver(drag.img)
+        // ...and actually SELECT the image in the document. mousedown was
+        // preventDefault'd so the browser never made a selection, which left
+        // Ctrl+C/Ctrl+X with nothing to copy — clicking an image looked
+        // selected (resize box) but copying it did nothing.
+        const b = (Quill as unknown as { find: (n: Node) => unknown | null }).find(drag.img)
+        if (b) {
+          const i = quill.getIndex(b as unknown as Parameters<typeof quill.getIndex>[0])
+          quill.setSelection(i, 1, Quill.sources.USER)
+        }
         return
       }
       // It was a drag → cut-and-paste the image at the current caret.
@@ -1711,7 +1720,7 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
           {resizeBox && (
             <>
               {/* Selection ring around the focused image */}
-              <div style={{
+              <div className="ln-img-ring" style={{
                 position: 'absolute', pointerEvents: 'none', zIndex: 5,
                 left: resizeBox.left, top: resizeBox.top, width: resizeBox.w, height: resizeBox.h,
                 border: '2px solid #7c6ff0', boxSizing: 'border-box', borderRadius: '2px',
