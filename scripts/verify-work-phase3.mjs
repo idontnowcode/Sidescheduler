@@ -7,6 +7,18 @@ import { join } from 'node:path'
 
 const results = []
 const ok = (n, p, i = '') => { results.push(p); console.log(`${p ? 'PASS' : 'FAIL'}  ${n}${i ? '  ·  ' + i : ''}`) }
+
+// 업무 속성은 오른쪽 열의 '업무' 탭 안에 있다. 폼을 만지려면 탭을 먼저 연다.
+const openWorkTab = async () => {
+  const t = ln.locator('.rp-tab', { hasText: '업무' })
+  if (await t.count()) { await t.click(); await ln.waitForTimeout(400) }
+}
+// 패널은 읽기 요약으로 시작한다 — 입력 폼을 봐야 하면 ✎ 편집까지 연다.
+const openWoForm = async () => {
+  await openWorkTab()
+  const b = ln.locator('.wo-edit-btn', { hasText: '편집' })
+  if (await b.count()) { await b.click(); await ln.waitForTimeout(400) }
+}
 const ymd = (offsetDays) => { const d = new Date(); d.setDate(d.getDate() + offsetDays); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` }
 
 const tempRoot = mkdtempSync(join(tmpdir(), 'dsp-p3-'))
@@ -40,8 +52,10 @@ const wo = (pid) => ln.evaluate((pid) => window.lightnote.workObjectGet(pid), pi
 const taskStatus = (tid) => ln.evaluate((tid) => window.lightnote.workObjectTaskStatus(tid), tid)
 
 // Enable panel.
+await openWorkTab()
 await ln.locator('.wo-add-btn').click()
 await ln.waitForSelector('.wo-panel', { timeout: 3000 })
+await openWoForm()
 
 // scheduler is available (DSP-embedded).
 const sched = await ln.evaluate(() => window.lightnote.workObjectSchedulerAvailable())

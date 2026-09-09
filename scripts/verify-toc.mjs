@@ -61,11 +61,11 @@ ok('clicking a TOC item scrolls to that heading', afterTop > beforeTop + 20, `${
 // Collapse button hides the list into a thin rail; expanding restores it.
 await ln.locator('.toc-collapse').click()
 await ln.waitForTimeout(200)
-const collapsed = await ln.evaluate(() => !!document.querySelector('.toc-rail') && !document.querySelector('.toc-panel'))
+const collapsed = await ln.evaluate(() => !!document.querySelector('.toc-rail') && !document.querySelector('.rp-panel'))
 ok('TOC collapses to a rail', collapsed)
 await ln.locator('.toc-rail').click()
 await ln.waitForTimeout(200)
-const reExpanded = await ln.evaluate(() => !!document.querySelector('.toc-panel') && !document.querySelector('.toc-rail'))
+const reExpanded = await ln.evaluate(() => !!document.querySelector('.rp-panel') && !document.querySelector('.toc-rail'))
 ok('TOC rail re-expands the panel', reExpanded)
 
 await app.close()

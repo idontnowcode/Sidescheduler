@@ -12,6 +12,7 @@ import WorkListView from './WorkListView'
 import AIAssistant from './AIAssistant'
 import SettingsModal, { initAppearance } from './SettingsModal'
 import TabBar from './TabBar'
+import RightPanel from './RightPanel'
 
 export default function LightnoteApp() {
   const [selected, setSelected] = useState<Selected>({ notebookId: null, sectionId: null, pageId: null })
@@ -25,6 +26,8 @@ export default function LightnoteApp() {
   useEffect(() => { selectedRef.current = selected }, [selected])
   // 본문에서 속성으로 승격했을 때 패널이 다시 읽게 하는 신호.
   const [woRefresh, setWoRefresh] = useState(0)
+  // 업무 탭에 점을 찍어 '이 노트엔 업무 속성이 있다'를 알려준다.
+  const [hasWork, setHasWork] = useState(false)
   const [trashNode, setTrashNode] = useState<TrashNode | null>(null)
   const [isAiOpen, setIsAiOpen] = useState(false)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
@@ -33,17 +36,17 @@ export default function LightnoteApp() {
   const [showWorkList, setShowWorkList] = useState(false)
   // Resizable side panels (persisted).
   const [leftW, setLeftW] = useState(() => Number(localStorage.getItem('ln-left-w')) || 220)
-  const [tocW, setTocW] = useState(() => Number(localStorage.getItem('ln-toc-w')) || 210)
+  const [rightW, setRightW] = useState(() => Number(localStorage.getItem('ln-right-w')) || 280)
   useEffect(() => { localStorage.setItem('ln-left-w', String(leftW)) }, [leftW])
-  useEffect(() => { localStorage.setItem('ln-toc-w', String(tocW)) }, [tocW])
+  useEffect(() => { localStorage.setItem('ln-right-w', String(rightW)) }, [rightW])
 
   const startResize = useCallback((e: React.MouseEvent, kind: 'left' | 'toc') => {
     e.preventDefault()
     const startX = e.clientX
-    const startLeft = leftW, startToc = tocW
+    const startLeft = leftW, startRight = rightW
     const onMove = (ev: MouseEvent) => {
       if (kind === 'left') setLeftW(Math.max(160, Math.min(480, startLeft + (ev.clientX - startX))))
-      else setTocW(Math.max(150, Math.min(480, startToc - (ev.clientX - startX))))
+      else setRightW(Math.max(200, Math.min(520, startRight - (ev.clientX - startX))))
     }
     const onUp = () => {
       document.removeEventListener('mousemove', onMove)
@@ -53,7 +56,7 @@ export default function LightnoteApp() {
     document.body.style.cursor = 'col-resize'
     document.addEventListener('mousemove', onMove)
     document.addEventListener('mouseup', onUp)
-  }, [leftW, tocW])
+  }, [leftW, rightW])
 
   const editorRef = useRef<EditorHandle>(null)
   const treeRef = useRef<TreeHandle>(null)
@@ -210,6 +213,15 @@ export default function LightnoteApp() {
     } catch (err) { console.error('[promote-to-work]', err) }
   }, [])
 
+  useEffect(() => {
+    let alive = true
+    if (!selected.pageId) { setHasWork(false); return }
+    window.lightnote.workObjectGet(selected.pageId)
+      .then(w => { if (alive) setHasWork(!!w?.enabled) })
+      .catch(() => { if (alive) setHasWork(false) })
+    return () => { alive = false }
+  }, [selected.pageId, woRefresh])
+
   // 탭 목록이 바뀔 때마다 저장 (다음 실행 때 그대로 복원).
   useEffect(() => {
     const t = setTimeout(() => { window.lightnote.saveOpenTabs(tabs).catch(() => {}) }, 400)
@@ -338,17 +350,6 @@ export default function LightnoteApp() {
               onCloseAll={closeAllTabs}
             />
           )}
-          {!trashNode && selected.pageId && (
-            <WorkObjectPanel
-              key={selected.pageId}
-              pageId={selected.pageId}
-              noteTitle={breadcrumb.split('›').pop()?.trim()}
-              onComplete={moveCurrentToArchives}
-              onOpenPage={handlePageSelect}
-              onEnabledChange={() => treeRef.current?.reload()}
-              refreshKey={woRefresh}
-            />
-          )}
           <Editor
             ref={editorRef}
             onOpenSettings={() => setIsSettingsOpen(true)}
@@ -375,11 +376,29 @@ export default function LightnoteApp() {
         {!trashNode && (
           <>
             <div className="ln-resizer" onMouseDown={(e) => startResize(e, 'toc')} title="너비 조절" />
-            <TocPanel
-              items={toc}
-              width={tocW}
-              onJump={(i) => editorRef.current?.scrollToHeading(i)}
-              onMove={(from, to, after) => editorRef.current?.moveTocSection(from, to, after)}
+            <RightPanel
+              width={rightW}
+              hasWork={hasWork}
+              toc={(
+                <TocPanel
+                  items={toc}
+                  onJump={(i) => editorRef.current?.scrollToHeading(i)}
+                  onMove={(from, to, after) => editorRef.current?.moveTocSection(from, to, after)}
+                />
+              )}
+              work={selected.pageId ? (
+                <WorkObjectPanel
+                  key={selected.pageId}
+                  pageId={selected.pageId}
+                  noteTitle={breadcrumb.split('›').pop()?.trim()}
+                  onComplete={moveCurrentToArchives}
+                  onOpenPage={handlePageSelect}
+                  onEnabledChange={() => { treeRef.current?.reload(); setWoRefresh(n => n + 1) }}
+                  refreshKey={woRefresh}
+                />
+              ) : (
+                <div className="rp-empty">노트를 열면 업무 속성을 볼 수 있습니다.</div>
+              )}
             />
           </>
         )}

@@ -9,7 +9,12 @@ const results = []
 const ok = (n, p, i = '') => { results.push(p); console.log(`${p ? 'PASS' : 'FAIL'}  ${n}${i ? '  ·  ' + i : ''}`) }
 
 // 패널은 읽기 요약으로 시작한다 — 숨기기/삭제 버튼은 ✎ 편집 안에 있다.
+const openWorkTab = async () => {
+  const t = ln.locator('.rp-tab', { hasText: '업무' })
+  if (await t.count()) { await t.click(); await ln.waitForTimeout(400) }
+}
 const openWoForm = async () => {
+  await openWorkTab()
   const b = ln.locator('.wo-edit-btn', { hasText: '편집' })
   if (await b.count()) { await b.click(); await ln.waitForTimeout(500) }
 }
@@ -50,6 +55,7 @@ ok('업무 속성이 enabled:false(숨김)면 📄 그대로', (await iconOf('�
 
 // 새 페이지에서 "＋ 업무 속성 추가" 클릭 → 트리 새로고침 없이 즉시 📋로 바뀌는지.
 await ln.locator('.page-item', { hasText: '그냥 노트' }).click()
+await openWorkTab()
 await ln.waitForSelector('.wo-addbar', { timeout: 5000 })
 await ln.locator('.wo-add-btn').click()
 await ln.waitForSelector('.wo-panel', { timeout: 5000 })

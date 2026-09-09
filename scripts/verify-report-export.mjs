@@ -73,10 +73,16 @@ await ln.evaluate((id) => window.lightnote.loadPage(id.nbId, id.secId, id.a), id
 await ln.reload()
 await ln.waitForFunction(() => !!window.lightnote, null, { timeout: 8000 })
 // 패널은 이제 읽기 요약으로 시작한다 — 폼을 봐야 하는 검사는 먼저 ✎ 편집을 누른다.
+const openWorkTab = async () => {
+  const t = ln.locator('.rp-tab', { hasText: '업무' })
+  if (await t.count()) { await t.click(); await ln.waitForTimeout(400) }
+}
 const openWoForm = async () => {
+  await openWorkTab()
   const b = ln.locator('.wo-edit-btn', { hasText: '편집' })
   if (await b.count()) { await b.click(); await ln.waitForTimeout(500) }
 }
+await openWorkTab()
 await ln.waitForSelector('.wo-panel', { timeout: 8000 })
 ok('보고용 정리 collapsed by default', await ln.locator('.wo-report-body').count() === 0)
 await openWoForm()
@@ -128,6 +134,7 @@ ok('아무 보고용 필드 없는 B는 목표 기한 한 줄만 출력', /2\. �
 await ln.evaluate((id) => window.lightnote.loadPage(id.nbId, id.secId, id.a), ids)
 await ln.reload()
 await ln.waitForFunction(() => !!window.lightnote, null, { timeout: 8000 })
+await openWorkTab()
 await ln.waitForSelector('.wo-panel', { timeout: 8000 })
 await ln.locator('.wo-report-toggle').click()
 await ln.waitForSelector('.wo-report-body', { timeout: 3000 })

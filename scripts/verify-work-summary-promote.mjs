@@ -43,6 +43,12 @@ await ln.waitForTimeout(400)
 await ln.locator('.page-item', { hasText: '결제 API 연동' }).click()
 await ln.waitForTimeout(1200)
 
+// 업무 속성은 이제 오른쪽 열의 '업무' 탭 안에 있다.
+const openWorkTab = async () => {
+  const t = ln.locator('.rp-tab', { hasText: '업무' })
+  if (await t.count()) { await t.click(); await ln.waitForTimeout(400) }
+}
+
 // 선택한 글자 한가운데를 우클릭한다. 선택 밖을 누르면 브라우저가 선택을
 // 풀어버려서, 좌표를 어림잡으면 테스트가 헛돈다.
 const rightClickSelection = async () => {
@@ -57,6 +63,7 @@ const rightClickSelection = async () => {
   await ln.waitForTimeout(500)
 }
 
+await openWorkTab()
 // ── A) 읽기 요약 ─────────────────────────────────────────────────────────
 ok('기본은 읽기 요약 (편집 폼 아님)',
   await ln.locator('.wo-panel-read').count() === 1 && await ln.locator('.wo-row.wo-top').count() === 0,
@@ -74,17 +81,15 @@ ok('할일에 기한이 ~로 붙음', (rows.find(r => r[0] === '할일')?.[1] ||
   rows.find(r => r[0] === '할일')?.[1])
 
 // 요약이 편집 폼보다 확실히 낮아야 한다 (본문을 덜 밀어낸다)
-const readH = (await ln.locator('.wo-panel').boundingBox()).height
 const bodyReadH = (await ln.locator('.ql-editor').boundingBox()).height
 await ln.locator('.wo-edit-btn', { hasText: '편집' }).click()
 await ln.waitForTimeout(600)
-const editH = (await ln.locator('.wo-panel').boundingBox()).height
 const bodyEditH = (await ln.locator('.ql-editor').boundingBox()).height
 ok('✎ 편집을 누르면 입력 폼이 열림', await ln.locator('.wo-row.wo-top').count() === 1)
-ok('요약이 편집 폼보다 낮음 (본문이 살아남)', readH < editH,
-  `요약 ${Math.round(readH)}px < 편집 ${Math.round(editH)}px`)
-ok('요약일 때 본문이 더 넓음', bodyReadH > bodyEditH,
-  `본문 요약 ${Math.round(bodyReadH)}px > 편집 ${Math.round(bodyEditH)}px`)
+// 업무 속성이 오른쪽 열로 간 뒤로는 요약이든 편집이든 본문 높이를 건드리지
+// 않는다 — 가로 바 시절엔 155px↔253px 만큼 본문이 밀렸다.
+ok('업무 패널을 펼쳐도 본문 높이가 그대로', Math.abs(bodyReadH - bodyEditH) < 2,
+  `본문 요약 ${Math.round(bodyReadH)}px / 편집 ${Math.round(bodyEditH)}px`)
 
 // 요약으로 되돌아가고, 그 선택이 기억되는가
 await ln.locator('.wo-edit-btn', { hasText: '요약으로' }).click()

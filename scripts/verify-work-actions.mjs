@@ -7,6 +7,18 @@ import { join } from 'node:path'
 
 const results = []
 const ok = (n, p, i = '') => { results.push(p); console.log(`${p ? 'PASS' : 'FAIL'}  ${n}${i ? '  ·  ' + i : ''}`) }
+
+// 업무 속성은 오른쪽 열의 '업무' 탭 안에 있다. 폼을 만지려면 탭을 먼저 연다.
+const openWorkTab = async () => {
+  const t = ln.locator('.rp-tab', { hasText: '업무' })
+  if (await t.count()) { await t.click(); await ln.waitForTimeout(400) }
+}
+// 패널은 읽기 요약으로 시작한다 — 입력 폼을 봐야 하면 ✎ 편집까지 연다.
+const openWoForm = async () => {
+  await openWorkTab()
+  const b = ln.locator('.wo-edit-btn', { hasText: '편집' })
+  if (await b.count()) { await b.click(); await ln.waitForTimeout(400) }
+}
 const dayTs = (off) => { const d = new Date(); d.setHours(12, 0, 0, 0); d.setDate(d.getDate() + off); return d.getTime() }
 
 const tempRoot = mkdtempSync(join(tmpdir(), 'dsp-act-'))
@@ -83,7 +95,9 @@ await ln.locator('.wl-close').click()
 await ln.evaluate((id) => window.lightnote.loadPage(id.nbA, id.secA, id.p1), ids)
 await ln.reload()
 await ln.waitForFunction(() => !!window.lightnote, null, { timeout: 8000 })
+await openWorkTab()
 await ln.waitForSelector('.wo-panel', { timeout: 8000 })
+await openWoForm()
 ok('per-action 📅 button is hidden (calendar UI off)', await ln.locator('.wo-action-cal').count() === 0)
 const linkedTaskDue = await ln.evaluate(async (id) => {
   const cur = await window.lightnote.workObjectGet(id)

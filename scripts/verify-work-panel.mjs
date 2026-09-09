@@ -9,6 +9,18 @@ import { join } from 'node:path'
 const results = []
 const ok = (n, p, i = '') => { results.push(p); console.log(`${p ? 'PASS' : 'FAIL'}  ${n}${i ? '  ·  ' + i : ''}`) }
 
+// 업무 속성은 오른쪽 열의 '업무' 탭 안에 있다. 폼을 만지려면 탭을 먼저 연다.
+const openWorkTab = async () => {
+  const t = ln.locator('.rp-tab', { hasText: '업무' })
+  if (await t.count()) { await t.click(); await ln.waitForTimeout(400) }
+}
+// 패널은 읽기 요약으로 시작한다 — 입력 폼을 봐야 하면 ✎ 편집까지 연다.
+const openWoForm = async () => {
+  await openWorkTab()
+  const b = ln.locator('.wo-edit-btn', { hasText: '편집' })
+  if (await b.count()) { await b.click(); await ln.waitForTimeout(400) }
+}
+
 const tempRoot = mkdtempSync(join(tmpdir(), 'dsp-wp-'))
 const app = await electron.launch({ args: ['out/main/index.js'], env: { ...process.env, DSP_TEST_DATA_DIR: tempRoot, NODE_ENV: 'production' } })
 const main = await app.firstWindow()
@@ -33,11 +45,13 @@ await ln.waitForTimeout(500)
 const wo = () => ln.evaluate(({ pg }) => window.lightnote.workObjectGet(pg), ids)
 
 // Collapsed by default → an "add" bar.
+await openWorkTab()
 ok('panel is collapsed by default (add bar shown)', await ln.locator('.wo-add-btn').count() === 1)
 
 // Enable → panel appears, stored enabled + default status.
 await ln.locator('.wo-add-btn').click()
 await ln.waitForSelector('.wo-panel', { timeout: 3000 })
+await openWoForm()
 let w = await wo()
 ok('adding work property enables it with default status 예정', w?.enabled === true && w.status === '예정', JSON.stringify({ e: w?.enabled, s: w?.status }))
 

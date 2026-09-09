@@ -72,10 +72,16 @@ await ln.evaluate((id) => window.lightnote.loadPage(id.nbId, id.secId, id.pageId
 await ln.reload()
 await ln.waitForFunction(() => !!window.lightnote, null, { timeout: 8000 })
 // 패널은 이제 읽기 요약으로 시작한다 — 폼을 봐야 하는 검사는 먼저 ✎ 편집을 누른다.
+const openWorkTab = async () => {
+  const t = ln.locator('.rp-tab', { hasText: '업무' })
+  if (await t.count()) { await t.click(); await ln.waitForTimeout(400) }
+}
 const openWoForm = async () => {
+  await openWorkTab()
   const b = ln.locator('.wo-edit-btn', { hasText: '편집' })
   if (await b.count()) { await b.click(); await ln.waitForTimeout(500) }
 }
+await openWorkTab()
 await ln.waitForSelector('.wo-panel', { timeout: 8000 })
 ok('업무 속성 패널이 정상 로드됨 (크래시 없음)', await ln.locator('.wo-panel').count() === 1)
 

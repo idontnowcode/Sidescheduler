@@ -5,34 +5,17 @@ interface Props {
   items: TocItem[]
   onJump: (index: number) => void
   onMove: (from: number, to: number, placeAfter: boolean) => void
-  width?: number
 }
 
-// Right-side table of contents (Word-style). Collapses to a thin rail with a
-// button; expands to a scrollable heading outline. Indented by heading level.
-// Items can be dragged to reorder — the whole section (with its sub-content)
-// moves in the document and keeps its outline level.
-export default function TocPanel({ items, onJump, onMove, width }: Props) {
-  const [collapsed, setCollapsed] = useState(false)
+// 목차 목록. 패널 껍데기(탭·접기·폭)는 RightPanel이 맡고, 여기서는
+// 목록만 그린다. 항목을 끌어 순서를 바꾸면 문서에서 그 섹션이 하위 내용까지
+// 통째로 이동하고 개요 수준은 유지된다.
+export default function TocPanel({ items, onJump, onMove }: Props) {
   const [drag, setDrag] = useState<number | null>(null)
   const [drop, setDrop] = useState<{ index: number; pos: 'before' | 'after' } | null>(null)
 
-  if (collapsed) {
-    return (
-      <div className="toc-rail" title="목차 열기" onClick={() => setCollapsed(false)}>
-        <span className="toc-rail-icon">☰</span>
-        <span className="toc-rail-label">목차</span>
-      </div>
-    )
-  }
-
   return (
-    <div className="toc-panel" style={width ? { width } : undefined}>
-      <div className="toc-header">
-        <span className="toc-title">목차</span>
-        <button className="toc-collapse" title="접기" onClick={() => setCollapsed(true)}>⟩</button>
-      </div>
-      <div className="toc-body">
+    <div className="toc-body">
         {items.length === 0 ? (
           <div className="toc-empty">제목(H1~H3)을 추가하면<br />여기에 목차가 표시됩니다.</div>
         ) : items.map((h) => (
@@ -65,7 +48,6 @@ export default function TocPanel({ items, onJump, onMove, width }: Props) {
             {h.text || '(제목 없음)'}
           </button>
         ))}
-      </div>
     </div>
   )
 }
