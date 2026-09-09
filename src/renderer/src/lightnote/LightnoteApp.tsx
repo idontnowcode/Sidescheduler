@@ -23,6 +23,8 @@ export default function LightnoteApp() {
   useEffect(() => { tabsRef.current = tabs }, [tabs])
   const selectedRef = useRef<Selected>({ notebookId: null, sectionId: null, pageId: null })
   useEffect(() => { selectedRef.current = selected }, [selected])
+  // 본문에서 속성으로 승격했을 때 패널이 다시 읽게 하는 신호.
+  const [woRefresh, setWoRefresh] = useState(0)
   const [trashNode, setTrashNode] = useState<TrashNode | null>(null)
   const [isAiOpen, setIsAiOpen] = useState(false)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
@@ -178,6 +180,36 @@ export default function LightnoteApp() {
     editorRef.current?.clearEditor()
   }, [])
 
+  // 본문에서 고른 문장을 업무 속성으로 보낸다. 업무 속성이 아직 없으면
+  // 이때 켜진다 — 메모를 쓰다가 '이건 업무다' 싶을 때 그 자리에서 시작하는 흐름.
+  const promoteToWork = useCallback(async (
+    kind: 'action' | 'progress' | 'decision' | 'pending', text: string,
+  ) => {
+    const pageId = selectedRef.current.pageId
+    if (!pageId || !text.trim()) return
+    const uid = () => crypto.randomUUID()
+    try {
+      const wo = await window.lightnote.workObjectGet(pageId)
+      const now = Date.now()
+      const patch: Record<string, unknown> = {}
+      if (!wo?.enabled) { patch.enabled = true; patch.start = wo?.start ?? now }
+      if (kind === 'action') {
+        patch.nextActions = [...(wo?.nextActions || []),
+          { id: uid(), text, done: false, doneAt: null, due: null, taskId: null }]
+      } else if (kind === 'progress') {
+        patch.progressLog = [{ id: uid(), at: now, text }, ...(wo?.progressLog || [])]
+      } else if (kind === 'decision') {
+        patch.decisions = [{ id: uid(), at: now, text }, ...(wo?.decisions || [])]
+      } else {
+        patch.pendingDecisions = [...(wo?.pendingDecisions || []),
+          { id: uid(), text, raisedAt: now, resolved: false, resolvedAt: null }]
+      }
+      await window.lightnote.workObjectSet(pageId, patch)
+      setWoRefresh(n => n + 1)
+      if (!wo?.enabled) treeRef.current?.reload()  // 트리의 📋 표시 갱신
+    } catch (err) { console.error('[promote-to-work]', err) }
+  }, [])
+
   // 탭 목록이 바뀔 때마다 저장 (다음 실행 때 그대로 복원).
   useEffect(() => {
     const t = setTimeout(() => { window.lightnote.saveOpenTabs(tabs).catch(() => {}) }, 400)
@@ -314,6 +346,7 @@ export default function LightnoteApp() {
               onComplete={moveCurrentToArchives}
               onOpenPage={handlePageSelect}
               onEnabledChange={() => treeRef.current?.reload()}
+              refreshKey={woRefresh}
             />
           )}
           <Editor
@@ -321,6 +354,7 @@ export default function LightnoteApp() {
             onOpenSettings={() => setIsSettingsOpen(true)}
             onOpenPage={handlePageSelect}
             onHeadingsChange={setToc}
+            onPromote={promoteToWork}
             onTitleChange={(nbId, secId, pageId, title) => {
               treeRef.current?.updatePageTitle(nbId, secId, pageId, title)
               // 탭 이름도 같이 바뀌어야 한다 (이름을 고쳤는데 탭만 옛 이름이면 헷갈린다)

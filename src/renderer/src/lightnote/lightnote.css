@@ -1364,3 +1364,45 @@ button.ql-text-to-table, button.ql-table-to-text { width: 30px !important; }
 }
 .ln-tab-x:hover { opacity: 1; background: var(--bg4); }
 .ln-tab.active .ln-tab-x { opacity: 0.7; }
+
+/* ── 업무 속성: 읽기용 요약 ───────────────────────────────────────────── */
+/* 편집 폼과 달리 높이 제한이 필요 없다 — 적어둔 것만 몇 줄로 보여준다. */
+.wo-panel-read { max-height: none; gap: 6px; padding: 8px 16px; }
+.wo-sum-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.wo-sum-status {
+  font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 999px;
+  background: var(--bg4); color: var(--text);
+}
+.wo-st-진행중 { background: rgba(41,120,255,0.18); color: #6ea8ff; }
+.wo-st-완료   { background: rgba(56,161,105,0.18); color: #63c893; }
+.wo-st-대기   { background: rgba(214,158,46,0.18); color: #e0b458; }
+.wo-st-보류   { background: rgba(160,160,160,0.18); color: var(--text-dim); }
+.wo-sum-pri, .wo-sum-due { font-size: 11.5px; color: var(--text-dim); }
+.wo-edit-btn {
+  font-size: 11px; padding: 4px 10px; border-radius: 6px;
+  border: 1px solid var(--border); background: transparent;
+  color: var(--text-dim); cursor: pointer;
+}
+.wo-edit-btn:hover { color: var(--text); background: var(--bg3); }
+
+.wo-sum-rows { display: flex; flex-direction: column; gap: 3px; }
+.wo-sum-row { display: flex; gap: 10px; align-items: baseline; font-size: 12.5px; line-height: 1.5; }
+.wo-sum-k {
+  flex: 0 0 48px; text-align: right;
+  font-size: 11px; color: var(--text-dim); letter-spacing: 0.02em;
+}
+.wo-sum-v {
+  flex: 1; min-width: 0; color: var(--text);
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.wo-sum-empty { font-size: 12px; color: var(--text-dim); line-height: 1.6; }
+
+/* 본문 우클릭 → 업무 속성으로 보내기 */
+.ln-promote-menu { min-width: 200px; max-width: 320px; }
+.ln-promote-head {
+  padding: 6px 10px 8px; margin-bottom: 4px;
+  border-bottom: 1px solid var(--border);
+  font-size: 11.5px; color: var(--text-dim);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}

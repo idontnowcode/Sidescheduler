@@ -287,6 +287,8 @@ interface Props {
   onOpenPage?: (nbId: string, secId: string, pageId: string, crumb: string) => void
   onHeadingsChange?: (items: { level: number; text: string; index: number }[]) => void
   onTitleChange?: (nbId: string, secId: string, pageId: string, title: string) => void
+  // 본문에서 고른 문장을 업무 속성으로 보낸다 (페이지=메모, 속성=정제된 내용).
+  onPromote?: (kind: 'action' | 'progress' | 'decision' | 'pending', text: string) => void
 }
 
 type SaveState = 'saved' | 'saving' | 'editing' | 'error'
@@ -364,12 +366,14 @@ const SWATCHES = [
   '#ffffff', '#ced4da', '#ff8787', '#ffc078', '#ffe066', '#8ce99a', '#74c0fc', '#b197fc', '#faa2c1',
 ]
 
-const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, onHeadingsChange, onTitleChange }, ref) => {
+const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, onHeadingsChange, onTitleChange, onPromote }, ref) => {
   const [currentPage, setCurrentPage] = useState<{ notebookId: string; sectionId: string; pageId: string } | null>(null)
   const [titleValue, setTitleValue] = useState('')
   const [saveState, setSaveState] = useState<SaveState>('saved')
   // 표 변환처럼 조용히 실패할 수 있는 동작의 짧은 안내 메시지.
   const [toast, setToast] = useState('')
+  // 본문 우클릭 → 업무 속성으로 보내기 메뉴.
+  const [promoteMenu, setPromoteMenu] = useState<{ x: number; y: number; text: string } | null>(null)
   const [isDirty, setIsDirty] = useState(false)
   const [counts, setCounts] = useState({ chars: 0, words: 0 })
   // Format painter: holds the copied inline formats while "armed".
@@ -1105,7 +1109,26 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
     quill.root.addEventListener('contextmenu', (e) => {
       const t = e.target as HTMLElement
       const a = t.closest('a') as HTMLAnchorElement | null
-      if (!a || !quill.root.contains(a)) return
+      if (!a || !quill.root.contains(a)) {
+        // 링크가 아닌 곳: 고른 문장이 있으면 '업무 속성으로 보내기' 메뉴.
+        // Quill의 selection은 우클릭 시점에 아직 갱신 전일 수 있어, 실제로
+        // 화면에 잡혀 있는 브라우저 선택을 먼저 본다.
+        const nat = window.getSelection()
+        let picked = ''
+        if (nat && nat.rangeCount > 0 && !nat.isCollapsed
+            && quill.root.contains(nat.anchorNode)) {
+          picked = nat.toString().trim()
+        }
+        if (!picked) {
+          const r = quill.getSelection()
+          picked = r && r.length > 0 ? quill.getText(r.index, r.length).trim() : ''
+        }
+        if (picked) {
+          e.preventDefault()
+          setPromoteMenu({ x: e.clientX, y: e.clientY, text: picked.replace(/\s+/g, ' ').slice(0, 300) })
+        }
+        return
+      }
       e.preventDefault()
       const blot = (Quill as unknown as { find: (n: Node) => unknown | null }).find(a)
       if (blot) {
@@ -1606,6 +1629,23 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
     return () => clearTimeout(t)
   }, [toast])
 
+  // 승격 메뉴는 아무 데나 누르면 닫힌다. 단, 메뉴를 연 바로 그 우클릭
+  // 이벤트가 아직 document까지 버블링 중이라 즉시 등록하면 열리자마자
+  // 스스로 닫힌다 — 한 틱 뒤에 붙인다.
+  useEffect(() => {
+    if (!promoteMenu) return
+    const close = () => setPromoteMenu(null)
+    const id = setTimeout(() => {
+      document.addEventListener('click', close)
+      document.addEventListener('contextmenu', close)
+    }, 0)
+    return () => {
+      clearTimeout(id)
+      document.removeEventListener('click', close)
+      document.removeEventListener('contextmenu', close)
+    }
+  }, [promoteMenu])
+
   return (
     <div className="editor-area">
       {/* Always mounted — Quill must stay on the same DOM node */}
@@ -1983,6 +2023,32 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
         </div>
       )}
 
+      {promoteMenu && (
+        <div className="context-menu ln-promote-menu" style={{ left: promoteMenu.x, top: promoteMenu.y }}
+          onClick={e => e.stopPropagation()}>
+          <div className="ln-promote-head" title={promoteMenu.text}>{promoteMenu.text}</div>
+          <div className="ctx-item" onClick={() => {
+            onPromote?.('action', promoteMenu.text)
+            setToast('업무 속성에 담았습니다 — 할일로 보내기')
+            setPromoteMenu(null)
+          }}>☑ 할일로 보내기</div>
+          <div className="ctx-item" onClick={() => {
+            onPromote?.('progress', promoteMenu.text)
+            setToast('업무 속성에 담았습니다 — 진행 현황으로 기록')
+            setPromoteMenu(null)
+          }}>▶ 진행 현황으로 기록</div>
+          <div className="ctx-item" onClick={() => {
+            onPromote?.('decision', promoteMenu.text)
+            setToast('업무 속성에 담았습니다 — 결정사항으로 기록')
+            setPromoteMenu(null)
+          }}>✔ 결정사항으로 기록</div>
+          <div className="ctx-item" onClick={() => {
+            onPromote?.('pending', promoteMenu.text)
+            setToast('업무 속성에 담았습니다 — 의사결정 필요로')
+            setPromoteMenu(null)
+          }}>❓ 의사결정 필요로</div>
+        </div>
+      )}
       {toast && <div className="ln-toast">{toast}</div>}
     </div>
   )

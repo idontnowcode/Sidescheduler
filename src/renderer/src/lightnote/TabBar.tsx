@@ -23,13 +23,17 @@ export default function TabBar({ tabs, activeId, onSelect, onClose, onCloseOther
     el?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
   }, [activeId, tabs.length])
 
-  // 메뉴는 아무 데나 누르면 닫힌다 (트리 컨텍스트 메뉴와 같은 방식)
+  // 메뉴는 아무 데나 누르면 닫힌다. 메뉴를 연 그 우클릭이 아직 버블링
+  // 중이라 즉시 붙이면 열리자마자 닫히므로 한 틱 뒤에 등록한다.
   useEffect(() => {
     if (!ctx) return
     const close = () => setCtx(null)
-    document.addEventListener('click', close)
-    document.addEventListener('contextmenu', close)
+    const id = setTimeout(() => {
+      document.addEventListener('click', close)
+      document.addEventListener('contextmenu', close)
+    }, 0)
     return () => {
+      clearTimeout(id)
       document.removeEventListener('click', close)
       document.removeEventListener('contextmenu', close)
     }

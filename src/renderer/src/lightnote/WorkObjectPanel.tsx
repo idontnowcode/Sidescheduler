@@ -41,6 +41,8 @@ interface Props {
   onOpenPage?: (nbId: string, secId: string, pageId: string, crumb: string) => void
   // Called when enabled/removed, so the tree's 📋 marker can refresh right away.
   onEnabledChange?: () => void
+  // 본문에서 '속성으로 승격'했을 때 이 값이 바뀌어 패널이 다시 읽는다.
+  refreshKey?: number
 }
 
 const normalizeUrl = (raw: string) => {
@@ -55,7 +57,7 @@ const normalizeUrl = (raw: string) => {
 // The work-object ("업무 속성") panel. Loads/saves its own metadata for the
 // current page; every edit persists immediately. AI-free. Phase 3 adds D-day/
 // overdue badges, auto done-date on 완료, and (DSP-embedded only) calendar sync.
-export default function WorkObjectPanel({ pageId, noteTitle, onComplete, onOpenPage, onEnabledChange }: Props) {
+export default function WorkObjectPanel({ pageId, noteTitle, onComplete, onOpenPage, onEnabledChange, refreshKey}: Props) {
   const [wo, setWo] = useState<WorkObject | null>(null)
   const [loaded, setLoaded] = useState(false)
   const [error, setError] = useState('')
@@ -70,6 +72,16 @@ export default function WorkObjectPanel({ pageId, noteTitle, onComplete, onOpenP
   const [urlLabel, setUrlLabel] = useState('')
   const [pageQuery, setPageQuery] = useState('')
   const [allPages, setAllPages] = useState<PageRefLoc[]>([])
+  // 평소엔 읽기용 요약만 보여주고, ✎ 를 눌러야 입력 폼이 열린다.
+  // 폼이 늘 펼쳐져 있으면 패널(최대 42%)이 본문을 밀어내고, 정작 중요한
+  // 배경·목적·진행은 그 안쪽 스크롤에 묻혀 한눈에 안 들어왔다.
+  const [editing, setEditing] = useState(() => {
+    try { return localStorage.getItem('ln-wo-editing') === '1' } catch { return false }
+  })
+  const toggleEditing = (v: boolean) => {
+    setEditing(v)
+    try { localStorage.setItem('ln-wo-editing', v ? '1' : '0') } catch { /* private mode */ }
+  }
   // 보고용 정리 (report export fields) — collapsed by default.
   const [reportOpen, setReportOpen] = useState(false)
   const [background, setBackground] = useState('')
@@ -91,7 +103,7 @@ export default function WorkObjectPanel({ pageId, noteTitle, onComplete, onOpenP
     setAdding(null); setUrlVal(''); setUrlLabel(''); setPageQuery('')
     setReportOpen(false); setNewProgress(''); setNewPending('')
     return () => { alive = false }
-  }, [pageId])
+  }, [pageId, refreshKey])
 
   const persist = useCallback(async (patch: Partial<WorkObject>) => {
     try { setWo(await window.lightnote.workObjectSet(pageId, patch)); setError('') }
@@ -260,6 +272,56 @@ export default function WorkObjectPanel({ pageId, noteTitle, onComplete, onOpenP
     return rows.filter(p => p.pageId !== pageId).slice(0, 8)
   })()
 
+  // ── 읽기용 요약 ────────────────────────────────────────────────────────
+  // 빈 항목은 줄째로 빼서, 적어둔 것만 보이게 한다.
+  if (!editing) {
+    const todo = (wo.nextActions || []).filter(a => !a.done)
+    const prog = (wo.progressLog || []).slice(0, 3)
+    const pend = (wo.pendingDecisions || []).filter(d => !d.resolved)
+    const rows: { k: string; v: React.ReactNode }[] = []
+    if (background.trim()) rows.push({ k: '배경', v: background.trim() })
+    if (purpose.trim()) rows.push({ k: '목적', v: purpose.trim() })
+    if (prog.length) rows.push({
+      k: '진행',
+      v: prog.map(x => `${x.text} (${fmtDate(x.at)})`).join('  ·  '),
+    })
+    if (todo.length) rows.push({
+      k: '할일',
+      v: todo.map(a => `${a.text}${a.due ? ` (~${fmtDate(a.due)})` : ''}`).join('  ·  '),
+    })
+    if (pend.length) rows.push({ k: '결정필요', v: pend.map(d => d.text).join('  ·  ') })
+    if (depts.trim()) rows.push({ k: '관련', v: depts.trim() })
+
+    return (
+      <div className="wo-panel wo-panel-read">
+        <div className="wo-sum-head">
+          <span className={`wo-sum-status wo-st-${wo.status}`}>{wo.status}</span>
+          {wo.priority && <span className="wo-sum-pri">우선 {wo.priority}</span>}
+          {wo.due && <span className="wo-sum-due">기한 {fmtDate(wo.due)}</span>}
+          {badge && <span className={`wo-badge wo-badge-${badge.cls}`}>{badge.text}</span>}
+          <div className="wo-spacer" />
+          <button className="wo-edit-btn" title="업무 속성 편집" onClick={() => toggleEditing(true)}>✎ 편집</button>
+        </div>
+        {rows.length === 0 ? (
+          <div className="wo-sum-empty">
+            아직 적어둔 내용이 없습니다 — <b>✎ 편집</b>으로 배경·목적을 적거나,
+            본문에서 문장을 골라 우클릭하면 할일·진행 현황으로 보낼 수 있습니다.
+          </div>
+        ) : (
+          <div className="wo-sum-rows">
+            {rows.map(r => (
+              <div className="wo-sum-row" key={r.k}>
+                <span className="wo-sum-k">{r.k}</span>
+                <span className="wo-sum-v" title={typeof r.v === 'string' ? r.v : undefined}>{r.v}</span>
+              </div>
+            ))}
+          </div>
+        )}
+        {error && <div className="wo-err wo-err-row">{error}</div>}
+      </div>
+    )
+  }
+
   return (
     <div className="wo-panel">
       <div className="wo-row wo-top">
@@ -295,6 +357,7 @@ export default function WorkObjectPanel({ pageId, noteTitle, onComplete, onOpenP
             : <button className="wo-cal-btn" onClick={registerCalendar}>📅 캘린더 등록</button>
         )}
         <div className="wo-spacer" />
+        <button className="wo-edit-btn" title="요약만 보기" onClick={() => toggleEditing(false)}>✓ 요약으로</button>
         <button className="wo-hide-btn" title="패널 숨기기 (데이터 보존)" onClick={() => persist({ enabled: false }).then(() => onEnabledChange?.())}>숨기기</button>
         <button className="wo-del-btn" title="업무 속성 완전 삭제" onClick={removeAll}>삭제</button>
       </div>
