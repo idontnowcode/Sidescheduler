@@ -8,6 +8,12 @@ import { join } from 'node:path'
 const results = []
 const ok = (n, p, i = '') => { results.push(p); console.log(`${p ? 'PASS' : 'FAIL'}  ${n}${i ? '  ·  ' + i : ''}`) }
 
+// 패널은 읽기 요약으로 시작한다 — 숨기기/삭제 버튼은 ✎ 편집 안에 있다.
+const openWoForm = async () => {
+  const b = ln.locator('.wo-edit-btn', { hasText: '편집' })
+  if (await b.count()) { await b.click(); await ln.waitForTimeout(500) }
+}
+
 const tempRoot = mkdtempSync(join(tmpdir(), 'dsp-treeicon-'))
 const app = await electron.launch({ args: ['out/main/index.js'], env: { ...process.env, DSP_TEST_DATA_DIR: tempRoot, NODE_ENV: 'production' } })
 const main = await app.firstWindow()
@@ -51,6 +57,7 @@ await ln.waitForTimeout(400)
 ok('업무 속성 추가 직후 트리 아이콘이 자동으로 📋로 바뀜(수동 새로고침 불필요)', (await iconOf('그냥 노트'))?.trim() === '📋')
 
 // "숨기기" → 다시 📄로.
+await openWoForm()
 await ln.locator('.wo-hide-btn').click()
 await ln.waitForTimeout(400)
 ok('숨기기 직후 트리 아이콘이 자동으로 📄로 돌아옴', (await iconOf('그냥 노트'))?.trim() === '📄')
