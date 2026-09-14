@@ -1563,3 +1563,51 @@ button.wo-kind:hover { color: var(--text); background: var(--bg3); }
   margin: 8px 0 2px; padding-top: 6px; border-top: 1px solid var(--border);
 }
 .wo-log-empty { font-size: 11.5px; color: var(--text-dim); padding: 6px 2px; line-height: 1.6; }
+
+/* ── 액션 아이템 팝업 (Ctrl+Shift+A) ──────────────────────────────────── */
+.ai-popup { display: flex; flex-direction: column; height: 100vh; background: var(--bg); }
+.ai-header {
+  display: flex; align-items: center; gap: 6px;
+  padding: 10px 8px 10px 14px;
+  border-bottom: 1px solid var(--border);
+  -webkit-app-region: drag; /* 프레임이 없어서 여기로 창을 옮긴다 */
+}
+.ai-title { font-size: 13px; font-weight: 600; }
+.ai-spacer { flex: 1; }
+.ai-pin, .ai-close {
+  -webkit-app-region: no-drag;
+  width: 26px; height: 26px; border-radius: 6px;
+  border: none; background: transparent; color: var(--text-dim);
+  font-size: 13px; cursor: pointer;
+}
+.ai-pin:hover, .ai-close:hover { background: var(--bg3); color: var(--text); }
+.ai-pin.active { color: var(--accent); }
+.ai-close { font-size: 18px; line-height: 1; }
+
+.ai-body { flex: 1; overflow-y: auto; padding: 6px; }
+.ai-body::-webkit-scrollbar { width: 5px; }
+.ai-body::-webkit-scrollbar-thumb { background: var(--bg4); border-radius: 2px; }
+.ai-empty { font-size: 12.5px; color: var(--text-dim); padding: 16px 10px; text-align: center; line-height: 1.6; }
+
+.ai-zone {
+  font-size: 10.5px; color: var(--text-dim); letter-spacing: 0.04em;
+  padding: 8px 8px 4px;
+}
+.ai-zone-overdue { color: var(--danger); }
+
+.ai-row {
+  padding: 7px 10px; border-radius: 6px; cursor: pointer;
+}
+.ai-row:hover { background: var(--bg3); }
+.ai-row-main { display: flex; align-items: baseline; gap: 8px; }
+.ai-row-text {
+  flex: 1; font-size: 12.5px; color: var(--text);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.ai-row-due { font-size: 11px; color: var(--text-dim); flex: 0 0 auto; }
+.ai-row-due.overdue { color: var(--danger); font-weight: 600; }
+.ai-row-note {
+  font-size: 10.5px; color: var(--text-dim); opacity: 0.75;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  margin-top: 1px;
+}

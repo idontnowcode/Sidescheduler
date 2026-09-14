@@ -64,6 +64,12 @@ let editorWindow: BrowserWindow | null = null
 let noteEditorWindow: BrowserWindow | null = null
 let lightNoteWindow: BrowserWindow | null = null
 let pendingLightnoteOpenPage: { pageId: string; notebookId: string; sectionId: string } | null = null
+// "새 창에서 열기" 등으로 만든 추가 LightNote 창들. Electron은 참조를
+// 안 들고 있으면 GC로 창이 사라지므로 배열로 붙잡아 둔다. 각 창에 전달할
+// 시작 페이지는 pendingLightnoteOpenPage(단일 슬롯, 기본 창용)와 달리
+// webContents id로 구분해서, 여러 창을 동시에 열어도 서로 안 섞인다.
+const secondaryLightNoteWindows: BrowserWindow[] = []
+const pendingOpenByWebContentsId = new Map<number, { pageId: string; notebookId: string; sectionId: string }>()
 let paletteRequester: 'sidebar' | 'dashboard' = 'sidebar'
 let pendingEditorPayload: unknown = null
 let pendingNoteEditorPayload: unknown = null
@@ -173,6 +179,11 @@ function createWindow(): void {
     frame: false, transparent: true, alwaysOnTop: true,
     skipTaskbar: true, resizable: false, hasShadow: false, focusable: true,
     movable: !loadSettings().locked,
+    // 사이드바는 안 쓰고 LightNote만 트레이/단축키로 쓰고 싶다는 피드백 —
+    // 지난번에 숨겨뒀다면 이번 실행에도 자동으로 뜨지 않는다. 창 자체는
+    // 그대로 만들어(로드는 하되) 숨겨서, 트레이에서 "사이드바 보이기"를
+    // 누르면 다시 로드 없이 바로 뜬다.
+    show: !loadSettings().sidebarHidden,
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       contextIsolation: true, nodeIntegration: false, sandbox: false
@@ -239,11 +250,29 @@ function openDashboard(view?: string): void {
 }
 
 // ── Tray ──────────────────────────────────────────────────────────────────
+// "사이드바가 거슬리고 버튼도 안 쓴다, LightNote만 트레이/단축키로 쓰고
+// 싶다"는 피드백 — 사이드바를 아예 꺼둘 수 있는 체크박스와, LightNote를
+// 사이드바를 거치지 않고 바로 여는 항목을 추가한다. 사이드바를 숨겨도
+// LightNote는 이미 독립된 창(openLightNoteWindow)이라 그대로 잘 열린다.
+function setSidebarHidden(hidden: boolean): void {
+  saveSettings({ sidebarHidden: hidden })
+  if (hidden) mainWindow?.hide()
+  else mainWindow?.show()
+  tray?.setContextMenu(buildTrayMenu())
+}
+
 function buildTrayMenu() {
+  const sidebarHidden = !!loadSettings().sidebarHidden
   return Menu.buildFromTemplate([
     { label: 'Daily Sidebar Planner', enabled: false },
     { type: 'separator' },
-    { label: 'Show Sidebar', click: () => mainWindow?.show() },
+    { label: '📝 Open LightNote', click: () => openLightNoteWindow() },
+    { label: '🗒 Action Items', click: () => toggleActionItemsWindow() },
+    { type: 'separator' },
+    {
+      label: 'Show Sidebar', type: 'checkbox', checked: !sidebarHidden,
+      click: (item) => setSidebarHidden(!item.checked)
+    },
     { label: 'Open Dashboard', click: () => openDashboard() },
     { type: 'separator' },
     {
@@ -814,6 +843,40 @@ function openLightNoteToPage(target: { pageId: string; notebookId: string; secti
 
 ipcMain.on('lightnote:open-page', (_e, target) => openLightNoteToPage(target))
 
+// MS 오피스 앱들처럼 노트를 별도 창으로 열어서, 여러 노트를 나란히 띄워두고
+// 편집할 수 있게 한다. 기본(단일) LightNote 창은 그대로 두고, 매번 완전히
+// 새로운 창을 하나 더 만든다 — 탭·트리·목차·업무 패널 등 화면 안쪽은 전부
+// 기존 LightnoteApp을 그대로 재사용하고(같은 #lightnote 렌더러), 이 창만의
+// 시작 페이지만 별도로 넘긴다.
+function openLightNoteInNewWindow(target?: { pageId: string; notebookId: string; sectionId: string }): void {
+  const win = new BrowserWindow({
+    width: 1280, height: 800, minWidth: 960, minHeight: 600,
+    title: 'LightNote', icon: join(__dirname, '../../resources/icon.ico'),
+    show: false,
+    webPreferences: {
+      preload: join(__dirname, '../preload/lightnote.js'),
+      contextIsolation: true, nodeIntegration: false, sandbox: false
+    }
+  })
+  secondaryLightNoteWindows.push(win)
+  win.setMenuBarVisibility(false)
+  win.once('ready-to-show', () => win.show())
+  win.on('closed', () => {
+    pendingOpenByWebContentsId.delete(win.webContents.id)
+    const i = secondaryLightNoteWindows.indexOf(win)
+    if (i >= 0) secondaryLightNoteWindows.splice(i, 1)
+  })
+  if (target) pendingOpenByWebContentsId.set(win.webContents.id, target)
+
+  if (process.env.NODE_ENV === 'development' && process.env['ELECTRON_RENDERER_URL']) {
+    win.loadURL(process.env['ELECTRON_RENDERER_URL'] + '#lightnote')
+  } else {
+    win.loadFile(join(__dirname, '../renderer/index.html'), { hash: 'lightnote' })
+  }
+}
+
+ipcMain.on('lightnote:open-new-window', (_e, target) => openLightNoteInNewWindow(target))
+
 // Resolve a deep link's pageId to its notebook/section, then open it.
 async function openLightNotePageById(pageId: string): Promise<boolean> {
   try {
@@ -823,6 +886,78 @@ async function openLightNotePageById(pageId: string): Promise<boolean> {
     return true
   } catch { return false }
 }
+
+// ── Action Items popup ───────────────────────────────────────────────────
+// 특정 단축키(Ctrl+Shift+A)로 화면 우측 상단에 여는 작은 창 — 모든 업무의
+// 미완료 할일을 기한순으로 모아 보여준다. LightNote 전체를 열지 않고도
+// "오늘 뭐부터 해야 하나"를 훑어볼 수 있게. 기본은 항상 위 고정(핀)이고,
+// 창 안의 📌 버튼으로 끌 수 있다 — 다른 앱 작업 중에도 눈에 띄어야 쓸모가
+// 있는 팝업이라 기본을 켜둔다.
+let actionItemsWindow: BrowserWindow | null = null
+
+function actionItemsBounds() {
+  const { workArea } = screen.getPrimaryDisplay()
+  const W = 360, H = 460, MARGIN = 12
+  return { x: workArea.x + workArea.width - W - MARGIN, y: workArea.y + MARGIN, width: W, height: H }
+}
+
+function openActionItemsWindow(): void {
+  if (actionItemsWindow && !actionItemsWindow.isDestroyed()) {
+    actionItemsWindow.show()
+    actionItemsWindow.focus()
+    actionItemsWindow.webContents.send('action-items:refresh')
+    return
+  }
+  const pinned = loadSettings().actionItemsPinned !== false
+  actionItemsWindow = new BrowserWindow({
+    ...actionItemsBounds(),
+    frame: false, transparent: true, alwaysOnTop: true, skipTaskbar: true,
+    resizable: false, hasShadow: true, show: false,
+    webPreferences: {
+      preload: join(__dirname, '../preload/lightnote.js'),
+      contextIsolation: true, nodeIntegration: false, sandbox: false
+    }
+  })
+  if (pinned) actionItemsWindow.setAlwaysOnTop(true, 'screen-saver')
+  actionItemsWindow.once('ready-to-show', () => actionItemsWindow?.show())
+  actionItemsWindow.on('closed', () => { actionItemsWindow = null })
+  // 고정을 꺼둔 상태로 다른 창에 포커스를 뺏기면 조용히 사라진다(캡처/
+  // 팔레트 창과 같은 습관). 테스트 환경(E2E)엔 실제 OS 포커스 이동이
+  // 없으니 그대로 둔다.
+  actionItemsWindow.on('blur', () => {
+    if (!process.env.DSP_TEST_DATA_DIR && !(loadSettings().actionItemsPinned !== false)) {
+      actionItemsWindow?.close()
+    }
+  })
+
+  if (process.env.NODE_ENV === 'development' && process.env['ELECTRON_RENDERER_URL']) {
+    actionItemsWindow.loadURL(process.env['ELECTRON_RENDERER_URL'] + '#actionitems')
+  } else {
+    actionItemsWindow.loadFile(join(__dirname, '../renderer/index.html'), { hash: 'actionitems' })
+  }
+}
+
+function closeActionItemsWindow(): void {
+  if (actionItemsWindow && !actionItemsWindow.isDestroyed()) actionItemsWindow.close()
+  actionItemsWindow = null
+}
+
+function toggleActionItemsWindow(): void {
+  if (actionItemsWindow && !actionItemsWindow.isDestroyed()) closeActionItemsWindow()
+  else openActionItemsWindow()
+}
+
+ipcMain.on('action-items:open', openActionItemsWindow)
+ipcMain.on('action-items:close', closeActionItemsWindow)
+ipcMain.on('action-items:open-page', (_e, target) => openLightNoteToPage(target))
+ipcMain.handle('action-items:get-pinned', () => loadSettings().actionItemsPinned !== false)
+ipcMain.handle('action-items:set-pinned', (_e, pinned: boolean) => {
+  saveSettings({ actionItemsPinned: pinned })
+  if (actionItemsWindow && !actionItemsWindow.isDestroyed()) {
+    actionItemsWindow.setAlwaysOnTop(pinned, 'screen-saver')
+  }
+  return pinned
+})
 
 /** Handle a lightnote:// deep link from argv / open-url. */
 async function handleDeepLink(url: string | null): Promise<void> {
@@ -839,7 +974,14 @@ ipcMain.handle('lightnote:copy-page-link', (_e, { pageId }) => {
 })
 
 // Renderer pulls (and clears) the pending open-page target once mounted.
-ipcMain.handle('lightnote:consume-pending-open', () => {
+// 이 창이 "새 창에서 열기"로 만든 창이면 그 창 전용 슬롯을 먼저 보고,
+// 없으면(=기본 LightNote 창) 예전부터 쓰던 단일 슬롯으로 그대로 동작한다.
+ipcMain.handle('lightnote:consume-pending-open', (event) => {
+  const perWindow = pendingOpenByWebContentsId.get(event.sender.id)
+  if (perWindow) {
+    pendingOpenByWebContentsId.delete(event.sender.id)
+    return perWindow
+  }
   const p = pendingLightnoteOpenPage
   pendingLightnoteOpenPage = null
   return p
@@ -986,6 +1128,17 @@ app.whenReady().then(() => {
       if (sidebarInteractive) mainWindow?.show()
       else if (windowExpanded) { windowExpanded = false; applyBounds() } // collapse when leaving interactive
     })
+  } catch { /* hotkey may be taken by another app */ }
+
+  // "사이드바는 안 쓰고 LightNote만 트레이/단축키로" 피드백 — 사이드바가
+  // 숨겨져 있어도(또는 다른 창에 가려 있어도) 이 단축키 하나로 바로 뜬다.
+  try {
+    globalShortcut.register('CommandOrControl+Shift+L', () => openLightNoteWindow())
+  } catch { /* hotkey may be taken by another app */ }
+
+  // 기한순 할일 팝업 토글. 화면 우측 상단에 뜬다.
+  try {
+    globalShortcut.register('CommandOrControl+Shift+A', () => toggleActionItemsWindow())
   } catch { /* hotkey may be taken by another app */ }
 
   // If the app was cold-launched via a lightnote:// deep link, the URL is in argv.

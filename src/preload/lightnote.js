@@ -134,4 +134,15 @@ contextBridge.exposeInMainWorld('lightnote', {
   // 페이지 탐색 (다른 창에서 open-page 시그널 수신)
   onOpenPageById: (cb) => ipcRenderer.on('lightnote:open-page', (_, d) => cb(d)),
   consumePendingOpen: () => ipcRenderer.invoke('lightnote:consume-pending-open'),
+  // MS 오피스처럼 노트를 별도 창으로 열기 (여러 노트 나란히 편집)
+  openInNewWindow: (notebookId, sectionId, pageId) =>
+    ipcRenderer.send('lightnote:open-new-window', { notebookId, sectionId, pageId }),
+
+  // 액션 아이템 팝업(Ctrl+Shift+A) 전용 — 같은 preload를 쓴다.
+  actionItemsClose: () => ipcRenderer.send('action-items:close'),
+  actionItemsGetPinned: () => ipcRenderer.invoke('action-items:get-pinned'),
+  actionItemsSetPinned: (pinned) => ipcRenderer.invoke('action-items:set-pinned', pinned),
+  actionItemsOpenPage: (notebookId, sectionId, pageId) =>
+    ipcRenderer.send('action-items:open-page', { notebookId, sectionId, pageId }),
+  onActionItemsRefresh: (cb) => { const h = () => cb(); ipcRenderer.on('action-items:refresh', h); return () => ipcRenderer.removeListener('action-items:refresh', h) },
 })

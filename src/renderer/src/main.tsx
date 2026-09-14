@@ -29,6 +29,10 @@ if (hash === '#dashboard') {
   import('./lightnote/LightnoteApp').then(({ default: LightnoteApp }) => {
     ReactDOM.createRoot(root).render(<React.StrictMode><LightnoteApp /></React.StrictMode>)
   })
+} else if (hash === '#actionitems') {
+  import('./lightnote/ActionItemsApp').then(({ default: ActionItemsApp }) => {
+    ReactDOM.createRoot(root).render(<React.StrictMode><ActionItemsApp /></React.StrictMode>)
+  })
 } else {
   import('./App').then(({ default: App }) => {
     ReactDOM.createRoot(root).render(<React.StrictMode><App /></React.StrictMode>)

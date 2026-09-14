@@ -16,6 +16,13 @@ export interface WindowSettings {
   workStartHour: number     // 0-23, start of the work day
   workEndHour: number       // 0-23, end of the work day
   reminderEnabled: boolean  // fire 9am / 1pm briefings
+  // 사이드바 버튼은 안 쓰고 LightNote만 트레이/단축키로 쓰고 싶다는 피드백 —
+  // 사이드바를 숨겨둬도(다음 실행 때도) 트레이/단축키로 LightNote는 그대로
+  // 열 수 있다. true면 다음 실행 시에도 사이드바가 자동으로 뜨지 않는다.
+  sidebarHidden?: boolean
+  // 액션 아이템 팝업(Ctrl+Shift+A)의 항상 위 고정 여부. 기본은 켜짐 —
+  // 다른 앱 작업 중에도 눈에 띄어야 쓸모가 있는 팝업이라서.
+  actionItemsPinned?: boolean
 }
 
 const DEFAULT: WindowSettings = {
@@ -25,7 +32,9 @@ const DEFAULT: WindowSettings = {
   clickThrough: false,
   workStartHour: 9,
   workEndHour: 18,
-  reminderEnabled: true
+  reminderEnabled: true,
+  sidebarHidden: false,
+  actionItemsPinned: true
 }
 
 let cache: WindowSettings | null = null

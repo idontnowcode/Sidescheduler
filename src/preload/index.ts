@@ -15,6 +15,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   openPalette:    () => ipcRenderer.send('palette:open'),
   closePalette:   () => ipcRenderer.send('palette:close'),
   openCapture:    () => ipcRenderer.send('capture:open'),
+  // 화면 우측 상단 할일 팝업(Ctrl+Shift+A로도 열림) — 사이드바에 버튼은
+  // 안 두지만, 단축키와 같은 진입점을 테스트/다른 창에서도 쓸 수 있게 노출.
+  openActionItems: () => ipcRenderer.send('action-items:open'),
   closeCapture:   () => ipcRenderer.send('capture:close'),
   setSidebarHeight: (height: number) => ipcRenderer.send('sidebar:set-height', height),
   openEditor:     (payload: unknown) => ipcRenderer.send('editor:open', payload),

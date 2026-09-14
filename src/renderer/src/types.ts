@@ -247,6 +247,7 @@ declare global {
       closePalette: () => void
       openCapture: () => void
       closeCapture: () => void
+      openActionItems: () => void
       setSidebarHeight: (height: number) => void
       openEditor: (payload: EditorPayload) => void
       closeEditor: () => void

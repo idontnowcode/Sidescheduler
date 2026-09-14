@@ -224,6 +224,14 @@ declare global {
       consumePendingOpen: () => Promise<{ pageId: string; notebookId: string; sectionId: string } | null>
       onError: (cb: (err: unknown) => void) => void
       removeAllListeners: (channel: string) => void
+      // MS 오피스처럼 노트를 별도 창으로 열기
+      openInNewWindow: (notebookId: string, sectionId: string, pageId: string) => void
+      // 액션 아이템 팝업(Ctrl+Shift+A) 전용
+      actionItemsClose: () => void
+      actionItemsGetPinned: () => Promise<boolean>
+      actionItemsSetPinned: (pinned: boolean) => Promise<boolean>
+      actionItemsOpenPage: (notebookId: string, sectionId: string, pageId: string) => void
+      onActionItemsRefresh: (cb: () => void) => () => void
     }
   }
 }
