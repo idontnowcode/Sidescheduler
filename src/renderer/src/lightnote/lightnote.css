@@ -1106,17 +1106,15 @@ sup.citation:hover { background: var(--accent-hover); }
 .wo-lists { display: flex; gap: 16px; flex-wrap: wrap; }
 .wo-col { flex: 1; min-width: 220px; display: flex; flex-direction: column; gap: 3px; }
 .wo-sub-title { font-size: 11px; font-weight: 600; color: var(--text-dim); letter-spacing: 0.03em; margin-bottom: 2px; }
-.wo-action, .wo-decision { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text); padding: 2px 0; }
+.wo-action { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text); padding: 2px 0; }
 .wo-action-text { flex: 1; }
 .wo-action.done .wo-action-text { text-decoration: line-through; color: var(--text-dim); }
-.wo-action-date, .wo-decision-date { font-size: 10px; color: var(--text-dim); flex-shrink: 0; }
+.wo-action-date { font-size: 10px; color: var(--text-dim); flex-shrink: 0; }
 .wo-action-due { flex-shrink: 0; background: var(--bg); border: 1px solid var(--border); border-radius: 5px; color: var(--text-dim); font-size: 10px; padding: 1px 4px; color-scheme: dark; outline: none; }
 .wo-action-due:hover, .wo-action-due:focus { border-color: var(--accent); color: var(--text); }
-.wo-decision-date { min-width: 30px; }
-.wo-decision-text { flex: 1; background: transparent; border: none; border-bottom: 1px solid transparent; color: var(--text); font-size: 12px; padding: 1px 2px; outline: none; }
-.wo-decision-text:hover, .wo-decision-text:focus { border-bottom-color: var(--border); }
-.wo-decision-date-input { flex-shrink: 0; min-width: 108px; background: transparent; border: none; border-bottom: 1px solid transparent; color: var(--text-dim); font-size: 10px; padding: 1px 2px; outline: none; color-scheme: dark; }
-.wo-decision-date-input:hover, .wo-decision-date-input:focus { border-bottom-color: var(--border); color: var(--text); }
+/* 체크박스가 없는 줄(진행·결정)도 할일과 같은 위치에서 칩·본문이
+   시작하도록, 체크박스 너비만큼 자리를 비워둔다. */
+.wo-check-spacer { width: 13px; flex-shrink: 0; }
 .wo-action-text-input { flex: 1; background: transparent; border: none; border-bottom: 1px solid transparent; color: var(--text); font-size: 12px; padding: 1px 2px; outline: none; font-family: inherit; }
 .wo-action-text-input:hover, .wo-action-text-input:focus { border-bottom-color: var(--border); }
 .wo-action.done .wo-action-text-input { text-decoration: line-through; color: var(--text-dim); }
@@ -1526,9 +1524,9 @@ button.ql-text-to-table, button.ql-table-to-text { width: 30px !important; }
 .rp-body .wo-sum-rows { gap: 8px; }
 /* 좁은 열에서 Action 한 줄에 [체크][내용][날짜][×] 를 다 넣으면 날짜가
    잘린다. 날짜는 다음 줄로 흘려보내고 남는 폭을 다 쓰게 한다. */
-.rp-body .wo-action, .rp-body .wo-decision { flex-wrap: wrap; }
-.rp-body .wo-action-text, .rp-body .wo-decision-text { flex: 1 1 100%; min-width: 0; }
-.rp-body .wo-action-due, .rp-body .wo-decision-date { flex: 1 1 auto; min-width: 0; margin-left: 22px; }
+.rp-body .wo-action { flex-wrap: wrap; }
+.rp-body .wo-action-text { flex: 1 1 100%; min-width: 0; }
+.rp-body .wo-action-due { flex: 1 1 auto; min-width: 0; margin-left: 22px; }
 .rp-body .wo-inline-input { width: 100%; box-sizing: border-box; }
 .rp-body .wo-report-toggle { text-align: left; }
 .rp-body .wo-report-hint { display: none; }
@@ -1550,12 +1548,13 @@ button.wo-kind:hover { color: var(--text); background: var(--bg3); }
 .wo-kind-progress.active { background: #2f8f5b; }
 .wo-kind-decision.active { background: #7a5cd0; }
 .wo-kind-pending.active  { background: #c07a1e; }
-/* 목록 안의 칩은 눌리지 않는 표시용 — 색만 옅게 */
-.wo-action .wo-kind, .wo-decision .wo-kind { flex: 0 0 auto; opacity: 0.85; }
-.wo-action .wo-kind:hover, .wo-decision .wo-kind:hover { opacity: 1; }
+/* 목록 안의 칩은 눌리지 않는 표시용 — 색만 옅게. 이제 네 종류 모두
+   같은 줄 구조(.wo-action)를 쓰므로 칩 색은 종류별로만 갈린다. */
+.wo-action .wo-kind { flex: 0 0 auto; opacity: 0.85; }
+.wo-action .wo-kind:hover { opacity: 1; }
 .wo-action .wo-kind-action   { color: #7aa9ee; border-color: rgba(47,111,208,0.45); }
-.wo-decision .wo-kind-progress { color: #6cc596; border-color: rgba(47,143,91,0.45); }
-.wo-decision .wo-kind-decision { color: #ad94ec; border-color: rgba(122,92,208,0.45); }
+.wo-action .wo-kind-progress { color: #6cc596; border-color: rgba(47,143,91,0.45); }
+.wo-action .wo-kind-decision { color: #ad94ec; border-color: rgba(122,92,208,0.45); }
 .wo-action .wo-kind-pending  { color: #e0a94e; border-color: rgba(192,122,30,0.45); }
 
 .wo-log-zone {

@@ -230,6 +230,10 @@ export default function WorkObjectPanel({ pageId, noteTitle, onComplete, onOpenP
   }
 
   const editPending = (id: string, text: string) => setPendingDecisions(pendingDecisions.map(p => p.id === id ? { ...p, text } : p))
+  const editPendingRaisedAt = (id: string, dateStr: string) => {
+    const at = fromDateInput(dateStr); if (at == null) return
+    setPendingDecisions(pendingDecisions.map(p => p.id === id ? { ...p, raisedAt: at } : p))
+  }
   const toggleResolved = (id: string) => {
     setPendingDecisions(pendingDecisions.map(p => p.id === id
       ? { ...p, resolved: !p.resolved, resolvedAt: !p.resolved ? Date.now() : null }
@@ -371,19 +375,24 @@ export default function WorkObjectPanel({ pageId, noteTitle, onComplete, onOpenP
           {chip}
           <input className="wo-action-text wo-action-text-input" value={q.text} onChange={e => editPending(q.id, e.target.value)} />
           {q.resolved && q.resolvedAt && <span className="wo-action-date">{fmtDate(q.resolvedAt)}</span>}
+          <input type="date" className="wo-action-due" title="제기된 날짜"
+            value={toDateInput(q.raisedAt)} onChange={e => editPendingRaisedAt(q.id, e.target.value)} />
           <button className="wo-x" title="삭제" onClick={() => delPending(q.id)}>×</button>
         </div>
       )
     }
+    // 진행/결정도 할일과 같은 줄 구조(칩·본문·달력 버튼·삭제)로 표기한다.
+    // 완료 체크박스만 없다 — 이미 지나온 기록이라 '할지 말지'가 아니다.
     const isProg = row.kind === 'progress'
     const item = isProg ? row.p : row.d
     return (
-      <div key={`${row.kind}${item.id}`} className="wo-decision">
-        <input type="date" className="wo-decision-date-input" value={toDateInput(item.at)}
-          onChange={e => (isProg ? editProgressDate : editDecisionDate)(item.id, e.target.value)} />
+      <div key={`${row.kind}${item.id}`} className="wo-action">
+        <span className="wo-check-spacer" />
         {chip}
-        <input className="wo-decision-text" value={item.text}
+        <input className="wo-action-text wo-action-text-input" value={item.text}
           onChange={e => (isProg ? editProgress : editDecision)(item.id, e.target.value)} />
+        <input type="date" className="wo-action-due" title="발생/기록 날짜" value={toDateInput(item.at)}
+          onChange={e => (isProg ? editProgressDate : editDecisionDate)(item.id, e.target.value)} />
         <button className="wo-x" title="삭제" onClick={() => (isProg ? delProgress : delDecision)(item.id)}>×</button>
       </div>
     )

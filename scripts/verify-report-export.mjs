@@ -91,8 +91,8 @@ await ln.waitForSelector('.wo-report-body', { timeout: 3000 })
 const bgVal = await ln.locator('.wo-report-text textarea').first().inputValue()
 ok('배경 textarea shows saved value', bgVal === '위젯에 필요한 집계 API가 없음', bgVal)
 ok('진행 현황 두 건이 기록 목록에 보임',
-  await ln.locator('.wo-decision:has(.wo-kind-progress)').count() === 2,
-  String(await ln.locator('.wo-decision:has(.wo-kind-progress)').count()))
+  await ln.locator('.wo-action:has(.wo-kind-progress)').count() === 2,
+  String(await ln.locator('.wo-action:has(.wo-kind-progress)').count()))
 ok('의사결정 필요 두 건(해결+미해결)이 기록 목록에 보임',
   await ln.locator('.wo-action:has(.wo-kind-pending)').count() === 2,
   String(await ln.locator('.wo-action:has(.wo-kind-pending)').count()))
@@ -143,13 +143,13 @@ await ln.waitForSelector('.wo-panel', { timeout: 8000 })
 await ln.locator('.wo-report-toggle').click()
 await ln.waitForSelector('.wo-report-body', { timeout: 3000 })
 
-await ln.locator('.wo-decision:has(.wo-kind-decision) .wo-decision-date-input').first().fill('2026-01-15')
+await ln.locator('.wo-action:has(.wo-kind-decision) .wo-action-due').first().fill('2026-01-15')
 await ln.waitForTimeout(400)
 let woEdit = await ln.evaluate((id) => window.lightnote.workObjectGet(id), ids.a)
 let d = new Date(woEdit.decisions[0].at)
 ok('결정사항 날짜 수정 가능', d.getFullYear() === 2026 && d.getMonth() === 0 && d.getDate() === 15, JSON.stringify(woEdit.decisions[0]))
 
-await ln.locator('.wo-decision:has(.wo-kind-progress) .wo-decision-date-input').first().fill('2026-02-20')
+await ln.locator('.wo-action:has(.wo-kind-progress) .wo-action-due').first().fill('2026-02-20')
 await ln.waitForTimeout(400)
 woEdit = await ln.evaluate((id) => window.lightnote.workObjectGet(id), ids.a)
 const editedProg = woEdit.progressLog.find((p) => { const dd = new Date(p.at); return dd.getFullYear() === 2026 && dd.getMonth() === 1 && dd.getDate() === 20 })

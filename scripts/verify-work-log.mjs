@@ -76,9 +76,9 @@ ok('네 종류가 서로 다른 배열로 갈림 (export 형식 유지)',
 
 // 한 목록에 네 줄 모두 — 각 줄에 종류 칩
 const chips = await ln.evaluate(() =>
-  Array.from(document.querySelectorAll('.wo-log .wo-action, .wo-log .wo-decision'))
+  Array.from(document.querySelectorAll('.wo-log .wo-action'))
     .map(r => [r.querySelector('.wo-kind')?.textContent,
-               r.querySelector('input.wo-action-text-input, input.wo-decision-text')?.value]))
+               r.querySelector('input.wo-action-text-input')?.value]))
 ok('네 줄이 한 목록에 모두 보임', chips.length === 4, JSON.stringify(chips))
 ok('각 줄에 종류 칩이 붙음', chips.every(c => ['할일', '진행', '결정', '질문'].includes(c[0])),
   JSON.stringify(chips.map(c => c[0])))
@@ -112,7 +112,7 @@ ok('완료한 할일은 지나온 것으로 내려감',
 
 // 삭제도 종류별로 올바른 배열에서 빠진다
 ln.once('dialog', d => d.accept())
-await ln.locator('.wo-decision:has(.wo-kind-progress) .wo-x').first().click()
+await ln.locator('.wo-action:has(.wo-kind-progress) .wo-x').first().click()
 await ln.waitForTimeout(800)
 const wo2 = await ln.evaluate((id) => window.lightnote.workObjectGet(id), ids.pg)
 ok('진행 한 줄을 지우면 progressLog 에서만 빠짐',

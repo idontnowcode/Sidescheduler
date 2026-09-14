@@ -99,7 +99,7 @@ ok('나머지 할일(운영 배포)은 그대로 남아 있음 (다른 배열이
   JSON.stringify((afterChange.nextActions || []).map(a => a.text)))
 
 const tagAfter = await ln.evaluate(() =>
-  Array.from(document.querySelectorAll('.wo-log .wo-decision button.wo-kind-progress')).map(b => b.textContent))
+  Array.from(document.querySelectorAll('.wo-log .wo-action button.wo-kind-progress')).map(b => b.textContent))
 ok('화면에도 진행 태그로 바뀌어 보임', tagAfter.includes('진행'), JSON.stringify(tagAfter))
 
 // ── 7) 컨텍스트 메뉴 clamp ───────────────────────────────────────────────
