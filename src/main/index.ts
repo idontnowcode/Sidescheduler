@@ -256,8 +256,11 @@ function openDashboard(view?: string): void {
 // LightNote는 이미 독립된 창(openLightNoteWindow)이라 그대로 잘 열린다.
 function setSidebarHidden(hidden: boolean): void {
   saveSettings({ sidebarHidden: hidden })
-  if (hidden) mainWindow?.hide()
-  else mainWindow?.show()
+  if (hidden) {
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.hide()
+  } else {
+    showMainWindow()
+  }
   tray?.setContextMenu(buildTrayMenu())
 }
 
@@ -301,7 +304,16 @@ function createTray(): void {
   tray = new Tray(icon)
   tray.setToolTip('Daily Sidebar Planner')
   tray.setContextMenu(buildTrayMenu())
-  tray.on('click', () => mainWindow?.show())
+  tray.on('click', () => showMainWindow())
+}
+
+/** mainWindow may have been closed/destroyed by the user; recreate it if needed
+ *  rather than calling a method on a destroyed BrowserWindow (throws). */
+function showMainWindow(): void {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    createWindow()
+  }
+  mainWindow?.show()
 }
 
 /** Notify all data-bearing windows that something changed. */
@@ -1146,7 +1158,7 @@ app.whenReady().then(() => {
 })
 app.on('window-all-closed', () => { /* keep alive in tray */ })
 app.on('second-instance', (_e, argv) => {
-  mainWindow?.show()
+  showMainWindow()
   // Windows/Linux deliver the deep link to the already-running instance here.
   handleDeepLink(deepLinkFromArgv(argv))
 })
