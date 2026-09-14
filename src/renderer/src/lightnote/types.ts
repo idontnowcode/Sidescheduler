@@ -188,7 +188,7 @@ declare global {
       getTemplate: (id: string) => Promise<{ id: string; name: string; delta: unknown } | null>
       saveTemplate: (name: string, delta: unknown) => Promise<PageTemplate>
       removeTemplate: (id: string) => Promise<{ success: boolean }>
-      exportPdf: (title: string, html: string) => Promise<{ success?: boolean; canceled?: boolean; filePath?: string; error?: string }>
+      exportPdf: (title: string, html: string, pageId?: string) => Promise<{ success?: boolean; canceled?: boolean; filePath?: string; error?: string }>
       attachPick: (pageId: string) => Promise<{ success?: boolean; canceled?: boolean; files?: { stored: string; name: string; size: number }[]; error?: string }>
       attachOpen: (pageId: string, stored: string) => Promise<{ success?: boolean; error?: string }>
       attachReveal: (pageId: string, stored: string) => Promise<{ success?: boolean; error?: string }>

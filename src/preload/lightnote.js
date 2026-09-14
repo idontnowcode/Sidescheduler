@@ -49,7 +49,7 @@ contextBridge.exposeInMainWorld('lightnote', {
   removeTemplate: (id) => ipcRenderer.invoke('lightnote:templates:remove', { id }),
 
   // PDF 내보내기
-  exportPdf: (title, html) => ipcRenderer.invoke('lightnote:export-pdf', { title, html }),
+  exportPdf: (title, html, pageId) => ipcRenderer.invoke('lightnote:export-pdf', { title, html, pageId }),
 
   // 파일 첨부
   attachPick: (pageId) => ipcRenderer.invoke('lightnote:attach:pick', { pageId }),

@@ -331,10 +331,30 @@ function registerIpcHandlers(ipcMain, getWindow, safeStorage, dialog, app, sched
   ipcMain.handle('lightnote:templates:save', async (_, { name, delta }) => templates.save(name, delta));
   ipcMain.handle('lightnote:templates:remove', async (_, { id }) => templates.remove(id));
 
+  // 업무 속성의 필드 섹션(배경/목적/진행 현황/Action Item/의사결정 필요 사항)을
+  // PDF 맨 위 "업무 요약" 블록으로 그린다. buildFieldSections이 어떤 필드를
+  // 거를지(미완료만/미해결만/시간순 등) 이미 정해두므로 여기선 HTML로 옮기기만
+  // 한다 — "업무 진행 현황 보고서" export와 규칙이 어긋날 일이 없다.
+  function workObjectSectionsHtml(sections) {
+    if (!sections.length) return '';
+    let out = '<div class="ln-pdf-wo"><h2 class="ln-pdf-wo-title">업무 요약</h2>';
+    for (const s of sections) {
+      if (s.lines === null) {
+        out += `<p class="ln-pdf-wo-line">${escapeHtml(s.label)}</p>`;
+        continue;
+      }
+      out += `<div class="ln-pdf-wo-field"><div class="ln-pdf-wo-label">${escapeHtml(s.label)}</div><ul>`;
+      for (const line of s.lines) out += `<li>${escapeHtml(line.replace(/^- /, ''))}</li>`;
+      out += '</ul></div>';
+    }
+    out += '</div><hr class="ln-pdf-wo-sep">';
+    return out;
+  }
+
   // === PDF 내보내기 ===
   // 편집기 본문 HTML을 그대로 넘겨받아, 화면 UI가 섞이지 않도록 보이지 않는
   // 창에 인쇄용 스타일로 렌더한 뒤 printToPDF 한다.
-  ipcMain.handle('lightnote:export-pdf', async (_, { title, html }) => {
+  ipcMain.handle('lightnote:export-pdf', async (_, { title, html, pageId }) => {
     if (!dialog) return { error: 'NO_DIALOG' };
     let win = null;
     try {
@@ -345,6 +365,15 @@ function registerIpcHandlers(ipcMain, getWindow, safeStorage, dialog, app, sched
         filters: [{ name: 'PDF', extensions: ['pdf'] }],
       });
       if (res.canceled || !res.filePath) return { canceled: true };
+
+      // 업무 속성이 켜져 있는 페이지면 본문 앞에 요약을 붙인다. 예전엔 편집기
+      // 본문 HTML만 넘겨받아서, 오른쪽 열에 적어둔 배경/목적/할일 등은
+      // PDF에 아예 나오지 않았다.
+      let woHtml = '';
+      if (pageId) {
+        const wo = await workObjectStorage.get(pageId);
+        if (wo && wo.enabled) woHtml = workObjectSectionsHtml(reportExport.buildFieldSections(wo));
+      }
 
       const doc = `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(title || '')}</title>
 <style>
@@ -358,8 +387,15 @@ function registerIpcHandlers(ipcMain, getWindow, safeStorage, dialog, app, sched
   pre, .ql-code-block-container { background: #f4f4f4; padding: 8px; border-radius: 4px; white-space: pre-wrap; }
   a { color: #0b57d0; }
   ol, ul { padding-left: 22px; }
+  .ln-pdf-wo { margin-bottom: 6px; }
+  .ln-pdf-wo-title { font-size: 12pt; margin: 0 0 8px; color: #333; }
+  .ln-pdf-wo-line { margin: 0 0 6px; font-weight: 600; }
+  .ln-pdf-wo-field { margin: 0 0 8px; }
+  .ln-pdf-wo-label { font-weight: 600; margin-bottom: 2px; }
+  .ln-pdf-wo-field ul { margin: 0; padding-left: 20px; }
+  .ln-pdf-wo-sep { border: none; border-top: 1px solid #ccc; margin: 14px 0; }
 </style></head>
-<body><h1 class="ln-doc-title">${escapeHtml(title || '')}</h1>${html || ''}</body></html>`;
+<body><h1 class="ln-doc-title">${escapeHtml(title || '')}</h1>${woHtml}${html || ''}</body></html>`;
 
       const { BrowserWindow } = require('electron');
       win = new BrowserWindow({ show: false, webPreferences: { offscreen: true, javascript: false } });

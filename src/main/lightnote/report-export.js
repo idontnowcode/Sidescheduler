@@ -20,10 +20,11 @@ function fmtMD(ts) {
   return `${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}`;
 }
 
-// Build one work item's block. Empty fields are omitted entirely — the
-// sub-letters (a/b/c…) are assigned to whatever's actually present, in order,
-// so there are never gaps like "a. … c. …" from a skipped field.
-function buildItemBlock(index, title, wo) {
+// 필드 → 섹션 목록. Action Item(미완료만) / 의사결정 필요사항(미해결만) /
+// 진행 현황(시간순) 등 "무엇을 어떻게 거를지"는 여기 한 곳에만 있다 —
+// 개조식 보고서 텍스트와 PDF 내보내기의 "업무 요약" 블록이 이 로직을
+// 같이 쓰므로, 둘 사이에 규칙이 어긋날 일이 없다.
+function buildFieldSections(wo) {
   const sections = []; // { label, lines: string[] | null (null = single-line, label already has the value) }
 
   if (wo.due) sections.push({ label: `목표 기한: ${fmtDate(wo.due)}`, lines: null });
@@ -46,6 +47,14 @@ function buildItemBlock(index, title, wo) {
   const pending = (wo.pendingDecisions || []).filter((p) => !p.resolved);
   if (pending.length) sections.push({ label: '의사결정 필요 사항', lines: pending.map((p) => `- ${p.text}`) });
 
+  return sections;
+}
+
+// Build one work item's block. Empty fields are omitted entirely — the
+// sub-letters (a/b/c…) are assigned to whatever's actually present, in order,
+// so there are never gaps like "a. … c. …" from a skipped field.
+function buildItemBlock(index, title, wo) {
+  const sections = buildFieldSections(wo);
   const out = [`${index}. ${title || '(제목 없음)'}`];
   sections.forEach((s, i) => {
     const letter = LETTERS[i] || `(${i + 1})`;
@@ -78,4 +87,4 @@ async function buildReport(pageIds) {
   return { text: out.join('\n').trimEnd() + '\n', count: items.length };
 }
 
-module.exports = { buildReport };
+module.exports = { buildReport, buildFieldSections };

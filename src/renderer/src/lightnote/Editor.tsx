@@ -1562,13 +1562,15 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
 
   // ── PDF 내보내기 ────────────────────────────────────────────────────────
   // 편집기 본문 HTML을 그대로 넘긴다(이미지는 델타에 base64로 들어있어 그대로
-  // 실려 나가고, 첨부 링크는 인쇄본에서 텍스트로 남는다).
+  // 실려 나가고, 첨부 링크는 인쇄본에서 텍스트로 남는다). pageId도 같이
+  // 넘겨서, 업무 속성이 켜진 페이지면 배경/목적/할일 등이 맨 위 "업무 요약"
+  // 블록으로 같이 나간다 — 예전엔 본문 HTML만 넘겨서 이 내용이 통째로 빠졌었다.
   const exportPdf = useCallback(async () => {
     const q = quillRef.current
     if (!q) return
     if (isDirtyRef.current) await savePage()
     const title = (document.getElementById('ln-page-title') as HTMLInputElement)?.value?.trim() || 'Untitled'
-    const r = await window.lightnote.exportPdf(title, q.root.innerHTML).catch(() => null)
+    const r = await window.lightnote.exportPdf(title, q.root.innerHTML, currentPageRef.current?.pageId).catch(() => null)
     if (r?.error) alert('PDF 내보내기에 실패했습니다.')
   }, [savePage])
 
