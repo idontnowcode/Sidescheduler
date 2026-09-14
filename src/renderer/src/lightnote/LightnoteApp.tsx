@@ -183,6 +183,27 @@ export default function LightnoteApp() {
     editorRef.current?.clearEditor()
   }, [])
 
+  // 즐겨찾기 정리하듯 탭 순서를 바꾼다. 보이는 탭이든 오버플로 드롭다운
+  // 안 탭이든 같은 tabs 배열의 앞/뒤 구간일 뿐이라, 자리를 옮기면 보이는
+  // 쪽/숨은 쪽도 자연히 같이 바뀐다 — 따로 다룰 필요가 없다.
+  //
+  // toIndex는 TabBar가 이미 "드래그한 탭을 뺀 배열" 기준으로 계산해 넘긴
+  // 인덱스다 — 여기서 또 위치를 보정하면(원래 자리가 목표보다 앞일 때의
+  // 밀림 보정) 이웃 기반 드롭에는 맞지만, 오버플로 버튼처럼 특정 이웃이
+  // 아니라 고정된 경계 인덱스로 옮기는 경우엔 보정이 중복 적용돼 되레
+  // 아직 보이는 자리로 되돌아가 버렸다. 그래서 여기선 그대로 꽂기만 한다.
+  const reorderTabs = useCallback((dragId: string, toIndex: number) => {
+    setTabs((prev) => {
+      const dragged = prev.find(t => t.pageId === dragId)
+      if (!dragged) return prev
+      const without = prev.filter(t => t.pageId !== dragId)
+      const clamped = Math.max(0, Math.min(toIndex, without.length))
+      const next = without.slice()
+      next.splice(clamped, 0, dragged)
+      return next
+    })
+  }, [])
+
   // 본문에서 고른 문장을 업무 속성으로 보낸다. 업무 속성이 아직 없으면
   // 이때 켜진다 — 메모를 쓰다가 '이건 업무다' 싶을 때 그 자리에서 시작하는 흐름.
   const promoteToWork = useCallback(async (
@@ -348,6 +369,8 @@ export default function LightnoteApp() {
               onClose={closeTab}
               onCloseOthers={closeOtherTabs}
               onCloseAll={closeAllTabs}
+              onReorder={reorderTabs}
+              onOpenInNewWindow={(t) => window.lightnote.openInNewWindow?.(t.notebookId, t.sectionId, t.pageId)}
             />
           )}
           <Editor
