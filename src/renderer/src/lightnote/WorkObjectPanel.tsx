@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import type { WorkObject, WorkStatus, WorkPriority, WorkAction, WorkDecision, WorkDocLink, PageRefLoc, WorkProgressEntry, WorkPendingDecision } from './types'
+import { useClampedMenuPosition } from './clampMenu'
 
 const STATUSES: WorkStatus[] = ['예정', '진행중', '대기', '완료', '보류']
 const PRIORITIES: WorkPriority[] = ['', '상', '중', '하']
@@ -74,6 +75,23 @@ export default function WorkObjectPanel({ pageId, noteTitle, onComplete, onOpenP
   const [newEntry, setNewEntry] = useState('')
   const [newKind, setNewKind] = useState<EntryKind>('action')
   const textTimer = useRef<ReturnType<typeof setTimeout>>()
+  // 기록 한 줄의 태그(칩)를 눌러 종류를 바꾸는 팝업.
+  const [kindMenu, setKindMenu] = useState<{ x: number; y: number; row: Row } | null>(null)
+  const kindMenuRef = useRef<HTMLDivElement>(null)
+  useClampedMenuPosition(kindMenuRef, kindMenu)
+  useEffect(() => {
+    if (!kindMenu) return
+    const close = () => setKindMenu(null)
+    const id = setTimeout(() => {
+      document.addEventListener('click', close)
+      document.addEventListener('contextmenu', close)
+    }, 0)
+    return () => {
+      clearTimeout(id)
+      document.removeEventListener('click', close)
+      document.removeEventListener('contextmenu', close)
+    }
+  }, [kindMenu])
   // 관련 문서 link editor.
   const [adding, setAdding] = useState<null | 'url' | 'page'>(null)
   const [urlVal, setUrlVal] = useState('')
@@ -154,11 +172,6 @@ export default function WorkObjectPanel({ pageId, noteTitle, onComplete, onOpenP
   const setActions = (next: WorkAction[]) => { setWo({ ...wo, nextActions: next }); persist({ nextActions: next }) }
   const setDecisions = (next: WorkDecision[]) => { setWo({ ...wo, decisions: next }); persist({ decisions: next }) }
 
-  const addAction = () => {
-    const t = newAction.trim(); if (!t) return
-    setActions([...wo.nextActions, { id: uid(), text: t, done: false, doneAt: null, due: null, taskId: null }])
-    setNewAction('')
-  }
   const toggleAction = (id: string) => {
     const target = wo.nextActions.find(a => a.id === id)
     const nextDone = !target?.done
@@ -177,11 +190,6 @@ export default function WorkObjectPanel({ pageId, noteTitle, onComplete, onOpenP
     else setError('태스크 등록에 실패했습니다.')
   }
 
-  const addDecision = () => {
-    const t = newDecision.trim(); if (!t) return
-    setDecisions([{ id: uid(), at: Date.now(), text: t }, ...wo.decisions])
-    setNewDecision('')
-  }
   const editDecision = (id: string, text: string) => setDecisions(wo.decisions.map(d => d.id === id ? { ...d, text } : d))
   const editDecisionDate = (id: string, dateStr: string) => {
     const at = fromDateInput(dateStr); if (at == null) return
@@ -199,11 +207,6 @@ export default function WorkObjectPanel({ pageId, noteTitle, onComplete, onOpenP
   const progressLog = wo.progressLog || []
   const pendingDecisions = wo.pendingDecisions || []
   const setProgressLog = (next: WorkProgressEntry[]) => { setWo({ ...wo, progressLog: next }); persist({ progressLog: next }) }
-  const addProgress = () => {
-    const t = newProgress.trim(); if (!t) return
-    setProgressLog([{ id: uid(), at: Date.now(), text: t }, ...progressLog])
-    setNewProgress('')
-  }
   const editProgress = (id: string, text: string) => setProgressLog(progressLog.map(p => p.id === id ? { ...p, text } : p))
   const editProgressDate = (id: string, dateStr: string) => {
     const at = fromDateInput(dateStr); if (at == null) return
@@ -226,11 +229,6 @@ export default function WorkObjectPanel({ pageId, noteTitle, onComplete, onOpenP
     setNewEntry('')
   }
 
-  const addPending = () => {
-    const t = newPending.trim(); if (!t) return
-    setPendingDecisions([...pendingDecisions, { id: uid(), text: t, raisedAt: Date.now(), resolved: false, resolvedAt: null }])
-    setNewPending('')
-  }
   const editPending = (id: string, text: string) => setPendingDecisions(pendingDecisions.map(p => p.id === id ? { ...p, text } : p))
   const toggleResolved = (id: string) => {
     setPendingDecisions(pendingDecisions.map(p => p.id === id
@@ -310,8 +308,44 @@ export default function WorkObjectPanel({ pageId, noteTitle, onComplete, onOpenP
     ...pendingDecisions.filter(q => q.resolved).map(q => ({ kind: 'pending', id: q.id, q, at: q.resolvedAt ?? 0 })),
   ].sort((x, y) => (y as { at: number }).at - (x as { at: number }).at) as Row[]
 
+  // 태그(칩)를 눌러 종류를 바꾼다. 텍스트는 그대로 두고 배열만 옮긴다.
+  // 두 배열이 동시에 바뀌므로 setActions/setPendingDecisions 같은 개별
+  // setter를 두 번 부르지 않는다 — 그러면 각자 오래된 wo 스냅샷을 스프레드해
+  // 서로의 변경을 지워버린다. 하나의 patch로 합쳐서 한 번에 반영한다.
+  const changeKind = (row: Row, next: EntryKind) => {
+    if (!wo || row.kind === next) { setKindMenu(null); return }
+    const now = Date.now()
+    const text = row.kind === 'action' ? row.a.text : row.kind === 'pending' ? row.q.text
+      : row.kind === 'progress' ? row.p.text : row.d.text
+
+    const patch: Partial<WorkObject> = {}
+    if (row.kind === 'action') patch.nextActions = wo.nextActions.filter(x => x.id !== row.id)
+    else if (row.kind === 'pending') patch.pendingDecisions = pendingDecisions.filter(x => x.id !== row.id)
+    else if (row.kind === 'progress') patch.progressLog = progressLog.filter(x => x.id !== row.id)
+    else patch.decisions = wo.decisions.filter(x => x.id !== row.id)
+
+    if (next === 'action') {
+      patch.nextActions = [...(patch.nextActions ?? wo.nextActions), { id: row.id, text, done: false, doneAt: null, due: null, taskId: null }]
+    } else if (next === 'pending') {
+      patch.pendingDecisions = [...(patch.pendingDecisions ?? pendingDecisions), { id: row.id, text, raisedAt: now, resolved: false, resolvedAt: null }]
+    } else if (next === 'progress') {
+      patch.progressLog = [{ id: row.id, at: now, text }, ...(patch.progressLog ?? progressLog)]
+    } else {
+      patch.decisions = [{ id: row.id, at: now, text }, ...(patch.decisions ?? wo.decisions)]
+    }
+
+    setWo({ ...wo, ...patch })
+    persist(patch)
+    setKindMenu(null)
+  }
+
   const renderRow = (row: Row) => {
-    const chip = <span className={`wo-kind wo-kind-${row.kind}`}>{KIND_LABEL[row.kind]}</span>
+    const chip = (
+      <button type="button" className={`wo-kind wo-kind-${row.kind} wo-kind-btn`} title="태그 바꾸기"
+        onClick={(e) => { e.stopPropagation(); setKindMenu({ x: e.clientX, y: e.clientY, row }) }}>
+        {KIND_LABEL[row.kind]}
+      </button>
+    )
     if (row.kind === 'action') {
       const a = row.a
       return (
@@ -361,18 +395,20 @@ export default function WorkObjectPanel({ pageId, noteTitle, onComplete, onOpenP
     const todo = (wo.nextActions || []).filter(a => !a.done)
     const prog = (wo.progressLog || []).slice(0, 3)
     const pend = (wo.pendingDecisions || []).filter(d => !d.resolved)
-    const rows: { k: string; v: React.ReactNode }[] = []
+    // v를 줄 배열로 두면 한 줄씩 렌더한다. '·'로 이어 붙인 문자열 하나로
+    // 두면 줄바꿈이 일어나도 항목 경계가 안 보여 전부 한 문단처럼 읽혔다.
+    const rows: { k: string; v: string; lines?: string[] }[] = []
     if (background.trim()) rows.push({ k: '배경', v: background.trim() })
     if (purpose.trim()) rows.push({ k: '목적', v: purpose.trim() })
     if (prog.length) rows.push({
-      k: '진행',
-      v: prog.map(x => `${x.text} (${fmtDate(x.at)})`).join('  ·  '),
+      k: '진행', v: '',
+      lines: prog.map(x => `${x.text} (${fmtDate(x.at)})`),
     })
     if (todo.length) rows.push({
-      k: '할일',
-      v: todo.map(a => `${a.text}${a.due ? ` (~${fmtDate(a.due)})` : ''}`).join('  ·  '),
+      k: '할일', v: '',
+      lines: todo.map(a => `${a.text}${a.due ? ` (~${fmtDate(a.due)})` : ''}`),
     })
-    if (pend.length) rows.push({ k: '결정필요', v: pend.map(d => d.text).join('  ·  ') })
+    if (pend.length) rows.push({ k: '결정필요', v: '', lines: pend.map(d => d.text) })
     if (depts.trim()) rows.push({ k: '관련', v: depts.trim() })
 
     return (
@@ -395,7 +431,13 @@ export default function WorkObjectPanel({ pageId, noteTitle, onComplete, onOpenP
             {rows.map(r => (
               <div className="wo-sum-row" key={r.k}>
                 <span className="wo-sum-k">{r.k}</span>
-                <span className="wo-sum-v" title={typeof r.v === 'string' ? r.v : undefined}>{r.v}</span>
+                {r.lines ? (
+                  <span className="wo-sum-v wo-sum-v-lines">
+                    {r.lines.map((line, i) => <span key={i} className="wo-sum-vline" title={line}>{line}</span>)}
+                  </span>
+                ) : (
+                  <span className="wo-sum-v" title={r.v}>{r.v}</span>
+                )}
               </div>
             ))}
           </div>
@@ -539,6 +581,19 @@ export default function WorkObjectPanel({ pageId, noteTitle, onComplete, onOpenP
           <div className="wo-log-empty">아직 기록이 없습니다. 위에서 종류를 고르고 한 줄 적어보세요.</div>
         )}
       </div>
+
+      {kindMenu && (
+        <div ref={kindMenuRef} className="context-menu" style={{ left: kindMenu.x, top: kindMenu.y }}
+          onClick={e => e.stopPropagation()}>
+          {(['action', 'progress', 'decision', 'pending'] as EntryKind[])
+            .filter(k => k !== kindMenu.row.kind)
+            .map(k => (
+              <div key={k} className="ctx-item" onClick={() => changeKind(kindMenu.row, k)}>
+                <span className={`wo-kind wo-kind-${k}`}>{KIND_LABEL[k]}</span>로 바꾸기
+              </div>
+            ))}
+        </div>
+      )}
 
       <div className="wo-report">
         <button className="wo-report-toggle" onClick={() => setReportOpen(v => !v)}>

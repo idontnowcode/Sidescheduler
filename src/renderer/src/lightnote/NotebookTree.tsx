@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useRef, forwardRef, useImperativeHandle } from 'react'
 import type { Notebook, Section, Page, Selected, TrashNode, PageTemplate } from './types'
 import TrashPanel, { type TrashPanelHandle } from './TrashPanel'
+import { useClampedMenuPosition } from './clampMenu'
 
 interface ContextMenuState {
   x: number; y: number
@@ -90,6 +91,9 @@ const NotebookTree = forwardRef<TreeHandle, Props>(({ selected, onPageSelect, on
   // 템플릿에서 새 페이지 만들기 (대상 섹션 + 템플릿 목록)
   const [templatePicker, setTemplatePicker] = useState<{ notebookId: string; sectionId: string; list: PageTemplate[] } | null>(null)
   const [ctxMenu, setCtxMenu] = useState<ContextMenuState | null>(null)
+  const ctxMenuRef = useRef<HTMLDivElement>(null)
+  // 트리 아래쪽에서 우클릭하면 메뉴가 창 밖으로 나가 삭제 등을 못 누르던 문제.
+  useClampedMenuPosition(ctxMenuRef, ctxMenu)
   const [inputModal, setInputModal] = useState<InputModalState | null>(null)
   const [inputValue, setInputValue] = useState('')
   const [dragPage, setDragPage] = useState<{ nbId: string; secId: string; pageId: string } | null>(null)
@@ -825,7 +829,7 @@ const NotebookTree = forwardRef<TreeHandle, Props>(({ selected, onPageSelect, on
         const isBuiltinNb = ctxMenu.target.type === 'notebook' &&
           !!notebooks.find(n => n.id === ctxMenu.target.notebookId)?.builtin
         return (
-        <div className="context-menu" style={{ left: ctxMenu.x, top: ctxMenu.y }} onClick={e => e.stopPropagation()}>
+        <div ref={ctxMenuRef} className="context-menu" style={{ left: ctxMenu.x, top: ctxMenu.y }} onClick={e => e.stopPropagation()}>
           {msel.length > 1 && (
             <>
               <div className="ctx-item ctx-danger" onClick={deleteSelected}>🗑 선택 삭제 ({msel.length})</div>

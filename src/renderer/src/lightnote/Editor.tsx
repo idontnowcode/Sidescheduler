@@ -5,6 +5,7 @@ import 'quill-table-up/index.css'
 import 'quill-table-up/table-creator.css'
 import type { PageRefLoc, PageVersion } from './types'
 import { serializeForOrganize, markdownToQuillDelta, type ImageOp } from './organize-utils'
+import { useClampedMenuPosition } from './clampMenu'
 
 // Full table support (insert/delete row+column, MERGE/SPLIT cells, resize) via
 // quill-table-up — replaces Quill's basic built-in table module.
@@ -374,6 +375,9 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
   const [toast, setToast] = useState('')
   // 본문 우클릭 → 업무 속성으로 보내기 메뉴.
   const [promoteMenu, setPromoteMenu] = useState<{ x: number; y: number; text: string } | null>(null)
+  const promoteMenuRef = useRef<HTMLDivElement>(null)
+  // 편집기 아래쪽에서 우클릭하면 메뉴가 창 밖으로 나가던 문제.
+  useClampedMenuPosition(promoteMenuRef, promoteMenu)
   const [isDirty, setIsDirty] = useState(false)
   const [counts, setCounts] = useState({ chars: 0, words: 0 })
   // Format painter: holds the copied inline formats while "armed".
@@ -2026,7 +2030,7 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
       )}
 
       {promoteMenu && (
-        <div className="context-menu ln-promote-menu" style={{ left: promoteMenu.x, top: promoteMenu.y }}
+        <div ref={promoteMenuRef} className="context-menu ln-promote-menu" style={{ left: promoteMenu.x, top: promoteMenu.y }}
           onClick={e => e.stopPropagation()}>
           <div className="ln-promote-head" title={promoteMenu.text}>{promoteMenu.text}</div>
           <div className="ctx-item" onClick={() => {

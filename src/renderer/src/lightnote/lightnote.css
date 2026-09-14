@@ -1396,6 +1396,15 @@ button.ql-text-to-table, button.ql-table-to-text { width: 30px !important; }
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
   overflow: hidden;
 }
+/* 진행/할일/결정필요처럼 여러 건을 '·'로 이어 붙이면 줄바꿈이 되어도 항목
+   경계가 안 보여 한 문단처럼 읽혔다 — 항목마다 자기 줄을 갖게 한다. */
+.wo-sum-v-lines {
+  display: flex; flex-direction: column; gap: 2px;
+  -webkit-line-clamp: unset; /* 위 .wo-sum-v의 line-clamp 무시 */
+}
+.wo-sum-vline {
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
 .wo-sum-empty { font-size: 12px; color: var(--text-dim); line-height: 1.6; }
 
 /* 본문 우클릭 → 업무 속성으로 보내기 */
@@ -1494,6 +1503,7 @@ button.wo-kind:hover { color: var(--text); background: var(--bg3); }
 .wo-kind-pending.active  { background: #c07a1e; }
 /* 목록 안의 칩은 눌리지 않는 표시용 — 색만 옅게 */
 .wo-action .wo-kind, .wo-decision .wo-kind { flex: 0 0 auto; opacity: 0.85; }
+.wo-action .wo-kind:hover, .wo-decision .wo-kind:hover { opacity: 1; }
 .wo-action .wo-kind-action   { color: #7aa9ee; border-color: rgba(47,111,208,0.45); }
 .wo-decision .wo-kind-progress { color: #6cc596; border-color: rgba(47,143,91,0.45); }
 .wo-decision .wo-kind-decision { color: #ad94ec; border-color: rgba(122,92,208,0.45); }
