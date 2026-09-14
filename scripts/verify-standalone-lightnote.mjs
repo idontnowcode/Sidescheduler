@@ -1,7 +1,9 @@
 // 피드백 1: 사이드바가 거슬리니 트레이 아이콘/단축키로 LightNote만 독립
 // 앱처럼 쓸 수 있게. 실제 만든 것:
-//  - 설정에 sidebarHidden을 추가, 켜져 있으면 다음 실행 때도 사이드바가
-//    자동으로 뜨지 않는다(트레이 "Show Sidebar" 체크박스로 켜고 끔).
+//  - sidebarHidden 기본값을 true로 바꿔, 이제 앱을 켜면 사이드바가 아예
+//    안 뜬다(트레이 "Show Sidebar" 체크박스로 필요할 때만 켤 수 있음).
+//  - 대시보드(Insights/Habits/포커스 타이머 등)는 트레이의 "Open
+//    Dashboard"로 사이드바 없이도 그대로 열 수 있다.
 //  - 사이드바가 숨어 있어도 LightNote는 원래도 독립된 창이라 그대로 열림.
 //  - Ctrl+Shift+L 단축키로 사이드바 없이 바로 LightNote를 연다.
 // 네이티브 트레이 메뉴 클릭과 실제 OS 전역 단축키는 Playwright가 직접
@@ -15,7 +17,9 @@ import { join } from 'node:path'
 const results = []
 const ok = (n, p, i = '') => { results.push(p); console.log(`${p ? 'PASS' : 'FAIL'}  ${n}${i ? '  ·  ' + i : ''}`) }
 
-// ── 1) 기본값(설정 안 건드림)은 그대로 사이드바가 뜬다 (회귀 방지) ────────
+// ── 1) 기본값(설정 안 건드림)은 이제 사이드바가 숨겨진 채로 시작한다 ──────
+//    (피드백: "사이드바는 앱 실행했을 때 이제 안 나와도 돼" — 기본값 자체를
+//    숨김으로 바꿈. 대시보드는 트레이의 "Open Dashboard"로 계속 열 수 있음)
 {
   const tempRoot = mkdtempSync(join(tmpdir(), 'dsp-standalone-default-'))
   const app = await electron.launch({ args: ['out/main/index.js'], env: { ...process.env, DSP_TEST_DATA_DIR: tempRoot, NODE_ENV: 'production' } })
@@ -26,7 +30,24 @@ const ok = (n, p, i = '') => { results.push(p); console.log(`${p ? 'PASS' : 'FAI
     const w = BrowserWindow.getAllWindows().find(x => !x.isDestroyed())
     return w ? w.isVisible() : null
   })
-  ok('설정을 안 건드리면 기본값 그대로 사이드바가 보임(회귀 없음)', visible === true, String(visible))
+  ok('설정을 안 건드리면 기본값으로 사이드바가 숨겨진 채 시작함', visible === false, String(visible))
+  await app.close()
+}
+
+// ── 1b) 사이드바를 명시적으로 켜둔 사용자는 그 선택이 존중된다 ───────────
+{
+  const tempRoot = mkdtempSync(join(tmpdir(), 'dsp-standalone-explicit-shown-'))
+  mkdirSync(join(tempRoot, 'userData'), { recursive: true })
+  writeFileSync(join(tempRoot, 'userData', 'window-settings.json'), JSON.stringify({ sidebarHidden: false }, null, 2))
+  const app = await electron.launch({ args: ['out/main/index.js'], env: { ...process.env, DSP_TEST_DATA_DIR: tempRoot, NODE_ENV: 'production' } })
+  const main = await app.firstWindow()
+  await main.waitForFunction(() => !!window.electronAPI, null, { timeout: 10000 })
+  await main.waitForTimeout(800)
+  const visible = await app.evaluate(({ BrowserWindow }) => {
+    const w = BrowserWindow.getAllWindows().find(x => !x.isDestroyed())
+    return w ? w.isVisible() : null
+  })
+  ok('사용자가 명시적으로 사이드바를 켜두면 그 선택이 유지됨', visible === true, String(visible))
   await app.close()
 }
 
@@ -58,7 +79,7 @@ const lnVisible = await ln.evaluate(() => document.visibilityState === 'visible'
 ok('사이드바가 숨어 있어도 LightNote는 독립적으로 잘 열림(단독앱처럼 사용 가능)', lnVisible === true)
 
 const sidebarStillHidden = await app.evaluate(({ BrowserWindow }) =>
-  BrowserWindow.getAllWindows().filter(w => !w.isDestroyed() && !w.webContents.getURL().includes('lightnote')).every(w => !w.isVisible()))
+  BrowserWindow.getAllWindows().filter(w => !w.isDestroyed() && !w.webContents.getURL().includes('#lightnote')).every(w => !w.isVisible()))
 ok('LightNote를 여는 동안에도 사이드바는 계속 숨겨진 채로 있음', sidebarStillHidden === true)
 
 // ── 4) 할일 팝업도 사이드바 없이 독립적으로 열림 (같은 취지) ─────────────

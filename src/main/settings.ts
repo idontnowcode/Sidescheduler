@@ -33,7 +33,10 @@ const DEFAULT: WindowSettings = {
   workStartHour: 9,
   workEndHour: 18,
   reminderEnabled: true,
-  sidebarHidden: false,
+  // 피드백: "사이드바가 거슬리고 버튼도 안 쓴다, LightNote만 쓰고 싶다" —
+  // 이제 기본값 자체를 숨김으로 바꾼다. 대시보드(Insights/Habits/포커스
+  // 타이머 등)는 트레이의 "Open Dashboard"로 계속 열 수 있다.
+  sidebarHidden: true,
   actionItemsPinned: true
 }
 
