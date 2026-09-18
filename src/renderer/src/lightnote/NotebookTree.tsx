@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect, useRef, forwardRef, useImperativeHand
 import type { Notebook, Section, Page, Selected, TrashNode, PageTemplate } from './types'
 import TrashPanel, { type TrashPanelHandle } from './TrashPanel'
 import { useClampedMenuPosition } from './clampMenu'
+import { useDragAutoScroll } from './dragAutoScroll'
 
 interface ContextMenuState {
   x: number; y: number
@@ -159,6 +160,9 @@ const NotebookTree = forwardRef<TreeHandle, Props>(({ selected, onPageSelect, on
     }
     await loadWorkPageIds()
   }, [loadNotebooks, loadSections, loadPages, loadWorkPageIds, expandedNbs, expandedSecs])
+
+  // 목록이 길 때 드래그 중 위/아래 가장자리에서 자동 스크롤.
+  const autoScrollRef = useDragAutoScroll()
 
   useImperativeHandle(ref, () => ({
     reload,
@@ -802,7 +806,7 @@ const NotebookTree = forwardRef<TreeHandle, Props>(({ selected, onPageSelect, on
           }}>+</button>
       </div>
 
-      <div className="notebook-tree">
+      <div className="notebook-tree" ref={autoScrollRef}>
         {notebooks.length === 0 ? (
           <div className="empty-hint">Loading…</div>
         ) : (() => {

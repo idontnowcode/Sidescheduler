@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { TocItem } from './types'
+import { useDragAutoScroll } from './dragAutoScroll'
 
 interface Props {
   items: TocItem[]
@@ -13,9 +14,10 @@ interface Props {
 export default function TocPanel({ items, onJump, onMove }: Props) {
   const [drag, setDrag] = useState<number | null>(null)
   const [drop, setDrop] = useState<{ index: number; pos: 'before' | 'after' } | null>(null)
+  const autoScrollRef = useDragAutoScroll()
 
   return (
-    <div className="toc-body">
+    <div className="toc-body" ref={autoScrollRef}>
         {items.length === 0 ? (
           <div className="toc-empty">제목(H1~H3)을 추가하면<br />여기에 목차가 표시됩니다.</div>
         ) : items.map((h) => (
