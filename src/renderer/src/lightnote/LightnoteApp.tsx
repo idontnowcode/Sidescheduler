@@ -1,7 +1,7 @@
-import { useState, useRef, useCallback, useEffect } from 'react'
+import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import 'quill/dist/quill.snow.css'
 import './lightnote.css'
-import type { Selected, TrashNode, SearchResult, TocItem, OpenTab } from './types'
+import type { Selected, TrashNode, SearchResult, TocItem, OpenTab, PageReference } from './types'
 import NotebookTree, { type TreeHandle } from './NotebookTree'
 import Editor, { type EditorHandle } from './Editor'
 import TrashViewer from './TrashViewer'
@@ -13,6 +13,7 @@ import AIAssistant from './AIAssistant'
 import SettingsModal, { initAppearance } from './SettingsModal'
 import TabBar from './TabBar'
 import RightPanel from './RightPanel'
+import ReferencePanel from './ReferencePanel'
 
 export default function LightnoteApp() {
   const [selected, setSelected] = useState<Selected>({ notebookId: null, sectionId: null, pageId: null })
@@ -33,6 +34,15 @@ export default function LightnoteApp() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [aiPanelWidth, setAiPanelWidth] = useState(320)
   const [toc, setToc] = useState<TocItem[]>([])
+  // 참조: 이 페이지의 자료 목록 + 본문 등장 순서(=번호) + 지금 골라 둔 것.
+  const [refs, setRefs] = useState<PageReference[]>([])
+  const [refOrder, setRefOrder] = useState<string[]>([])
+  const [refSelected, setRefSelected] = useState<string[]>([])
+  // 본문 마커를 누를 때마다 올려서 오른쪽 패널을 참조 탭으로 돌린다.
+  const [showRefsKey, setShowRefsKey] = useState(0)
+  // 화면에 보이는 번호는 저장값이 아니라 본문 등장 순서에서 온다.
+  const refIds = useMemo(() => refs.map(r => r.id), [refs])
+  const refNumberOf = useMemo(() => new Map(refOrder.map((id, i) => [id, i + 1])), [refOrder])
   const [showWorkList, setShowWorkList] = useState(false)
   // Resizable side panels (persisted).
   const [leftW, setLeftW] = useState(() => Number(localStorage.getItem('ln-left-w')) || 220)
@@ -230,6 +240,100 @@ export default function LightnoteApp() {
 
   // 본문에서 고른 문장을 업무 속성으로 보낸다. 업무 속성이 아직 없으면
   // 이때 켜진다 — 메모를 쓰다가 '이건 업무다' 싶을 때 그 자리에서 시작하는 흐름.
+  // ── 참조 ──────────────────────────────────────────────────────────────
+  const reloadRefs = useCallback(async (pageId: string | null) => {
+    if (!pageId) { setRefs([]); setRefOrder([]); setRefSelected([]); return }
+    try { setRefs(await window.lightnote.refsList(pageId)) } catch { setRefs([]) }
+  }, [])
+
+  // 노트를 바꾸면 그 노트의 참조로 갈아끼운다. 골라둔 선택은 노트마다 따로다.
+  useEffect(() => {
+    setRefSelected([])
+    reloadRefs(selected.pageId)
+  }, [selected.pageId, reloadRefs])
+
+  // 새로 만든 참조는 만들자마자 커서 자리에 마커로 꽂는다 — 자료만 등록하고
+  // 본문에 넣는 걸 잊으면 "미인용"으로 떠돌기 때문.
+  const addRefAndInsert = useCallback(async (make: () => Promise<PageReference | null>) => {
+    const pageId = selectedRef.current.pageId
+    if (!pageId) return
+    const made = await make()
+    if (!made?.id) return
+    await reloadRefs(pageId)
+    editorRef.current?.insertRefMarker(made.id)
+  }, [reloadRefs])
+
+  const addTextRef = useCallback(async () => {
+    const pageId = selectedRef.current.pageId
+    if (!pageId) return
+    const text = prompt('참조로 남길 내용을 입력하세요 (실험 조건, 인용문, 출처 등)')
+    if (!text?.trim()) return
+    await addRefAndInsert(() => window.lightnote.refsAddText(pageId, text.trim(), text.trim().slice(0, 40)))
+  }, [addRefAndInsert])
+
+  const addImageFileRef = useCallback(async () => {
+    const pageId = selectedRef.current.pageId
+    if (!pageId) return
+    const r = await window.lightnote.refsAddImageFile(pageId)
+    if (!r?.refs?.length) return
+    await reloadRefs(pageId)
+    // 여러 장을 한 번에 고르면 전부 이어서 꽂아 한 묶음이 되게 한다.
+    for (const made of r.refs) editorRef.current?.insertRefMarker(made.id)
+  }, [reloadRefs])
+
+  const addPastedImageRef = useCallback(async () => {
+    const pageId = selectedRef.current.pageId
+    if (!pageId) return
+    try {
+      const items = await navigator.clipboard.read()
+      for (const it of items) {
+        const type = it.types.find(t => t.startsWith('image/'))
+        if (!type) continue
+        const blob = await it.getType(type)
+        const dataUrl: string = await new Promise((res) => {
+          const fr = new FileReader()
+          fr.onload = () => res(String(fr.result))
+          fr.readAsDataURL(blob)
+        })
+        await addRefAndInsert(async () => {
+          const made = await window.lightnote.refsAddImageData(pageId, dataUrl, '붙여넣은 이미지')
+          return 'id' in made ? made : null
+        })
+        return
+      }
+      alert('클립보드에 이미지가 없습니다. 화면을 캡처한 뒤 다시 눌러 주세요.')
+    } catch {
+      alert('클립보드를 읽지 못했습니다.')
+    }
+  }, [addRefAndInsert])
+
+  const removeRef = useCallback(async (ref: PageReference) => {
+    const pageId = selectedRef.current.pageId
+    if (!pageId) return
+    const cited = refOrder.includes(ref.id)
+    const msg = cited
+      ? '이 참조는 본문에서 인용 중입니다. 삭제하면 본문 마커는 [?]로 남습니다. 삭제할까요?'
+      : '이 참조를 삭제할까요?'
+    if (!confirm(msg)) return
+    await window.lightnote.refsRemove(pageId, ref.id)
+    setRefSelected(prev => prev.filter(id => id !== ref.id))
+    await reloadRefs(pageId)
+  }, [refOrder, reloadRefs])
+
+  const renameRef = useCallback(async (ref: PageReference, caption: string) => {
+    const pageId = selectedRef.current.pageId
+    if (!pageId || caption === ref.caption) return
+    await window.lightnote.refsUpdate(pageId, ref.id, { caption })
+    await reloadRefs(pageId)
+  }, [reloadRefs])
+
+  // 본문에서 고른 문장을 참조로. 문장은 본문에 그대로 두고 마커만 덧붙인다.
+  const promoteToRef = useCallback(async (text: string) => {
+    const pageId = selectedRef.current.pageId
+    if (!pageId || !text.trim()) return
+    await addRefAndInsert(() => window.lightnote.refsAddText(pageId, text.trim(), text.trim().slice(0, 40)))
+  }, [addRefAndInsert])
+
   const promoteToWork = useCallback(async (
     kind: 'action' | 'progress' | 'decision' | 'pending', text: string,
   ) => {
@@ -404,6 +508,14 @@ export default function LightnoteApp() {
             onOpenPage={handlePageSelect}
             onHeadingsChange={setToc}
             onPromote={promoteToWork}
+            refIds={refIds}
+            onRefOrderChange={setRefOrder}
+            onPromoteToRef={promoteToRef}
+            onRefMarkerClick={(groupIds) => {
+              // 붙어 있는 마커는 한 문장의 근거 하나 — 묶음을 통째로 연다.
+              setRefSelected(groupIds)
+              setShowRefsKey(n => n + 1)
+            }}
             onTitleChange={(nbId, secId, pageId, title) => {
               treeRef.current?.updatePageTitle(nbId, secId, pageId, title)
               // 탭 이름도 같이 바뀌어야 한다 (이름을 고쳤는데 탭만 옛 이름이면 헷갈린다)
@@ -427,6 +539,24 @@ export default function LightnoteApp() {
             <RightPanel
               width={rightW}
               hasWork={hasWork}
+              refCount={refs.length}
+              showRefsKey={showRefsKey}
+              refs={(
+                <ReferencePanel
+                  pageId={selected.pageId}
+                  refs={refs}
+                  numberOf={refNumberOf}
+                  selected={refSelected}
+                  onSelectedChange={setRefSelected}
+                  onInsertMarker={(id) => editorRef.current?.insertRefMarker(id)}
+                  onJumpToCitation={(id) => editorRef.current?.scrollToRef(id)}
+                  onAddText={addTextRef}
+                  onAddImageFile={addImageFileRef}
+                  onAddImagePaste={addPastedImageRef}
+                  onRemove={removeRef}
+                  onRename={renameRef}
+                />
+              )}
               toc={(
                 <TocPanel
                   items={toc}

@@ -56,6 +56,15 @@ contextBridge.exposeInMainWorld('lightnote', {
   attachOpen: (pageId, stored) => ipcRenderer.invoke('lightnote:attach:open', { pageId, stored }),
   attachReveal: (pageId, stored) => ipcRenderer.invoke('lightnote:attach:reveal', { pageId, stored }),
 
+  // 참조 (논문식 [1] 각주)
+  refsList: (pageId) => ipcRenderer.invoke('lightnote:refs:list', { pageId }),
+  refsAddText: (pageId, text, caption) => ipcRenderer.invoke('lightnote:refs:add-text', { pageId, text, caption }),
+  refsAddImageData: (pageId, dataUrl, caption) => ipcRenderer.invoke('lightnote:refs:add-image-data', { pageId, dataUrl, caption }),
+  refsAddImageFile: (pageId) => ipcRenderer.invoke('lightnote:refs:add-image-file', { pageId }),
+  refsUpdate: (pageId, id, patch) => ipcRenderer.invoke('lightnote:refs:update', { pageId, id, patch }),
+  refsRemove: (pageId, id) => ipcRenderer.invoke('lightnote:refs:remove', { pageId, id }),
+  refsImage: (pageId, file) => ipcRenderer.invoke('lightnote:refs:image', { pageId, file }),
+
   // 페이지 버전 기록
   listVersions: (pageId) => ipcRenderer.invoke('lightnote:versions:list', { pageId }),
   getVersion: (pageId, versionId) => ipcRenderer.invoke('lightnote:versions:get', { pageId, versionId }),

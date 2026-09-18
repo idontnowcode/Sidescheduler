@@ -10,6 +10,7 @@ const reportExport = require('./report-export');
 const customFonts = require('./custom-fonts');
 const pageVersions = require('./page-versions');
 const attachments = require('./attachments');
+const referenceStorage = require('./reference-storage');
 const templates = require('./templates');
 const path = require('path');
 const fs = require('fs').promises;
@@ -41,6 +42,7 @@ function registerIpcHandlers(ipcMain, getWindow, safeStorage, dialog, app, sched
   customFonts.init(APP_ROOT);
   pageVersions.init(DATA_ROOT);
   attachments.init(DATA_ROOT);
+  referenceStorage.init(DATA_ROOT);
   templates.init(DATA_ROOT);
   storage.init(safeStorage);
   // Seed the fixed PARA notebooks if they don't exist yet (built-in defaults).
@@ -173,6 +175,7 @@ function registerIpcHandlers(ipcMain, getWindow, safeStorage, dialog, app, sched
     for (const pid of pageIds) { linkStorage.removePageLinks(pid); noteIndexer.invalidateCache(pid); }
     // Permanently deleted pages lose their work-object metadata too (no orphans).
     workObjectStorage.removeMany(pageIds).catch((e) => console.error('workObject cleanup:', e));
+    referenceStorage.removeMany(pageIds).catch((e) => console.error('reference cleanup:', e));
     pageVersions.removeAll(pageIds).catch((e) => console.error('version cleanup:', e));
     attachments.removeAll(pageIds).catch((e) => console.error('attachment cleanup:', e));
   };
@@ -443,6 +446,47 @@ function registerIpcHandlers(ipcMain, getWindow, safeStorage, dialog, app, sched
     if (!full) return { error: 'BAD_PATH' };
     shell.showItemInFolder(full);
     return { success: true };
+  });
+
+  // === 참조 (논문식 [1] 각주) ===
+  // 본문 마커는 참조 id를 들고 있고, 화면에 보이는 번호는 본문 등장 순서로
+  // 그때그때 계산한다 — 그래서 중간에 인용을 끼워 넣어도 저장값을 건드릴
+  // 필요가 없다.
+  ipcMain.handle('lightnote:refs:list', async (_, { pageId }) => referenceStorage.list(pageId));
+  ipcMain.handle('lightnote:refs:add-text', async (_, { pageId, text, caption }) =>
+    referenceStorage.add(pageId, { kind: 'text', text, caption }));
+  ipcMain.handle('lightnote:refs:update', async (_, { pageId, id, patch }) =>
+    referenceStorage.update(pageId, id, patch || {}));
+  ipcMain.handle('lightnote:refs:remove', async (_, { pageId, id }) => referenceStorage.remove(pageId, id));
+  ipcMain.handle('lightnote:refs:image', async (_, { pageId, file }) => referenceStorage.imageDataUrl(pageId, file));
+
+  // 클립보드에서 바로 붙여넣은 이미지(캡처 등) — data URI로 받아 파일로 떨군다.
+  ipcMain.handle('lightnote:refs:add-image-data', async (_, { pageId, dataUrl, caption }) => {
+    const m = /^data:image\/([a-z0-9+.-]+);base64,(.+)$/i.exec(String(dataUrl || ''));
+    if (!m) return { error: 'BAD_IMAGE' };
+    const ext = m[1].toLowerCase() === 'jpeg' ? 'jpg' : m[1].toLowerCase();
+    return referenceStorage.addImage(pageId, Buffer.from(m[2], 'base64'), ext, caption);
+  });
+
+  // 이미지 파일을 골라 참조로 등록.
+  ipcMain.handle('lightnote:refs:add-image-file', async (_, { pageId }) => {
+    if (!dialog) return { error: 'NO_DIALOG' };
+    try {
+      const res = await dialog.showOpenDialog(getWindow() || undefined, {
+        title: '참조 이미지 선택',
+        properties: ['openFile', 'multiSelections'],
+        filters: [{ name: '이미지', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp'] }],
+      });
+      if (res.canceled || !res.filePaths?.length) return { canceled: true };
+      const added = [];
+      for (const p of res.filePaths) {
+        const { stored, name } = await attachments.add(pageId, p);
+        added.push(await referenceStorage.add(pageId, { kind: 'image', file: stored, caption: name }));
+      }
+      return { success: true, refs: added };
+    } catch (err) {
+      return { error: err.message || 'REF_IMAGE_FAILED' };
+    }
   });
 
   // 사용자 폰트 폴더 — %APPDATA%/lightnote/fonts 에 넣은 폰트 파일을 스캔해

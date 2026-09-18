@@ -262,6 +262,75 @@ function tableToText(quillInst: Quill): string | null {
   }
 }
 
+// 참조 마커([1]). 저장되는 건 번호가 아니라 참조의 id다 — 보이는 번호는
+// 본문 등장 순서로 매번 다시 칠하므로(renumberRefs), 중간에 인용을 끼워
+// 넣어도 델타는 손댈 필요가 없다.
+//
+// 번호는 자식 노드가 아니라 data-num 속성 + CSS content로 그린다. Quill의
+// Embed는 커서를 잡으려고 노드 안에 ﻿ 가드를 넣어두는데, 번호를 다시
+// 칠할 때마다 textContent를 건드리면 그 가드가 날아간다.
+{
+  const Embed = Quill.import('blots/embed') as unknown as {
+    new (...a: unknown[]): unknown
+    create(v: unknown): HTMLElement
+  }
+  class RefMarker extends (Embed as unknown as { new (...a: unknown[]): object }) {
+    static blotName = 'refmarker'
+    static tagName = 'SPAN'
+    static className = 'ln-ref'
+    static create(value: string) {
+      const node = (Embed as unknown as { create(v: unknown): HTMLElement }).create.call(this, value)
+      node.setAttribute('data-ref-id', String(value || ''))
+      node.setAttribute('data-num', '?')
+      return node
+    }
+    static value(node: HTMLElement) { return node.getAttribute('data-ref-id') || '' }
+  }
+  Quill.register(RefMarker as unknown as Parameters<typeof Quill.register>[0], true)
+}
+
+// 마커 사이가 이것뿐이면 "붙여 쓴" 것으로 본다: [1], [2] / [1][2] / [1] [2].
+// ﻿는 Quill이 Embed 커서용으로 넣어두는 가드 문자다.
+const REF_GAP = /^[\s,;·、﻿]*$/
+
+/** 본문의 참조 마커를 등장 순서로 훑어 번호를 다시 칠하고, 그 순서를 돌려준다.
+ *  같은 참조를 여러 번 인용하면 처음 받은 번호를 계속 쓴다(논문 관례).
+ *  참조 목록에서 지워진 마커는 번호를 먹지 않고 [?]로 남는다. */
+function renumberRefs(root: HTMLElement, knownIds: Set<string>): string[] {
+  const order: string[] = []
+  const numberOf = new Map<string, number>()
+  for (const el of Array.from(root.querySelectorAll('.ln-ref')) as HTMLElement[]) {
+    const id = el.getAttribute('data-ref-id') || ''
+    if (!id || !knownIds.has(id)) { el.setAttribute('data-num', '?'); continue }
+    let n = numberOf.get(id)
+    if (n === undefined) { n = order.length + 1; numberOf.set(id, n); order.push(id) }
+    el.setAttribute('data-num', String(n))
+  }
+  return order
+}
+
+/** 누른 마커가 속한 "붙어 있는 묶음" 전체. [1], [2]처럼 이어 쓴 건 한 문장의
+ *  근거 하나로 보고 통째로 연다 — 어느 쪽을 눌렀는지에 따라 결과가 달라지면
+ *  같은 묶음인데도 근거를 반만 보게 된다. */
+function refGroup(el: HTMLElement): HTMLElement[] {
+  const block = el.closest('p, li, h1, h2, h3, h4, h5, h6, blockquote, td, th') as HTMLElement | null
+  if (!block) return [el]
+  const marks = Array.from(block.querySelectorAll('.ln-ref')) as HTMLElement[]
+  const at = marks.indexOf(el)
+  if (at < 0) return [el]
+  const gapOnlySeparators = (a: HTMLElement, b: HTMLElement) => {
+    const r = document.createRange()
+    r.setStartAfter(a)
+    r.setEndBefore(b)
+    return REF_GAP.test(r.toString())
+  }
+  let start = at
+  let end = at
+  while (start > 0 && gapOnlySeparators(marks[start - 1], marks[start])) start--
+  while (end < marks.length - 1 && gapOnlySeparators(marks[end], marks[end + 1])) end++
+  return marks.slice(start, end + 1)
+}
+
 // Attachments are stored next to the page and referenced by a custom link
 // protocol; Quill's Link blot drops unknown protocols, so widen its whitelist.
 {
@@ -281,6 +350,11 @@ export interface EditorHandle {
   getQuillText: () => string
   scrollToHeading: (index: number) => void
   moveTocSection: (from: number, to: number, placeAfter: boolean) => void
+  // 커서 자리에 참조 마커를 넣는다. 이미 마커 바로 뒤라면 ", "로 이어 붙여
+  // 한 묶음이 되게 한다 ([1], [2]).
+  insertRefMarker: (refId: string) => void
+  // 그 참조를 처음 인용한 자리로 본문을 스크롤한다.
+  scrollToRef: (refId: string) => void
 }
 
 interface Props {
@@ -290,6 +364,14 @@ interface Props {
   onTitleChange?: (nbId: string, secId: string, pageId: string, title: string) => void
   // 본문에서 고른 문장을 업무 속성으로 보낸다 (페이지=메모, 속성=정제된 내용).
   onPromote?: (kind: 'action' | 'progress' | 'decision' | 'pending', text: string) => void
+  // 참조: 지금 존재하는 참조 id들(번호 매기기·유효성 판정에 쓴다).
+  refIds?: string[]
+  // 본문에 놓인 마커의 등장 순서가 바뀔 때마다(=번호가 바뀔 때마다) 알린다.
+  onRefOrderChange?: (orderedIds: string[]) => void
+  // 마커를 누르면 그 마커가 속한 묶음 전체를 알린다.
+  onRefMarkerClick?: (groupIds: string[], clickedId: string) => void
+  // 본문에서 고른 문장을 참조로 보낸다.
+  onPromoteToRef?: (text: string) => void
 }
 
 type SaveState = 'saved' | 'saving' | 'editing' | 'error'
@@ -367,7 +449,7 @@ const SWATCHES = [
   '#ffffff', '#ced4da', '#ff8787', '#ffc078', '#ffe066', '#8ce99a', '#74c0fc', '#b197fc', '#faa2c1',
 ]
 
-const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, onHeadingsChange, onTitleChange, onPromote }, ref) => {
+const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, onHeadingsChange, onTitleChange, onPromote, refIds, onRefOrderChange, onRefMarkerClick, onPromoteToRef }, ref) => {
   const [currentPage, setCurrentPage] = useState<{ notebookId: string; sectionId: string; pageId: string } | null>(null)
   const [titleValue, setTitleValue] = useState('')
   const [saveState, setSaveState] = useState<SaveState>('saved')
@@ -441,6 +523,19 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
   // Latest onHeadingsChange, so the (once-only) Quill effect can call it fresh.
   const onHeadingsChangeRef = useRef(onHeadingsChange)
   useEffect(() => { onHeadingsChangeRef.current = onHeadingsChange }, [onHeadingsChange])
+
+  // 참조: Quill 이펙트가 한 번만 도므로 최신 값을 ref로 들고 본다.
+  const refIdsRef = useRef<Set<string>>(new Set())
+  const onRefOrderChangeRef = useRef(onRefOrderChange)
+  const onRefMarkerClickRef = useRef(onRefMarkerClick)
+  useEffect(() => { onRefOrderChangeRef.current = onRefOrderChange }, [onRefOrderChange])
+  useEffect(() => { onRefMarkerClickRef.current = onRefMarkerClick }, [onRefMarkerClick])
+  // 참조 목록이 바뀌면(추가·삭제) 본문 번호도 즉시 다시 칠한다.
+  useEffect(() => {
+    refIdsRef.current = new Set(refIds || [])
+    const root = quillRef.current?.root
+    if (root) onRefOrderChangeRef.current?.(renumberRefs(root, refIdsRef.current))
+  }, [refIds])
   const onTitleChangeRef = useRef(onTitleChange)
   useEffect(() => { onTitleChangeRef.current = onTitleChange }, [onTitleChange])
   const lastSavedTitleRef = useRef<string>('')
@@ -858,6 +953,20 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
       addHandler: (name: string, fn: () => void) => void
       container: HTMLElement
     }
+    // 참조 마커를 누르면 그 마커가 속한 묶음을 통째로 참조 탭에 띄운다.
+    quill.root.addEventListener('click', (e: MouseEvent) => {
+      const mark = (e.target as HTMLElement)?.closest?.('.ln-ref') as HTMLElement | null
+      if (!mark) return
+      e.preventDefault()
+      e.stopPropagation()
+      const clicked = mark.getAttribute('data-ref-id') || ''
+      const ids = refGroup(mark)
+        .map(el => el.getAttribute('data-ref-id') || '')
+        .filter(id => id && refIdsRef.current.has(id))
+      if (!ids.length) { alert('이 참조는 목록에서 삭제되었습니다.'); return }
+      onRefMarkerClickRef.current?.(ids, clicked)
+    }, true)
+
     // Attachment links open in the default app instead of navigating.
     quill.root.addEventListener('click', (e: MouseEvent) => {
       const a = (e.target as HTMLElement)?.closest?.('a[href^="lnfile://"]') as HTMLAnchorElement | null
@@ -1272,8 +1381,15 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
       const headings = anchors.map((el, idx) => ({ level: tocLevelOf(el), text: (el.innerText || '').trim(), index: idx }))
       const sig = headings.map(h => `${h.level}:${h.text}`).join('|')
       if (sig !== lastTocSig) { lastTocSig = sig; onHeadingsChangeRef.current?.(headings) }
+
+      // 참조 마커 번호는 본문 등장 순서로 다시 칠한다. 순서가 실제로 바뀐
+      // 경우에만 알려, 타자 한 글자마다 참조 패널이 다시 그려지지 않게 한다.
+      const refOrder = renumberRefs(quill.root, refIdsRef.current)
+      const refSig = refOrder.join('|')
+      if (refSig !== lastRefSig) { lastRefSig = refSig; onRefOrderChangeRef.current?.(refOrder) }
     }
     let lastTocSig = ''
+    let lastRefSig = ''
     // A block is a TOC anchor if it's a heading OR carries a toclevel class.
     const tocLevelOf = (el: HTMLElement): number => { const l = levelOf(el); return l === 99 ? 0 : l }
     // Collect anchors in document order, descending into list containers so that
@@ -1356,6 +1472,25 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
   }
 
   useImperativeHandle(ref, () => ({
+    insertRefMarker: (refId: string) => {
+      const q = quillRef.current
+      if (!q) return
+      const at = q.getSelection(true)?.index ?? q.getLength() - 1
+      // 바로 앞이 이미 마커면 ", "를 끼워 한 묶음으로 이어 붙인다 — 그래야
+      // [1], [2]처럼 한 문장의 근거 하나로 묶여 함께 열린다.
+      const prev = at > 0 ? q.getContents(at - 1, 1).ops?.[0]?.insert : null
+      const joiner = prev && typeof prev === 'object' && 'refmarker' in prev ? ', ' : ''
+      if (joiner) q.insertText(at, joiner, Quill.sources.USER)
+      q.insertEmbed(at + joiner.length, 'refmarker', refId, Quill.sources.USER)
+      q.setSelection(at + joiner.length + 1, 0, Quill.sources.USER)
+      q.focus()
+    },
+    scrollToRef: (refId: string) => {
+      const el = quillRef.current?.root.querySelector(`.ln-ref[data-ref-id="${CSS.escape(refId)}"]`) as HTMLElement | null
+      el?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+      el?.classList.add('ln-ref-flash')
+      setTimeout(() => el?.classList.remove('ln-ref-flash'), 1200)
+    },
     loadPage: async (nbId: string, secId: string, pageId: string) => {
       if (isDirtyRef.current) await savePage()
       const cp = { notebookId: nbId, sectionId: secId, pageId }
@@ -1369,6 +1504,8 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
           const delta = data.delta as { ops?: unknown[] } | null
           quillRef.current.setContents(delta && delta.ops ? delta as Parameters<typeof quillRef.current.setContents>[0] : [], 'silent')
           quillRef.current.setSelection(0, 0, 'silent')
+          // 다른 노트로 갈아탔으니 마커 번호를 그 페이지 기준으로 다시 칠한다.
+          onRefOrderChangeRef.current?.(renumberRefs(quillRef.current.root, refIdsRef.current))
         }
         setIsDirty(false)
         isDirtyRef.current = false
@@ -2053,6 +2190,16 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
             setToast('업무 속성에 담았습니다 — 의사결정 필요로')
             setPromoteMenu(null)
           }}>❓ 의사결정 필요로</div>
+          {onPromoteToRef && (
+            <>
+              <div className="ctx-sep" />
+              <div className="ctx-item" onClick={() => {
+                onPromoteToRef(promoteMenu.text)
+                setToast('참조로 등록했습니다 — 커서 자리에 마커가 들어갑니다')
+                setPromoteMenu(null)
+              }}>🔖 참조로 보내기</div>
+            </>
+          )}
         </div>
       )}
       {toast && <div className="ln-toast">{toast}</div>}

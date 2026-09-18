@@ -112,6 +112,18 @@ export type WorkObjectListItem = WorkObject & {
 // A heading extracted from the current page, for the table of contents.
 export interface TocItem { level: number; text: string; index: number }
 
+// 논문식 참조 한 건. 본문 마커는 번호가 아니라 이 id를 들고 있고, 화면에
+// 보이는 번호는 본문 등장 순서로 매번 계산한다 — 중간에 인용을 끼워 넣어도
+// 저장값을 고칠 필요가 없다. 본문에 아직 안 쓴 참조는 번호가 없다(미인용).
+export interface PageReference {
+  id: string
+  kind: 'image' | 'text'
+  text: string
+  file: string | null
+  caption: string
+  createdAt: number
+}
+
 // A font file found in %APPDATA%/lightnote/fonts at last launch.
 export interface CustomFont { id: string; family: string; dataUrl: string }
 
@@ -192,6 +204,13 @@ declare global {
       attachPick: (pageId: string) => Promise<{ success?: boolean; canceled?: boolean; files?: { stored: string; name: string; size: number }[]; error?: string }>
       attachOpen: (pageId: string, stored: string) => Promise<{ success?: boolean; error?: string }>
       attachReveal: (pageId: string, stored: string) => Promise<{ success?: boolean; error?: string }>
+      refsList: (pageId: string) => Promise<PageReference[]>
+      refsAddText: (pageId: string, text: string, caption: string) => Promise<PageReference>
+      refsAddImageData: (pageId: string, dataUrl: string, caption: string) => Promise<PageReference | { error: string }>
+      refsAddImageFile: (pageId: string) => Promise<{ success?: boolean; canceled?: boolean; refs?: PageReference[]; error?: string }>
+      refsUpdate: (pageId: string, id: string, patch: { caption?: string; text?: string }) => Promise<PageReference[]>
+      refsRemove: (pageId: string, id: string) => Promise<PageReference[]>
+      refsImage: (pageId: string, file: string) => Promise<string | null>
       listVersions: (pageId: string) => Promise<PageVersion[]>
       getVersion: (pageId: string, versionId: string) => Promise<{ at: number; title: string; delta: unknown } | null>
       restoreVersion: (notebookId: string, sectionId: string, pageId: string, versionId: string) =>

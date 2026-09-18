@@ -38,7 +38,8 @@ await ln.waitForTimeout(400)
 await ln.locator('.page-item', { hasText: '업무 노트' }).click()
 await ln.waitForTimeout(1200)
 
-ok('오른쪽 열에 목차/업무 두 탭', await ln.locator('.rp-tab').count() === 2,
+// 참조 탭이 추가되면서 세 탭이 됐다(목차/업무/참조).
+ok('오른쪽 열에 목차/업무/참조 세 탭', await ln.locator('.rp-tab').count() === 3,
   JSON.stringify(await ln.evaluate(() => Array.from(document.querySelectorAll('.rp-tab')).map(t => t.textContent))))
 
 // 기본은 목차 — 업무 패널은 DOM에 있어도 숨겨져 있어야 한다

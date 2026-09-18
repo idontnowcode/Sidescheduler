@@ -30,6 +30,16 @@ async function add(pageId, sourcePath) {
   return { stored, name: orig, size };
 }
 
+/** 이미 메모리에 있는 바이트(클립보드 이미지 등)를 페이지 폴더에 새 파일로 쓴다. */
+async function addBuffer(pageId, buffer, ext) {
+  const safeExt = /^[a-z0-9]{1,8}$/i.test(String(ext || '')) ? `.${ext}` : '.png';
+  const stored = `${crypto.randomUUID()}${safeExt}`;
+  const dir = pageDir(pageId);
+  await fs.mkdir(dir, { recursive: true });
+  await fs.writeFile(path.join(dir, stored), buffer);
+  return stored;
+}
+
 function resolve(pageId, stored) {
   // Guard against a crafted link escaping the page's own folder.
   const base = pageDir(pageId);
@@ -50,4 +60,4 @@ async function removeAll(pageIds) {
   return { success: true };
 }
 
-module.exports = { init, add, resolve, exists, removeAll };
+module.exports = { init, add, addBuffer, resolve, exists, removeAll };
