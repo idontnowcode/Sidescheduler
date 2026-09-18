@@ -1411,6 +1411,13 @@ button.ql-text-to-table, button.ql-table-to-text { width: 30px !important; }
 /* 세로로 쌓인 목록이라 위/아래 절반으로 놓일 자리를 보여준다 */
 .ln-tab-overflow-item.ln-tab-drop-before { box-shadow: inset 0 3px 0 -1px var(--accent); }
 .ln-tab-overflow-item.ln-tab-drop-after  { box-shadow: inset 0 -3px 0 -1px var(--accent); }
+.ln-tab-overflow-sep { height: 1px; background: var(--border); margin: 4px 2px; }
+.ln-tab-overflow-closeall {
+  display: block; width: 100%; text-align: left;
+  padding: 6px 8px; border: none; border-radius: 5px; background: none;
+  font-size: 12.5px; color: var(--text-dim); cursor: pointer;
+}
+.ln-tab-overflow-closeall:hover { background: var(--bg4); color: var(--danger); }
 
 /* ── 업무 속성: 읽기용 요약 ───────────────────────────────────────────── */
 /* 편집 폼과 달리 높이 제한이 필요 없다 — 적어둔 것만 몇 줄로 보여준다. */

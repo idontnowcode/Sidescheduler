@@ -24,6 +24,8 @@ interface Props {
   // 밀림을 놓치기 쉽다(예전에 실제로 이 버그가 있었다) — 절대 인덱스로 받고
   // LightnoteApp 쪽에서 "빼고 나서 어디에 넣을지"를 한 번에 계산한다.
   onReorder: (dragPageId: string, toIndex: number) => void
+  // 드롭다운에 접혀 있는 탭들만 한 번에 닫는다 (보이는 탭은 그대로 둔다).
+  onCloseHidden: (pageIds: string[]) => void
   onOpenInNewWindow?: (tab: OpenTab) => void
 }
 
@@ -33,7 +35,7 @@ const OVERFLOW_BTN_WIDTH = 40
 
 type DropTarget = { id: string; pos: 'before' | 'after' } | { id: '__overflow__' }
 
-export default function TabBar({ tabs, activeId, onSelect, onClose, onCloseOthers, onCloseAll, onReorder, onOpenInNewWindow }: Props) {
+export default function TabBar({ tabs, activeId, onSelect, onClose, onCloseOthers, onCloseAll, onReorder, onCloseHidden, onOpenInNewWindow }: Props) {
   const barRef = useRef<HTMLDivElement>(null)
   const [ctx, setCtx] = useState<{ x: number; y: number; tab: OpenTab } | null>(null)
   const ctxRef = useRef<HTMLDivElement>(null)
@@ -226,6 +228,16 @@ export default function TabBar({ tabs, activeId, onSelect, onClose, onCloseOther
                 onClick={(e) => { e.stopPropagation(); onClose(t.pageId) }}>×</button>
             </div>
           ))}
+          {/* 여러 번 열다 보면 드롭다운에만 십수 개가 쌓인다. 목록이 먼저
+              오고 일괄 닫기는 맨 아래에 둔다 — 탭을 고르려고 연 메뉴의
+              첫 줄이 "모두 닫기"면 잘못 누르기 쉽다. */}
+          <div className="ln-tab-overflow-sep" />
+          <button
+            className="ln-tab-overflow-closeall"
+            onClick={() => { onCloseHidden(hidden.map(t => t.pageId)); setOverflowOpen(false) }}
+          >
+            숨겨진 탭 {hidden.length}개 모두 닫기
+          </button>
         </div>
       )}
 

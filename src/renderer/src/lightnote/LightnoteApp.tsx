@@ -169,6 +169,30 @@ export default function LightnoteApp() {
     })
   }, [])
 
+  // 드롭다운에 접혀 있는 탭들을 한 번에 닫는다. closeTab을 개수만큼 반복
+  // 호출하면 닫을 때마다 활성 탭이 옆으로 옮겨 다니며 그때마다 에디터가
+  // 다른 페이지를 읽어들인다 — 한 번에 걷어내고 활성 탭은 마지막에 한 번만
+  // 정한다. 접힌 탭은 항상 탭 줄의 뒤쪽 구간이므로, 활성 탭이 그 안에
+  // 있었다면 남은 마지막 탭이 가장 가까운 탭이다.
+  const closeTabs = useCallback((pageIds: string[]) => {
+    const gone = new Set(pageIds)
+    if (gone.size === 0) return
+    const next = tabsRef.current.filter(t => !gone.has(t.pageId))
+    setTabs(next)
+    setSelected((sel) => {
+      if (!sel.pageId || !gone.has(sel.pageId)) return sel
+      const to = next[next.length - 1]
+      if (!to) {
+        setBreadcrumb('')
+        editorRef.current?.clearEditor()
+        return { notebookId: null, sectionId: null, pageId: null }
+      }
+      setBreadcrumb(to.crumb)
+      editorRef.current?.loadPage(to.notebookId, to.sectionId, to.pageId)
+      return { notebookId: to.notebookId, sectionId: to.sectionId, pageId: to.pageId }
+    })
+  }, [])
+
   const closeOtherTabs = useCallback((keepId: string) => {
     const keep = tabsRef.current.find(t => t.pageId === keepId)
     if (!keep) return
@@ -369,6 +393,7 @@ export default function LightnoteApp() {
               onClose={closeTab}
               onCloseOthers={closeOtherTabs}
               onCloseAll={closeAllTabs}
+              onCloseHidden={closeTabs}
               onReorder={reorderTabs}
               onOpenInNewWindow={(t) => window.lightnote.openInNewWindow?.(t.notebookId, t.sectionId, t.pageId)}
             />
