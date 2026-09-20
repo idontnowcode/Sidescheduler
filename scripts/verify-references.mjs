@@ -54,16 +54,30 @@ ok('목차·업무 옆에 참조 탭이 있음', tabs.includes('참조'), JSON.s
 await ln.locator('.rp-tab', { hasText: '참조' }).click()
 await ln.waitForTimeout(300)
 ok('참조 탭에 등록해둔 자료 3건이 보임', await ln.locator('.ref-card').count() === 3)
-ok('본문에 안 쓴 자료는 번호 없이 "미인용"으로 표시',
-  await ln.locator('.ref-num-none').count() === 3)
+ok('등록만 한 자료는 번호 없이 "본문에 인용 안 함"으로 모임',
+  await ln.locator('.ref-num-none').count() === 3 && await ln.locator('.ref-section').count() === 1)
+
+// ── 텍스트 자료 등록(UI) ────────────────────────────────────────────────
+// 예전엔 window.prompt를 썼는데 Electron이 이걸 지원하지 않아서, ＋텍스트를
+// 눌러도 아무 일도 일어나지 않았다("텍스트는 추가가 안됨").
+await ln.locator('.ref-add', { hasText: '텍스트' }).click()
+await ln.waitForTimeout(300)
+ok('＋텍스트를 누르면 입력창이 열림', await ln.locator('.modal-box .ref-textarea').count() === 1)
+await ln.locator('.ref-textarea').fill('측정 장비 교정 기록 2026-09')
+await ln.locator('.modal-box .btn-primary').click()
+await ln.waitForTimeout(700)
+ok('텍스트 자료가 실제로 등록됨 (Electron prompt 미지원 버그 수정)',
+  await ln.locator('.ref-card').count() === 4, String(await ln.locator('.ref-card').count()))
+ok('자료를 등록해도 본문에 번호가 저절로 생기지 않음 (등록 ≠ 인용)',
+  await ln.locator('.ql-editor .ln-ref').count() === 0)
 
 // ── 본문에 마커를 넣는다: 문장 뒤에 A, 이어서 B (연속 묶음) ──────────────
 await ln.locator('.ql-editor').click()
 await ln.keyboard.type('실험 결과, A 시료의 용량이 10ml 줄었을 때 발광 효과가 더 커졌다. ')
 await ln.waitForTimeout(300)
-await ln.locator('.ref-card', { hasText: 'A 시료 측정' }).locator('.ref-act', { hasText: '삽입' }).click()
+await ln.locator('.ref-card', { hasText: 'A 시료 측정' }).locator('.ref-act', { hasText: '인용' }).click()
 await ln.waitForTimeout(500)
-await ln.locator('.ref-card', { hasText: 'B 시료 대조군' }).locator('.ref-act', { hasText: '삽입' }).click()
+await ln.locator('.ref-card', { hasText: 'B 시료 대조군' }).locator('.ref-act', { hasText: '인용' }).click()
 await ln.waitForTimeout(700)
 
 const marks = await ln.evaluate(() =>
@@ -74,6 +88,18 @@ ok('본문 마커가 등장 순서대로 [1], [2] 번호를 받음',
 const joined = await ln.evaluate(() => document.querySelector('.ql-editor')?.textContent || '')
 ok('이어서 넣은 마커는 ", "로 붙어 한 묶음이 됨', /,\s*$|,\s*﻿/.test(joined.replace(/﻿/g, '')) || joined.includes(', '),
   JSON.stringify(joined.replace(/﻿/g, '').slice(-30)))
+
+// 본문에서 마커를 고르고 옮길 수 있어야 한다 — 예전엔 user-select를 막고
+// 클릭을 통째로 삼켜서, 커서를 놓지도 드래그로 옮기지도 못했다.
+const userSelect = await ln.evaluate(() =>
+  getComputedStyle(document.querySelector('.ql-editor .ln-ref')).userSelect)
+ok('본문 마커를 선택할 수 있음 (user-select가 막혀 있지 않음)', userSelect !== 'none', userSelect)
+const notSwallowed = await ln.evaluate(() => {
+  const ev = new MouseEvent('click', { bubbles: true, cancelable: true })
+  document.querySelector('.ql-editor .ln-ref').dispatchEvent(ev)
+  return !ev.defaultPrevented
+})
+ok('마커 클릭이 기본 동작을 막지 않음 (커서 놓기·끌어 옮기기 가능)', notSwallowed)
 
 ok('참조 탭 번호도 본문과 같이 [1] [2] 로 매겨짐',
   (await ln.locator('.ref-num').allTextContents()).filter(t => /^\[\d\]$/.test(t)).length === 2,
@@ -105,7 +131,7 @@ await ln.locator('.rp-tab', { hasText: '참조' }).click()
 await ln.waitForTimeout(200)
 await ln.locator('.ref-chip-all').click()
 await ln.waitForTimeout(200)
-await ln.locator('.ref-card', { hasText: '미사용 자료' }).locator('.ref-act', { hasText: '삽입' }).click()
+await ln.locator('.ref-card', { hasText: '미사용 자료' }).locator('.ref-act', { hasText: '인용' }).click()
 await ln.waitForTimeout(600)
 await ln.locator('.ql-editor .ln-ref').nth(2).click()
 await ln.waitForTimeout(500)
@@ -115,7 +141,7 @@ ok('글자를 사이에 두고 떨어진 마커는 따로 열림(연속일 때�
 // ── 전체 보기 / 번호 다중 선택 ──────────────────────────────────────────
 await ln.locator('.ref-chip-all').click()
 await ln.waitForTimeout(300)
-ok('"전체"를 누르면 모든 참조가 보임', await ln.locator('.ref-card').count() === 3)
+ok('"전체"를 누르면 모든 참조가 보임', await ln.locator('.ref-card').count() === 4)
 
 const chips = ln.locator('.ref-filter .ref-chip').filter({ hasText: /^\d$/ })
 await chips.nth(0).click()
@@ -149,7 +175,7 @@ ok('노트를 다시 열어도 마커와 번호가 그대로 복원됨',
   JSON.stringify(marksAfterReload))
 
 const stored = await ln.evaluate((pageId) => window.lightnote.refsList(pageId), ids.pg)
-ok('참조 자료도 저장소에 그대로 남아 있음', stored.length === 2, JSON.stringify(stored.map(r => r.caption)))
+ok('참조 자료도 저장소에 그대로 남아 있음', stored.length === 3, JSON.stringify(stored.map(r => r.caption)))
 ok('삭제한 참조만 없어짐', !stored.some(r => r.id === made.a), JSON.stringify(stored.map(r => r.caption)))
 
 await app.close()

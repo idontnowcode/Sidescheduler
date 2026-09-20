@@ -252,24 +252,16 @@ export default function LightnoteApp() {
     reloadRefs(selected.pageId)
   }, [selected.pageId, reloadRefs])
 
-  // 새로 만든 참조는 만들자마자 커서 자리에 마커로 꽂는다 — 자료만 등록하고
-  // 본문에 넣는 걸 잊으면 "미인용"으로 떠돌기 때문.
-  const addRefAndInsert = useCallback(async (make: () => Promise<PageReference | null>) => {
+  // 자료를 등록하는 것과 본문에 인용하는 것은 별개다. 예전엔 자료를 넣는
+  // 즉시 커서 자리에 마커가 꽂혔는데, 목록에 자료를 모으려던 것뿐인데
+  // 본문 아무 데나 숫자가 생겨 혼란스러웠다. 이제 등록은 목록에만 쌓이고,
+  // 본문에 넣는 건 카드의 "인용" 버튼을 누를 때만 일어난다.
+  const addTextRef = useCallback(async (text: string) => {
     const pageId = selectedRef.current.pageId
-    if (!pageId) return
-    const made = await make()
-    if (!made?.id) return
+    if (!pageId || !text.trim()) return
+    await window.lightnote.refsAddText(pageId, text.trim(), text.trim().slice(0, 40))
     await reloadRefs(pageId)
-    editorRef.current?.insertRefMarker(made.id)
   }, [reloadRefs])
-
-  const addTextRef = useCallback(async () => {
-    const pageId = selectedRef.current.pageId
-    if (!pageId) return
-    const text = prompt('참조로 남길 내용을 입력하세요 (실험 조건, 인용문, 출처 등)')
-    if (!text?.trim()) return
-    await addRefAndInsert(() => window.lightnote.refsAddText(pageId, text.trim(), text.trim().slice(0, 40)))
-  }, [addRefAndInsert])
 
   const addImageFileRef = useCallback(async () => {
     const pageId = selectedRef.current.pageId
@@ -277,8 +269,6 @@ export default function LightnoteApp() {
     const r = await window.lightnote.refsAddImageFile(pageId)
     if (!r?.refs?.length) return
     await reloadRefs(pageId)
-    // 여러 장을 한 번에 고르면 전부 이어서 꽂아 한 묶음이 되게 한다.
-    for (const made of r.refs) editorRef.current?.insertRefMarker(made.id)
   }, [reloadRefs])
 
   const addPastedImageRef = useCallback(async () => {
@@ -295,17 +285,15 @@ export default function LightnoteApp() {
           fr.onload = () => res(String(fr.result))
           fr.readAsDataURL(blob)
         })
-        await addRefAndInsert(async () => {
-          const made = await window.lightnote.refsAddImageData(pageId, dataUrl, '붙여넣은 이미지')
-          return 'id' in made ? made : null
-        })
+        await window.lightnote.refsAddImageData(pageId, dataUrl, '붙여넣은 이미지')
+        await reloadRefs(pageId)
         return
       }
       alert('클립보드에 이미지가 없습니다. 화면을 캡처한 뒤 다시 눌러 주세요.')
     } catch {
       alert('클립보드를 읽지 못했습니다.')
     }
-  }, [addRefAndInsert])
+  }, [reloadRefs])
 
   const removeRef = useCallback(async (ref: PageReference) => {
     const pageId = selectedRef.current.pageId
@@ -327,12 +315,15 @@ export default function LightnoteApp() {
     await reloadRefs(pageId)
   }, [reloadRefs])
 
-  // 본문에서 고른 문장을 참조로. 문장은 본문에 그대로 두고 마커만 덧붙인다.
+  // 본문에서 고른 문장을 참조로. 이건 "여기를 인용하겠다"는 뜻이 분명하므로
+  // 고른 자리에 마커까지 바로 넣는다(등록만 하는 위 경로와 다른 점).
   const promoteToRef = useCallback(async (text: string) => {
     const pageId = selectedRef.current.pageId
     if (!pageId || !text.trim()) return
-    await addRefAndInsert(() => window.lightnote.refsAddText(pageId, text.trim(), text.trim().slice(0, 40)))
-  }, [addRefAndInsert])
+    const made = await window.lightnote.refsAddText(pageId, text.trim(), text.trim().slice(0, 40))
+    await reloadRefs(pageId)
+    if (made?.id) editorRef.current?.insertRefMarker(made.id)
+  }, [reloadRefs])
 
   const promoteToWork = useCallback(async (
     kind: 'action' | 'progress' | 'decision' | 'pending', text: string,

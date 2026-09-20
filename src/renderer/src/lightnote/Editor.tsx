@@ -954,11 +954,12 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
       container: HTMLElement
     }
     // 참조 마커를 누르면 그 마커가 속한 묶음을 통째로 참조 탭에 띄운다.
+    // 이벤트를 삼키지 않는다 — 예전엔 preventDefault로 막아서 마커를 고르지도
+    // 끌지도 못했다. 그냥 두면 커서도 같이 놓여 한 글자처럼 선택·이동·삭제할
+    // 수 있다(Quill에서 마커는 길이 1인 embed다).
     quill.root.addEventListener('click', (e: MouseEvent) => {
       const mark = (e.target as HTMLElement)?.closest?.('.ln-ref') as HTMLElement | null
       if (!mark) return
-      e.preventDefault()
-      e.stopPropagation()
       const clicked = mark.getAttribute('data-ref-id') || ''
       const ids = refGroup(mark)
         .map(el => el.getAttribute('data-ref-id') || '')
