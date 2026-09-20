@@ -101,6 +101,21 @@ const notSwallowed = await ln.evaluate(() => {
 })
 ok('마커 클릭이 기본 동작을 막지 않음 (커서 놓기·끌어 옮기기 가능)', notSwallowed)
 
+// ── 마커에 커서를 올리면 1초 뒤 제목이 뜬다 ─────────────────────────────
+// 번호만으로는 뭘 가리키는지 알 수 없는데, 확인하려고 누르면 패널이 그
+// 참조로 바뀌어 읽던 자리를 잃는다.
+await ln.locator('.ql-editor .ln-ref').first().hover()
+await ln.waitForTimeout(400)
+ok('올리자마자는 안 뜬다 (바로 뜨면 지나가기만 해도 깜빡인다)',
+  await ln.locator('.ln-ref-tip').count() === 0)
+await ln.waitForTimeout(900)
+const tipText = await ln.locator('.ln-ref-tip').textContent().catch(() => null)
+ok('1초쯤 머무르면 번호와 제목이 뜸', /\[1\]\s*A 시료 측정/.test(tipText || ''), JSON.stringify(tipText))
+
+await ln.locator('#ln-page-title').hover()
+await ln.waitForTimeout(400)
+ok('커서가 벗어나면 사라짐', await ln.locator('.ln-ref-tip').count() === 0)
+
 ok('참조 탭 번호도 본문과 같이 [1] [2] 로 매겨짐',
   (await ln.locator('.ref-num').allTextContents()).filter(t => /^\[\d\]$/.test(t)).length === 2,
   JSON.stringify(await ln.locator('.ref-num').allTextContents()))

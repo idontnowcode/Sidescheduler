@@ -41,7 +41,12 @@ export default function LightnoteApp() {
   // 본문 마커를 누를 때마다 올려서 오른쪽 패널을 참조 탭으로 돌린다.
   const [showRefsKey, setShowRefsKey] = useState(0)
   // 화면에 보이는 번호는 저장값이 아니라 본문 등장 순서에서 온다.
-  const refIds = useMemo(() => refs.map(r => r.id), [refs])
+  // 마커에 커서를 올렸을 때 띄울 이름까지 함께 넘긴다. 제목을 비워둔
+  // 자료도 뭔지는 알아볼 수 있게 본문/종류로 대신 채운다.
+  const refLabels = useMemo(() => new Map(refs.map(r => [
+    r.id,
+    r.caption.trim() || (r.kind === 'image' ? '(이미지)' : r.text.slice(0, 60)) || '(제목 없음)',
+  ])), [refs])
   const refNumberOf = useMemo(() => new Map(refOrder.map((id, i) => [id, i + 1])), [refOrder])
   const [showWorkList, setShowWorkList] = useState(false)
   // Resizable side panels (persisted).
@@ -499,7 +504,7 @@ export default function LightnoteApp() {
             onOpenPage={handlePageSelect}
             onHeadingsChange={setToc}
             onPromote={promoteToWork}
-            refIds={refIds}
+            refLabels={refLabels}
             onRefOrderChange={setRefOrder}
             onPromoteToRef={promoteToRef}
             onRefMarkerClick={(groupIds) => {

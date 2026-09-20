@@ -296,12 +296,12 @@ const REF_GAP = /^[\s,;·、﻿]*$/
 /** 본문의 참조 마커를 등장 순서로 훑어 번호를 다시 칠하고, 그 순서를 돌려준다.
  *  같은 참조를 여러 번 인용하면 처음 받은 번호를 계속 쓴다(논문 관례).
  *  참조 목록에서 지워진 마커는 번호를 먹지 않고 [?]로 남는다. */
-function renumberRefs(root: HTMLElement, knownIds: Set<string>): string[] {
+function renumberRefs(root: HTMLElement, labels: Map<string, string>): string[] {
   const order: string[] = []
   const numberOf = new Map<string, number>()
   for (const el of Array.from(root.querySelectorAll('.ln-ref')) as HTMLElement[]) {
     const id = el.getAttribute('data-ref-id') || ''
-    if (!id || !knownIds.has(id)) { el.setAttribute('data-num', '?'); continue }
+    if (!id || !labels.has(id)) { el.setAttribute('data-num', '?'); continue }
     let n = numberOf.get(id)
     if (n === undefined) { n = order.length + 1; numberOf.set(id, n); order.push(id) }
     el.setAttribute('data-num', String(n))
@@ -364,8 +364,9 @@ interface Props {
   onTitleChange?: (nbId: string, secId: string, pageId: string, title: string) => void
   // 본문에서 고른 문장을 업무 속성으로 보낸다 (페이지=메모, 속성=정제된 내용).
   onPromote?: (kind: 'action' | 'progress' | 'decision' | 'pending', text: string) => void
-  // 참조: 지금 존재하는 참조 id들(번호 매기기·유효성 판정에 쓴다).
-  refIds?: string[]
+  // 참조: 지금 존재하는 참조 id → 표시 이름. 번호 매기기·유효성 판정에도
+  // 쓰고, 마커에 커서를 올렸을 때 보여줄 제목으로도 쓴다.
+  refLabels?: Map<string, string>
   // 본문에 놓인 마커의 등장 순서가 바뀔 때마다(=번호가 바뀔 때마다) 알린다.
   onRefOrderChange?: (orderedIds: string[]) => void
   // 마커를 누르면 그 마커가 속한 묶음 전체를 알린다.
@@ -449,7 +450,7 @@ const SWATCHES = [
   '#ffffff', '#ced4da', '#ff8787', '#ffc078', '#ffe066', '#8ce99a', '#74c0fc', '#b197fc', '#faa2c1',
 ]
 
-const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, onHeadingsChange, onTitleChange, onPromote, refIds, onRefOrderChange, onRefMarkerClick, onPromoteToRef }, ref) => {
+const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, onHeadingsChange, onTitleChange, onPromote, refLabels, onRefOrderChange, onRefMarkerClick, onPromoteToRef }, ref) => {
   const [currentPage, setCurrentPage] = useState<{ notebookId: string; sectionId: string; pageId: string } | null>(null)
   const [titleValue, setTitleValue] = useState('')
   const [saveState, setSaveState] = useState<SaveState>('saved')
@@ -525,17 +526,23 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
   useEffect(() => { onHeadingsChangeRef.current = onHeadingsChange }, [onHeadingsChange])
 
   // 참조: Quill 이펙트가 한 번만 도므로 최신 값을 ref로 들고 본다.
-  const refIdsRef = useRef<Set<string>>(new Set())
+  const refLabelsRef = useRef<Map<string, string>>(new Map())
   const onRefOrderChangeRef = useRef(onRefOrderChange)
   const onRefMarkerClickRef = useRef(onRefMarkerClick)
   useEffect(() => { onRefOrderChangeRef.current = onRefOrderChange }, [onRefOrderChange])
   useEffect(() => { onRefMarkerClickRef.current = onRefMarkerClick }, [onRefMarkerClick])
   // 참조 목록이 바뀌면(추가·삭제) 본문 번호도 즉시 다시 칠한다.
   useEffect(() => {
-    refIdsRef.current = new Set(refIds || [])
+    refLabelsRef.current = refLabels || new Map()
     const root = quillRef.current?.root
-    if (root) onRefOrderChangeRef.current?.(renumberRefs(root, refIdsRef.current))
-  }, [refIds])
+    if (root) onRefOrderChangeRef.current?.(renumberRefs(root, refLabelsRef.current))
+  }, [refLabels])
+
+  // 마커에 커서를 올리고 1초가 지나면 그 참조의 제목을 띄운다. 번호만으로는
+  // 뭘 가리키는지 알 수 없는데, 확인하려고 매번 누르면 패널이 그 참조로
+  // 바뀌어 읽던 자리를 잃는다.
+  const [refTip, setRefTip] = useState<{ x: number; y: number; num: string; label: string } | null>(null)
+  const refTipTimer = useRef<ReturnType<typeof setTimeout>>()
   const onTitleChangeRef = useRef(onTitleChange)
   useEffect(() => { onTitleChangeRef.current = onTitleChange }, [onTitleChange])
   const lastSavedTitleRef = useRef<string>('')
@@ -953,6 +960,27 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
       addHandler: (name: string, fn: () => void) => void
       container: HTMLElement
     }
+    // 마커 위에 1초 머무르면 제목을 띄운다. 커서가 벗어나거나, 누르거나,
+    // 본문이 스크롤되면 곧바로 치운다(엉뚱한 자리에 떠 있지 않게).
+    const hideTip = () => { clearTimeout(refTipTimer.current); setRefTip(null) }
+    quill.root.addEventListener('mouseover', (e: MouseEvent) => {
+      const mark = (e.target as HTMLElement)?.closest?.('.ln-ref') as HTMLElement | null
+      if (!mark) return
+      const id = mark.getAttribute('data-ref-id') || ''
+      const label = refLabelsRef.current.get(id) || '삭제된 참조'
+      clearTimeout(refTipTimer.current)
+      refTipTimer.current = setTimeout(() => {
+        const r = mark.getBoundingClientRect()
+        setRefTip({ x: r.left, y: r.bottom + 6, num: mark.getAttribute('data-num') || '?', label })
+      }, 1000)
+    })
+    quill.root.addEventListener('mouseout', (e: MouseEvent) => {
+      const mark = (e.target as HTMLElement)?.closest?.('.ln-ref')
+      if (mark) hideTip()
+    })
+    quill.root.addEventListener('scroll', hideTip)
+    quill.root.addEventListener('mousedown', hideTip)
+
     // 참조 마커를 누르면 그 마커가 속한 묶음을 통째로 참조 탭에 띄운다.
     // 이벤트를 삼키지 않는다 — 예전엔 preventDefault로 막아서 마커를 고르지도
     // 끌지도 못했다. 그냥 두면 커서도 같이 놓여 한 글자처럼 선택·이동·삭제할
@@ -963,7 +991,7 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
       const clicked = mark.getAttribute('data-ref-id') || ''
       const ids = refGroup(mark)
         .map(el => el.getAttribute('data-ref-id') || '')
-        .filter(id => id && refIdsRef.current.has(id))
+        .filter(id => id && refLabelsRef.current.has(id))
       if (!ids.length) { alert('이 참조는 목록에서 삭제되었습니다.'); return }
       onRefMarkerClickRef.current?.(ids, clicked)
     }, true)
@@ -1385,7 +1413,7 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
 
       // 참조 마커 번호는 본문 등장 순서로 다시 칠한다. 순서가 실제로 바뀐
       // 경우에만 알려, 타자 한 글자마다 참조 패널이 다시 그려지지 않게 한다.
-      const refOrder = renumberRefs(quill.root, refIdsRef.current)
+      const refOrder = renumberRefs(quill.root, refLabelsRef.current)
       const refSig = refOrder.join('|')
       if (refSig !== lastRefSig) { lastRefSig = refSig; onRefOrderChangeRef.current?.(refOrder) }
     }
@@ -1506,7 +1534,7 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
           quillRef.current.setContents(delta && delta.ops ? delta as Parameters<typeof quillRef.current.setContents>[0] : [], 'silent')
           quillRef.current.setSelection(0, 0, 'silent')
           // 다른 노트로 갈아탔으니 마커 번호를 그 페이지 기준으로 다시 칠한다.
-          onRefOrderChangeRef.current?.(renumberRefs(quillRef.current.root, refIdsRef.current))
+          onRefOrderChangeRef.current?.(renumberRefs(quillRef.current.root, refLabelsRef.current))
         }
         setIsDirty(false)
         isDirtyRef.current = false
@@ -2201,6 +2229,11 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
               }}>🔖 참조로 보내기</div>
             </>
           )}
+        </div>
+      )}
+      {refTip && (
+        <div className="ln-ref-tip" style={{ left: refTip.x, top: refTip.y }}>
+          <span className="ln-ref-tip-num">[{refTip.num}]</span>{refTip.label}
         </div>
       )}
       {toast && <div className="ln-toast">{toast}</div>}
