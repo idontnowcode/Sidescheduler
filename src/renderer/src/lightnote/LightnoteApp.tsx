@@ -9,6 +9,7 @@ import SearchBar from './SearchBar'
 import TocPanel from './TocPanel'
 import WorkObjectPanel from './WorkObjectPanel'
 import WorkListView from './WorkListView'
+import WorkQuickList from './WorkQuickList'
 import AIAssistant from './AIAssistant'
 import SettingsModal, { initAppearance } from './SettingsModal'
 import TabBar from './TabBar'
@@ -474,14 +475,19 @@ export default function LightnoteApp() {
             onClose={() => setShowWorkList(false)}
           />
         )}
-        <NotebookTree
-          ref={treeRef}
-          width={leftW}
-          selected={selected}
-          onPageSelect={handlePageSelect}
-          onEditorClear={handleEditorClear}
-          onTrashOpen={setTrashNode}
-        />
+        <div style={{ width: leftW, minWidth: 0, flexShrink: 0, display: 'flex', flexDirection: 'column' }}>
+          <WorkQuickList onOpen={handlePageSelect} activePageId={selected.pageId} refreshKey={woRefresh} />
+          <div style={{ flex: 1, minHeight: 0, display: 'flex' }}>
+            <NotebookTree
+              ref={treeRef}
+              width={leftW}
+              selected={selected}
+              onPageSelect={handlePageSelect}
+              onEditorClear={handleEditorClear}
+              onTrashOpen={setTrashNode}
+            />
+          </div>
+        </div>
         <div className="ln-resizer" onMouseDown={(e) => startResize(e, 'left')} title="너비 조절" />
 
         <div style={{ flex: 1, minWidth: 0, position: 'relative', display: 'flex', flexDirection: 'column' }}>
