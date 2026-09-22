@@ -15,6 +15,7 @@ import SettingsModal, { initAppearance } from './SettingsModal'
 import TabBar from './TabBar'
 import RightPanel from './RightPanel'
 import ReferencePanel from './ReferencePanel'
+import { DialogHost, alertToast, confirmDialog } from './dialogHost'
 
 export default function LightnoteApp() {
   const [selected, setSelected] = useState<Selected>({ notebookId: null, sectionId: null, pageId: null })
@@ -295,9 +296,9 @@ export default function LightnoteApp() {
         await reloadRefs(pageId)
         return
       }
-      alert('클립보드에 이미지가 없습니다. 화면을 캡처한 뒤 다시 눌러 주세요.')
+      alertToast('클립보드에 이미지가 없습니다. 화면을 캡처한 뒤 다시 눌러 주세요.')
     } catch {
-      alert('클립보드를 읽지 못했습니다.')
+      alertToast('클립보드를 읽지 못했습니다.')
     }
   }, [reloadRefs])
 
@@ -308,7 +309,7 @@ export default function LightnoteApp() {
     const msg = cited
       ? '이 참조는 본문에서 인용 중입니다. 삭제하면 본문 마커는 [?]로 남습니다. 삭제할까요?'
       : '이 참조를 삭제할까요?'
-    if (!confirm(msg)) return
+    if (!(await confirmDialog(msg))) return
     await window.lightnote.refsRemove(pageId, ref.id)
     setRefSelected(prev => prev.filter(id => id !== ref.id))
     await reloadRefs(pageId)
@@ -406,7 +407,7 @@ export default function LightnoteApp() {
   }, [])
 
   const purgeTrash = useCallback(async (node: TrashNode) => {
-    if (!confirm(`"${node.name || 'Untitled'}" 을(를) 영구 삭제할까요? 되돌릴 수 없습니다.`)) return
+    if (!(await confirmDialog(`"${node.name || 'Untitled'}" 을(를) 영구 삭제할까요? 되돌릴 수 없습니다.`, { danger: true }))) return
     await window.lightnote.trashPurge(node)
     setTrashNode(null)
     await treeRef.current?.refreshTrash()
@@ -435,7 +436,7 @@ export default function LightnoteApp() {
       const nbs = await window.lightnote.getNotebooks()
       const arch = nbs.find(n => n.name === 'Archives')
       if (!arch || arch.id === notebookId) return // no Archives, or already there
-      if (!confirm('완료 처리되었습니다. Archives로 이동할까요?')) return
+      if (!(await confirmDialog('완료 처리되었습니다. Archives로 이동할까요?'))) return
       const secs = await window.lightnote.getSections(arch.id)
       const target = secs[0] || await window.lightnote.createSection(arch.id, '완료 업무', null)
       const r = await window.lightnote.movePage(notebookId, sectionId, pageId, arch.id, target.id)
@@ -601,6 +602,7 @@ export default function LightnoteApp() {
       </div>
 
       {isSettingsOpen && <SettingsModal onClose={() => setIsSettingsOpen(false)} />}
+      <DialogHost />
     </div>
   )
 }

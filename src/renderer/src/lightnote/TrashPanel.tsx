@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, forwardRef, useImperativeHandle } from 'react'
 import type { TrashNode } from './types'
+import { confirmDialog } from './dialogHost'
 
 export interface TrashPanelHandle { refresh: () => Promise<void> }
 
@@ -42,14 +43,14 @@ const TrashPanel = forwardRef<TrashPanelHandle, Props>(({ onOpenPage, onChanged 
   }, [refresh, onChanged])
 
   const purge = useCallback(async (n: TrashNode) => {
-    if (!confirm(`"${n.name || 'Untitled'}" 을(를) 영구 삭제할까요? 되돌릴 수 없습니다.`)) return
+    if (!(await confirmDialog(`"${n.name || 'Untitled'}" 을(를) 영구 삭제할까요? 되돌릴 수 없습니다.`, { danger: true }))) return
     await window.lightnote.trashPurge(n)
     await refresh()
   }, [refresh])
 
   const empty = useCallback(async () => {
     if (roots.length === 0) return
-    if (!confirm(`휴지통을 비우면 ${roots.length}개 항목이 영구 삭제됩니다. 계속할까요?`)) return
+    if (!(await confirmDialog(`휴지통을 비우면 ${roots.length}개 항목이 영구 삭제됩니다. 계속할까요?`, { danger: true }))) return
     await window.lightnote.trashEmpty()
     await refresh()
   }, [roots.length, refresh])

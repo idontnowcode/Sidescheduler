@@ -6,6 +6,7 @@ import 'quill-table-up/table-creator.css'
 import type { PageRefLoc, PageVersion } from './types'
 import { serializeForOrganize, markdownToQuillDelta, type ImageOp } from './organize-utils'
 import { useClampedMenuPosition } from './clampMenu'
+import { alertToast, confirmDialog } from './dialogHost'
 
 // Full table support (insert/delete row+column, MERGE/SPLIT cells, resize) via
 // quill-table-up — replaces Quill's basic built-in table module.
@@ -992,7 +993,7 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
       const ids = refGroup(mark)
         .map(el => el.getAttribute('data-ref-id') || '')
         .filter(id => id && refLabelsRef.current.has(id))
-      if (!ids.length) { alert('이 참조는 목록에서 삭제되었습니다.'); return }
+      if (!ids.length) { alertToast('이 참조는 목록에서 삭제되었습니다.'); return }
       onRefMarkerClickRef.current?.(ids, clicked)
     }, true)
 
@@ -1006,7 +1007,7 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
       if (!cp) return
       const stored = a.getAttribute('href')!.replace('lnfile://', '')
       window.lightnote.attachOpen(cp.pageId, stored).then(r => {
-        if (r?.error === 'MISSING') alert('첨부 파일을 찾을 수 없습니다. 다른 PC에서 가져온 노트라면 파일은 함께 오지 않습니다.')
+        if (r?.error === 'MISSING') alertToast('첨부 파일을 찾을 수 없습니다. 다른 PC에서 가져온 노트라면 파일은 함께 오지 않습니다.')
       }).catch(() => {})
     }, true)
 
@@ -1633,7 +1634,7 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
     organizeImagesRef.current = images
     // Only images (no prose) is still worth organizing — they'll be preserved.
     if ((!text.trim() || text.trim() === '\n') && images.length === 0) {
-      alert('Nothing to organize. Write a note first.')
+      alertToast('Nothing to organize. Write a note first.')
       return
     }
     if (isDirtyRef.current) await savePage()
@@ -1741,7 +1742,7 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
     if (isDirtyRef.current) await savePage()
     const title = (document.getElementById('ln-page-title') as HTMLInputElement)?.value?.trim() || 'Untitled'
     const r = await window.lightnote.exportPdf(title, q.root.innerHTML, currentPageRef.current?.pageId).catch(() => null)
-    if (r?.error) alert('PDF 내보내기에 실패했습니다.')
+    if (r?.error) alertToast('PDF 내보내기에 실패했습니다.')
   }, [savePage])
 
   // ── 페이지 버전 기록 ────────────────────────────────────────────────────
@@ -1768,9 +1769,9 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
   const restoreVersion = useCallback(async (versionId: string) => {
     const cp = currentPageRef.current
     if (!cp) return
-    if (!confirm('이 버전으로 되돌릴까요? 지금 내용은 새 버전으로 저장되어 다시 되돌릴 수 있습니다.')) return
+    if (!(await confirmDialog('이 버전으로 되돌릴까요? 지금 내용은 새 버전으로 저장되어 다시 되돌릴 수 있습니다.'))) return
     const r = await window.lightnote.restoreVersion(cp.notebookId, cp.sectionId, cp.pageId, versionId).catch(() => null)
-    if (!r?.success) { alert('복원에 실패했습니다.'); return }
+    if (!r?.success) { alertToast('복원에 실패했습니다.'); return }
     if (quillRef.current && r.delta) {
       quillRef.current.setContents(r.delta as Parameters<typeof quillRef.current.setContents>[0], 'silent')
     }

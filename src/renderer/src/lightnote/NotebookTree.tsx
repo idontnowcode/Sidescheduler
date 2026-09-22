@@ -3,6 +3,7 @@ import type { Notebook, Section, Page, Selected, TrashNode, PageTemplate } from 
 import TrashPanel, { type TrashPanelHandle } from './TrashPanel'
 import { useClampedMenuPosition } from './clampMenu'
 import { useDragAutoScroll } from './dragAutoScroll'
+import { confirmDialog } from './dialogHost'
 
 interface ContextMenuState {
   x: number; y: number
@@ -291,7 +292,7 @@ const NotebookTree = forwardRef<TreeHandle, Props>(({ selected, onPageSelect, on
   }, [templatePicker, notebooks, sectionsByNb, reload, loadPages, onPageSelect])
 
   const deleteTemplate = useCallback(async (t: PageTemplate) => {
-    if (!confirm(`"${t.name}" 템플릿을 삭제할까요?`)) return
+    if (!(await confirmDialog(`"${t.name}" 템플릿을 삭제할까요?`))) return
     await window.lightnote.removeTemplate(t.id).catch(() => {})
     setTemplatePicker(prev => prev ? { ...prev, list: prev.list.filter(x => x.id !== t.id) } : prev)
   }, [])

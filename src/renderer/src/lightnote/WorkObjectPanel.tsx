@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import type { WorkObject, WorkStatus, WorkPriority, WorkAction, WorkDecision, WorkDocLink, PageRefLoc, WorkProgressEntry, WorkPendingDecision } from './types'
 import { useClampedMenuPosition } from './clampMenu'
+import { confirmDialog } from './dialogHost'
 
 const STATUSES: WorkStatus[] = ['예정', '진행중', '대기', '완료', '보류']
 const PRIORITIES: WorkPriority[] = ['', '상', '중', '하']
@@ -160,7 +161,7 @@ export default function WorkObjectPanel({ pageId, noteTitle, onComplete, onOpenP
   const changeStatus = async (next: WorkStatus) => {
     if (next === '완료') {
       await persist({ status: '완료', doneAt: wo.doneAt ?? Date.now() })
-      if (wo.calendarLink && confirm('연결된 캘린더 태스크도 완료 처리할까요?')) {
+      if (wo.calendarLink && (await confirmDialog('연결된 캘린더 태스크도 완료 처리할까요?'))) {
         await window.lightnote.workObjectCompleteTask(wo.calendarLink).catch(() => {})
       }
       onComplete?.() // app offers Archives move
@@ -195,8 +196,8 @@ export default function WorkObjectPanel({ pageId, noteTitle, onComplete, onOpenP
     const at = fromDateInput(dateStr); if (at == null) return
     setDecisions(wo.decisions.map(d => d.id === id ? { ...d, at } : d))
   }
-  const delDecision = (id: string) => {
-    if (!confirm('이 결정사항 항목을 삭제할까요? (이력이 지워집니다)')) return
+  const delDecision = async (id: string) => {
+    if (!(await confirmDialog('이 결정사항 항목을 삭제할까요? (이력이 지워집니다)'))) return
     setDecisions(wo.decisions.filter(d => d.id !== id))
   }
 
@@ -212,8 +213,8 @@ export default function WorkObjectPanel({ pageId, noteTitle, onComplete, onOpenP
     const at = fromDateInput(dateStr); if (at == null) return
     setProgressLog(progressLog.map(p => p.id === id ? { ...p, at } : p))
   }
-  const delProgress = (id: string) => {
-    if (!confirm('이 진행 현황 항목을 삭제할까요?')) return
+  const delProgress = async (id: string) => {
+    if (!(await confirmDialog('이 진행 현황 항목을 삭제할까요?'))) return
     setProgressLog(progressLog.filter(p => p.id !== id))
   }
 
@@ -239,8 +240,8 @@ export default function WorkObjectPanel({ pageId, noteTitle, onComplete, onOpenP
       ? { ...p, resolved: !p.resolved, resolvedAt: !p.resolved ? Date.now() : null }
       : p))
   }
-  const delPending = (id: string) => {
-    if (!confirm('이 의사결정 항목을 삭제할까요?')) return
+  const delPending = async (id: string) => {
+    if (!(await confirmDialog('이 의사결정 항목을 삭제할까요?'))) return
     setPendingDecisions(pendingDecisions.filter(p => p.id !== id))
   }
 
@@ -252,7 +253,7 @@ export default function WorkObjectPanel({ pageId, noteTitle, onComplete, onOpenP
   }
 
   const removeAll = async () => {
-    if (!confirm('업무 속성을 완전히 삭제할까요? 상태·다음 Action·결정사항이 모두 지워집니다.')) return
+    if (!(await confirmDialog('업무 속성을 완전히 삭제할까요? 상태·다음 Action·결정사항이 모두 지워집니다.', { danger: true }))) return
     try { await window.lightnote.workObjectRemove(pageId); setWo(null); onEnabledChange?.() } catch { setError('삭제에 실패했습니다.') }
   }
 
