@@ -39,7 +39,11 @@ function notebooksPath() { return path.join(DATA_ROOT, 'notebooks.json'); }
 function notebookDir(id) { return path.join(DATA_ROOT, 'notebooks', id); }
 
 async function getNotebooks() {
-  return (await readJson(notebooksPath())) || [];
+  // The hidden template-store notebook (see ensureTemplateStore below) is
+  // deliberately excluded here — every listing, search and picker in the app
+  // reads notebooks through this function, so filtering it out once here
+  // keeps it invisible everywhere without each caller having to remember to.
+  return ((await readJson(notebooksPath())) || []).filter(n => !n.templateStore);
 }
 
 async function createNotebook(name, color = '#5b5fc7', builtin = false) {
@@ -703,6 +707,31 @@ async function ensureDefaultNotebooks() {
   if (mutated) await writeJson(notebooksPath(), all);
 }
 
+// === HIDDEN TEMPLATE STORE ==================================================
+// Templates are real pages (title = template name, delta = template body)
+// living in one dedicated, permanently-hidden notebook/section — so opening
+// a template for editing is an ordinary page-open, with full parity (TOC,
+// work object, references, attachments) and zero changes to the page editor
+// itself. Marked `templateStore: true` and filtered out of getNotebooks()
+// above, so it never surfaces in the tree, search, or any notebook picker.
+let templateStoreIds = null; // memoized { notebookId, sectionId } for this process
+async function ensureTemplateStore() {
+  if (templateStoreIds) return templateStoreIds;
+  const all = (await readJson(notebooksPath())) || [];
+  let nb = all.find(n => n.templateStore);
+  if (!nb) {
+    nb = { id: crypto.randomUUID(), name: '템플릿', color: '#868e96', createdAt: Date.now(), updatedAt: Date.now(), order: all.length, templateStore: true };
+    all.push(nb);
+    await writeJson(notebooksPath(), all);
+    await fs.mkdir(path.join(notebookDir(nb.id), 'sections'), { recursive: true });
+    await writeJson(path.join(notebookDir(nb.id), 'sections.json'), []);
+  }
+  const secs = await getSections(nb.id);
+  const sec = secs[0] || await createSection(nb.id, '템플릿', null);
+  templateStoreIds = { notebookId: nb.id, sectionId: sec.id };
+  return templateStoreIds;
+}
+
 // === CLEANUP: de-duplicate pages that share the same id ====================
 // A past move bug could write the same page id into several sections. The tree
 // keys selection by page id, so clicking one highlighted them all. This scans
@@ -771,4 +800,5 @@ module.exports = {
   restorePage, restoreSection, restoreNotebook,
   listTrash, purgePage, purgeSection, purgeNotebook, emptyTrash, purgeExpired,
   getTrashRetentionDays, setTrashRetentionDays,
+  ensureTemplateStore,
 };

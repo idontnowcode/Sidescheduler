@@ -269,8 +269,8 @@ function buildTrayMenu() {
   return Menu.buildFromTemplate([
     { label: 'Daily Sidebar Planner', enabled: false },
     { type: 'separator' },
-    { label: '📝 Open LightNote', click: () => openLightNoteWindow() },
-    { label: '🗒 Action Items', click: () => toggleActionItemsWindow() },
+    { label: `📝 Open LightNote${hotkeyLabel(lightNoteHotkey)}`, click: () => openLightNoteWindow() },
+    { label: `🗒 Action Items${hotkeyLabel(actionItemsHotkey)}`, click: () => toggleActionItemsWindow() },
     { type: 'separator' },
     {
       label: 'Show Sidebar', type: 'checkbox', checked: !sidebarHidden,
@@ -289,6 +289,28 @@ function buildTrayMenu() {
     { type: 'separator' },
     { label: 'Quit', click: () => app.quit() }
   ])
+}
+
+// 실제로 등록에 성공한 단축키(없으면 null). 트레이 메뉴에 표시한다.
+let lightNoteHotkey: string | null = null
+let actionItemsHotkey: string | null = null
+
+// globalShortcut.register는 다른 앱이 이미 쓰고 있으면 예외를 던지는 게
+// 아니라 false를 돌려준다 — try/catch로만 감싸두면 조용히 실패한다.
+// 후보를 차례로 시도하고 실제로 잡힌 키를 돌려준다.
+function registerFirstAvailable(candidates: string[], handler: () => void): string | null {
+  for (const accel of candidates) {
+    try {
+      if (globalShortcut.register(accel, handler)) return accel
+    } catch { /* 이 키는 못 쓴다 — 다음 후보로 */ }
+  }
+  return null
+}
+
+/** 트레이 메뉴에 붙일 사람이 읽는 형태: "  (Ctrl+Alt+L)" */
+function hotkeyLabel(accel: string | null): string {
+  if (!accel) return '  (단축키 없음 — 다른 앱이 선점)'
+  return `  (${accel.replace('CommandOrControl', process.platform === 'darwin' ? 'Cmd' : 'Ctrl')})`
 }
 
 function createTray(): void {
@@ -873,12 +895,16 @@ function openLightNoteInNewWindow(target?: { pageId: string; notebookId: string;
   secondaryLightNoteWindows.push(win)
   win.setMenuBarVisibility(false)
   win.once('ready-to-show', () => win.show())
+  // Captured now, while webContents is still alive — reading win.webContents
+  // INSIDE the 'closed' handler below can throw "Object has been destroyed"
+  // (webContents may already be torn down by the time 'closed' fires).
+  const webContentsId = win.webContents.id
   win.on('closed', () => {
-    pendingOpenByWebContentsId.delete(win.webContents.id)
+    pendingOpenByWebContentsId.delete(webContentsId)
     const i = secondaryLightNoteWindows.indexOf(win)
     if (i >= 0) secondaryLightNoteWindows.splice(i, 1)
   })
-  if (target) pendingOpenByWebContentsId.set(win.webContents.id, target)
+  if (target) pendingOpenByWebContentsId.set(webContentsId, target)
 
   if (process.env.NODE_ENV === 'development' && process.env['ELECTRON_RENDERER_URL']) {
     win.loadURL(process.env['ELECTRON_RENDERER_URL'] + '#lightnote')
@@ -1143,15 +1169,20 @@ app.whenReady().then(() => {
   } catch { /* hotkey may be taken by another app */ }
 
   // "사이드바는 안 쓰고 LightNote만 트레이/단축키로" 피드백 — 사이드바가
-  // 숨겨져 있어도(또는 다른 창에 가려 있어도) 이 단축키 하나로 바로 뜬다.
-  try {
-    globalShortcut.register('CommandOrControl+Shift+L', () => openLightNoteWindow())
-  } catch { /* hotkey may be taken by another app */ }
-
+  // 숨겨져 있어도(또는 다른 창에 가려 있어도) 단축키 하나로 바로 뜬다.
+  // 실제로 이 PC에서 Ctrl+Shift+L이 다른 앱에 선점돼 아무 일도 일어나지
+  // 않았다. 선점된 경우 다음 후보로 넘어가고, 최종적으로 어떤 키가 잡혔는지
+  // 트레이 메뉴에 적어 준다(무엇을 눌러야 하는지 추측하지 않도록).
+  lightNoteHotkey = registerFirstAvailable(
+    ['CommandOrControl+Shift+L', 'CommandOrControl+Alt+L', 'CommandOrControl+Shift+N'],
+    () => openLightNoteWindow(),
+  )
   // 기한순 할일 팝업 토글. 화면 우측 상단에 뜬다.
-  try {
-    globalShortcut.register('CommandOrControl+Shift+A', () => toggleActionItemsWindow())
-  } catch { /* hotkey may be taken by another app */ }
+  actionItemsHotkey = registerFirstAvailable(
+    ['CommandOrControl+Shift+A', 'CommandOrControl+Alt+A'],
+    () => toggleActionItemsWindow(),
+  )
+  tray?.setContextMenu(buildTrayMenu())   // 라벨에 실제로 잡힌 키를 반영
 
   // If the app was cold-launched via a lightnote:// deep link, the URL is in argv.
   handleDeepLink(deepLinkFromArgv(process.argv))

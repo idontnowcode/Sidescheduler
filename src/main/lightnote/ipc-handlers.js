@@ -11,10 +11,9 @@ const customFonts = require('./custom-fonts');
 const pageVersions = require('./page-versions');
 const attachments = require('./attachments');
 const referenceStorage = require('./reference-storage');
-const templates = require('./templates');
 const path = require('path');
 const fs = require('fs').promises;
-const { shell } = require('electron');
+const { shell, BrowserWindow } = require('electron');
 
 function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, (c) => (
@@ -43,10 +42,11 @@ function registerIpcHandlers(ipcMain, getWindow, safeStorage, dialog, app, sched
   pageVersions.init(DATA_ROOT);
   attachments.init(DATA_ROOT);
   referenceStorage.init(DATA_ROOT);
-  templates.init(DATA_ROOT);
   storage.init(safeStorage);
   // Seed the fixed PARA notebooks if they don't exist yet (built-in defaults).
   noteStorage.ensureDefaultNotebooks().catch((e) => console.error('ensureDefaultNotebooks:', e));
+  // Ensure the hidden template-store notebook/section exist (see note-storage.js).
+  noteStorage.ensureTemplateStore().catch((e) => console.error('ensureTemplateStore:', e));
 
   const existingKey = storage.loadApiKey();
   if (existingKey) geminiService.init(existingKey);
@@ -118,7 +118,7 @@ function registerIpcHandlers(ipcMain, getWindow, safeStorage, dialog, app, sched
     return noteStorage.loadPage(notebookId, sectionId, pageId);
   });
 
-  ipcMain.handle('lightnote:save-page', async (_, { notebookId, sectionId, pageId, delta, title, snapshot }) => {
+  ipcMain.handle('lightnote:save-page', async (event, { notebookId, sectionId, pageId, delta, title, snapshot }) => {
     // Snapshot what's being replaced BEFORE overwriting (throttled inside;
     // `snapshot: true` forces one, used before AI Organize rewrites).
     try {
@@ -127,6 +127,14 @@ function registerIpcHandlers(ipcMain, getWindow, safeStorage, dialog, app, sched
     } catch (e) { console.error('page snapshot:', e); }
     const result = await noteStorage.savePage(notebookId, sectionId, pageId, delta, title);
     noteIndexer.invalidateCache(pageId);
+    // Multiple windows (the main LightNote window, "open in new window"
+    // copies) can have the same page open at once with no shared memory —
+    // let every OTHER window know this page just changed on disk, so it can
+    // offer a refresh instead of silently drifting out of sync.
+    for (const win of BrowserWindow.getAllWindows()) {
+      if (win.isDestroyed() || win.webContents.id === event.sender.id) continue;
+      win.webContents.send('lightnote:page-changed', { notebookId, sectionId, pageId });
+    }
     return result;
   });
 
@@ -329,10 +337,39 @@ function registerIpcHandlers(ipcMain, getWindow, safeStorage, dialog, app, sched
   });
 
   // === 페이지 템플릿 ===
-  ipcMain.handle('lightnote:templates:list', async () => templates.list());
-  ipcMain.handle('lightnote:templates:get', async (_, { id }) => templates.get(id));
-  ipcMain.handle('lightnote:templates:save', async (_, { name, delta }) => templates.save(name, delta));
-  ipcMain.handle('lightnote:templates:remove', async (_, { id }) => templates.remove(id));
+  // Templates are real pages living in a hidden notebook/section (see
+  // noteStorage.ensureTemplateStore) — opening one for editing is therefore
+  // an ordinary page-open (full TOC/work-object/reference parity), while
+  // these handlers just adapt list/create/rename/delete to the old
+  // {id, name, delta, at}-shaped template API the renderer already used.
+  ipcMain.handle('lightnote:templates:store-location', async () => noteStorage.ensureTemplateStore());
+  ipcMain.handle('lightnote:templates:list', async () => {
+    const { notebookId, sectionId } = await noteStorage.ensureTemplateStore();
+    const pages = await noteStorage.getVisiblePages(notebookId, sectionId);
+    return pages.map((p) => ({ id: p.id, name: p.title, at: p.updatedAt }));
+  });
+  ipcMain.handle('lightnote:templates:get', async (_, { id }) => {
+    const { notebookId, sectionId } = await noteStorage.ensureTemplateStore();
+    const page = await noteStorage.loadPage(notebookId, sectionId, id);
+    return page ? { id: page.id, name: page.title, delta: page.delta } : null;
+  });
+  ipcMain.handle('lightnote:templates:save', async (_, { name, delta }) => {
+    const { notebookId, sectionId } = await noteStorage.ensureTemplateStore();
+    const title = name || '템플릿';
+    const meta = await noteStorage.createPage(notebookId, sectionId, title);
+    await noteStorage.savePage(notebookId, sectionId, meta.id, delta, title);
+    return { id: meta.id, name: title, at: meta.updatedAt };
+  });
+  ipcMain.handle('lightnote:templates:remove', async (_, { id }) => {
+    const { notebookId, sectionId } = await noteStorage.ensureTemplateStore();
+    await noteStorage.deletePage(notebookId, sectionId, id);
+    return { success: true };
+  });
+  ipcMain.handle('lightnote:templates:rename', async (_, { id, name }) => {
+    const { notebookId, sectionId } = await noteStorage.ensureTemplateStore();
+    const page = await noteStorage.renamePage(notebookId, sectionId, id, name);
+    return page ? { id: page.id, name: page.title, at: page.updatedAt } : null;
+  });
 
   // 업무 속성의 필드 섹션(배경/목적/진행 현황/Action Item/의사결정 필요 사항)을
   // PDF 맨 위 "업무 요약" 블록으로 그린다. buildFieldSections이 어떤 필드를

@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useRef, forwardRef, useImperativeHandle } from 'react'
 import type { Notebook, Section, Page, Selected, TrashNode, PageTemplate } from './types'
 import TrashPanel, { type TrashPanelHandle } from './TrashPanel'
+import TemplatesPanel from './TemplatesPanel'
 import { useClampedMenuPosition } from './clampMenu'
 import { useDragAutoScroll } from './dragAutoScroll'
 import { confirmDialog } from './dialogHost'
@@ -826,6 +827,7 @@ const NotebookTree = forwardRef<TreeHandle, Props>(({ selected, onPageSelect, on
         })()}
       </div>
 
+      <TemplatesPanel onOpen={onPageSelect} />
       <TrashPanel ref={trashRef} onOpenPage={(n) => onTrashOpen?.(n)} onChanged={reload} />
 
       {/* Context menu */}

@@ -109,8 +109,8 @@ export default function WorkObjectPanel({ pageId, noteTitle, onComplete, onOpenP
     setEditing(v)
     try { localStorage.setItem('ln-wo-editing', v ? '1' : '0') } catch { /* private mode */ }
   }
-  // 보고용 정리 (report export fields) — collapsed by default.
-  const [reportOpen, setReportOpen] = useState(false)
+  // 업무 배경/목적 — 업무 정리의 핵심 필드라 상단에 항상 보이게 둔다(보고서
+  // export에도 쓰이지만, 그건 부가 용도일 뿐 "보고용"으로 숨겨둘 필드가 아니다).
   const [background, setBackground] = useState('')
   const [purpose, setPurpose] = useState('')
 
@@ -127,7 +127,7 @@ export default function WorkObjectPanel({ pageId, noteTitle, onComplete, onOpenP
       .then(w => { if (!alive) return; setWo(w); setDepts(w?.depts || ''); setBackground(w?.background || ''); setPurpose(w?.purpose || ''); setLoaded(true) })
       .catch(() => { if (alive) { setError('업무 속성을 불러오지 못했습니다.'); setLoaded(true) } })
     setAdding(null); setUrlVal(''); setUrlLabel(''); setPageQuery('')
-    setReportOpen(false); setNewEntry(''); setNewKind('action')
+    setNewEntry(''); setNewKind('action')
     return () => { alive = false }
   }, [pageId, refreshKey])
 
@@ -498,6 +498,23 @@ export default function WorkObjectPanel({ pageId, noteTitle, onComplete, onOpenP
       </div>
 
       <div className="wo-row">
+        <label className="wo-field wo-grow wo-report-text">
+          <span>업무 배경</span>
+          <textarea rows={2} placeholder="이 업무가 왜 시작됐는지"
+            value={background}
+            onChange={e => { setBackground(e.target.value); persistText({ background: e.target.value }) }}
+            onBlur={() => persist({ background })} />
+        </label>
+        <label className="wo-field wo-grow wo-report-text">
+          <span>업무 목적</span>
+          <textarea rows={2} placeholder="이 업무로 무엇을 달성하려는지"
+            value={purpose}
+            onChange={e => { setPurpose(e.target.value); persistText({ purpose: e.target.value }) }}
+            onBlur={() => persist({ purpose })} />
+        </label>
+      </div>
+
+      <div className="wo-row">
         <label className="wo-field wo-grow">
           <span>관련 부서/담당</span>
           <input type="text" placeholder="예: 품질팀, 인증팀" value={depts}
@@ -561,7 +578,7 @@ export default function WorkObjectPanel({ pageId, noteTitle, onComplete, onOpenP
         </div>
       </div>
 
-      {/* 할일·진행·결정·질문을 한 목록으로. 앞으로 할 것과 지나온 것만
+      {/* 할일·진행·결정·질문을 한 목록으로. 처리할 것과 지난 기록만
           나눠 놓는다 — 미래 기한(할일)과 과거 발생일(진행/결정)을 한 줄로
           섞으면 시간순이 오히려 읽기 어려워진다. */}
       <div className="wo-log">
@@ -581,10 +598,10 @@ export default function WorkObjectPanel({ pageId, noteTitle, onComplete, onOpenP
             onKeyDown={e => { if (e.key === 'Enter') addEntry() }} />
         </div>
 
-        {open.length > 0 && <div className="wo-log-zone">열린 것</div>}
+        {open.length > 0 && <div className="wo-log-zone">처리할 것</div>}
         {open.map(row => renderRow(row))}
 
-        {past.length > 0 && <div className="wo-log-zone">지나온 것</div>}
+        {past.length > 0 && <div className="wo-log-zone">지난 기록</div>}
         {past.map(row => renderRow(row))}
 
         {open.length === 0 && past.length === 0 && (
@@ -604,32 +621,6 @@ export default function WorkObjectPanel({ pageId, noteTitle, onComplete, onOpenP
             ))}
         </div>
       )}
-
-      <div className="wo-report">
-        <button className="wo-report-toggle" onClick={() => setReportOpen(v => !v)}>
-          <span className={`wo-report-arrow${reportOpen ? ' open' : ''}`}>▶</span>
-          📋 보고용 정리
-          <span className="wo-report-hint">— 업무 진행 현황 보고서 export에 쓰이는 필드</span>
-        </button>
-        {reportOpen && (
-          <div className="wo-report-body">
-            <label className="wo-field wo-grow wo-report-text">
-              <span>업무 배경</span>
-              <textarea rows={2} placeholder="이 업무가 왜 시작됐는지"
-                value={background}
-                onChange={e => { setBackground(e.target.value); persistText({ background: e.target.value }) }}
-                onBlur={() => persist({ background })} />
-            </label>
-            <label className="wo-field wo-grow wo-report-text">
-              <span>업무 목적</span>
-              <textarea rows={2} placeholder="이 업무로 무엇을 달성하려는지"
-                value={purpose}
-                onChange={e => { setPurpose(e.target.value); persistText({ purpose: e.target.value }) }}
-                onBlur={() => persist({ purpose })} />
-            </label>
-          </div>
-        )}
-      </div>
 
       {error && <div className="wo-err wo-err-row">{error}</div>}
     </div>

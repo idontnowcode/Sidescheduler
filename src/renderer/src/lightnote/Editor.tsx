@@ -62,6 +62,99 @@ function applyAcrossTableSelection(quillInst: Quill, name: 'size' | 'align', val
   quillInst.format(name, value, Quill.sources.USER)
 }
 
+const SIZE_MIN = 6
+const SIZE_MAX = 150
+
+// Effective rendered font-size (px) at a document index — the run's explicit
+// inline 'size' if it has one, else the enclosing block's base size. Reads
+// the leaf's inline style attribute directly (not getComputedStyle, which
+// was landing on the wrong element for header lines and made every line read
+// back as the body-text size) and falls back to the same h1/h2/h3/body table
+// the line-height logic above uses, keyed off the LINE blot's own tag name.
+function domFontSizeAt(quillInst: Quill, index: number): number {
+  const at = Math.max(index, 0)
+  const [leaf] = quillInst.getLeaf(at)
+  const leafNode = (leaf as unknown as { domNode?: Node })?.domNode
+  const leafEl = leafNode ? (leafNode.nodeType === 1 ? (leafNode as HTMLElement) : leafNode.parentElement) : null
+  const inline = leafEl ? parseFloat(leafEl.style?.fontSize || '') : NaN
+  if (Number.isFinite(inline)) return inline
+  const [line] = quillInst.getLine(at)
+  const tag = (line as unknown as { domNode?: HTMLElement })?.domNode?.tagName
+  return tag === 'H1' ? 20 : tag === 'H2' ? 16 : tag === 'H3' ? 14 : 13
+}
+
+// Grow/shrink every run in [index, index+length) by `delta` px, each from its
+// OWN current size (explicit, or — if unset — its real rendered size). This
+// keeps relative differences across a selection instead of flattening it to
+// one value, matching Word/Docs' Grow-Font/Shrink-Font behavior.
+function stepRunsInRange(quillInst: Quill, index: number, length: number, delta: number) {
+  if (length <= 0) return
+  const contents = quillInst.getContents(index, length)
+  let at = index
+  for (const op of contents.ops || []) {
+    if (typeof op.insert !== 'string') { at += 1; continue }
+    let runLen = op.insert.length
+    if (op.insert.endsWith('\n')) runLen -= 1 // don't paint the block-terminating newline
+    if (runLen > 0) {
+      const explicit = op.attributes?.size ? parseFloat(String(op.attributes.size)) : NaN
+      const cur = Number.isFinite(explicit) ? explicit : domFontSizeAt(quillInst, at)
+      const next = Math.min(SIZE_MAX, Math.max(SIZE_MIN, Math.round(cur + delta)))
+      quillInst.formatText(at, runLen, 'size', `${next}px`, Quill.sources.USER)
+    }
+    at += op.insert.length
+  }
+}
+
+// Increase/decrease the current selection's font size by 1px. Routed through
+// the table-cell-drag path the same way applyAcrossTableSelection is, so
+// stepping while multiple table cells are selected touches all of them.
+function stepFontSize(quillInst: Quill, delta: number) {
+  const range = quillInst.getSelection()
+  if (!range) return
+  const tableModule = quillInst.getModule(TableUp.moduleName) as TableUp | undefined
+  const tableSelection = tableModule?.getModule?.(TableSelection.moduleName) as TableSelection | undefined
+  const selectedTds = tableSelection?.selectedTds
+  if (selectedTds && selectedTds.length > 0) {
+    for (const cell of selectedTds) {
+      const idx = (cell as unknown as { offset: (ctx: unknown) => number }).offset(quillInst.scroll)
+      const len = (cell as unknown as { length: () => number }).length()
+      stepRunsInRange(quillInst, idx, len, delta)
+    }
+    return
+  }
+  if (range.length === 0) {
+    const cur = domFontSizeAt(quillInst, Math.max(range.index - 1, 0))
+    const next = Math.min(SIZE_MAX, Math.max(SIZE_MIN, Math.round(cur + delta)))
+    quillInst.format('size', `${next}px`, Quill.sources.USER)
+    return
+  }
+  stepRunsInRange(quillInst, range.index, range.length, delta)
+  quillInst.setSelection(range.index, range.length, Quill.sources.SILENT)
+}
+
+// Current font size for the toolbar display: a single number when the
+// selection is uniform (explicitly sized, or — if never explicitly sized —
+// sharing the same rendered size), or '' when it mixes sizes. A collapsed
+// cursor shows the size text typed there next would use.
+function currentFontSizeLabel(quillInst: Quill, range: { index: number; length: number } | null): string {
+  if (!range) return ''
+  if (range.length === 0) return String(Math.round(domFontSizeAt(quillInst, Math.max(range.index - 1, 0))))
+  const contents = quillInst.getContents(range.index, range.length)
+  const sizes = new Set<number>()
+  let at = range.index
+  for (const op of contents.ops || []) {
+    if (typeof op.insert !== 'string') { at += 1; continue }
+    let runLen = op.insert.length
+    if (op.insert.endsWith('\n')) runLen -= 1
+    if (runLen > 0) {
+      const explicit = op.attributes?.size ? parseFloat(String(op.attributes.size)) : NaN
+      sizes.add(Number.isFinite(explicit) ? explicit : domFontSizeAt(quillInst, at))
+    }
+    at += op.insert.length
+  }
+  return sizes.size === 1 ? String([...sizes][0]) : ''
+}
+
 // ── 표 스타일 프리셋 / 텍스트 ↔ 표 변환 ────────────────────────────────────
 // quill-table-up이 셀에 허용하는 style은 background-color / border / height
 // 뿐이라, 프리셋은 "셀 배경 + 헤더 굵게"만 건드린다 (그래서 지우기로 항상
@@ -425,7 +518,7 @@ function toExternalUrl(raw: string | null): string | null {
   if (!href || href.startsWith('#')) return null
   if (/^(https?:|mailto:|tel:)/i.test(href)) return href
   if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(href)) return `mailto:${href}`  // bare email
-  if (/^javascript:/i.test(href) || /^data:/i.test(href) || /^file:/i.test(href)) return null
+  if (/^javascript:/i.test(href) || /^data:/i.test(href) || /^file:/i.test(href) || /^lnfile:/i.test(href)) return null
   // Anything else that looks like a domain/path → assume https
   return `https://${href.replace(/^\/+/, '')}`
 }
@@ -463,6 +556,10 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
   // 편집기 아래쪽에서 우클릭하면 메뉴가 창 밖으로 나가던 문제.
   useClampedMenuPosition(promoteMenuRef, promoteMenu)
   const [isDirty, setIsDirty] = useState(false)
+  // Another window saved this same page — offer a refresh instead of silently
+  // drifting out of sync (or, worse, this window's next autosave clobbering
+  // that other save with its own stale content).
+  const [remotelyChanged, setRemotelyChanged] = useState(false)
   const [counts, setCounts] = useState({ chars: 0, words: 0 })
   // Format painter: holds the copied inline formats while "armed".
   const painterRef = useRef<Record<string, unknown> | null>(null)
@@ -556,7 +653,17 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
 
   // Keep refs in sync
   useEffect(() => { isDirtyRef.current = isDirty }, [isDirty])
-  useEffect(() => { currentPageRef.current = currentPage }, [currentPage])
+  useEffect(() => { currentPageRef.current = currentPage; setRemotelyChanged(false) }, [currentPage])
+
+  // Another window (the main LightNote window, or an "open in new window"
+  // copy) saved this same page — show a refresh banner instead of silently
+  // going stale.
+  useEffect(() => {
+    const unsub = window.lightnote.onPageChangedElsewhere((d) => {
+      if (currentPageRef.current?.pageId === d.pageId) setRemotelyChanged(true)
+    })
+    return unsub
+  }, [])
 
   // Load linked items (events/tasks) + related pages when the page changes
   useEffect(() => {
@@ -620,6 +727,35 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
       }
     } catch {
       setSaveState('error')
+    }
+  }, [])
+
+  // Reload the current page's content from disk — used by the "다른 창에서
+  // 저장됨" banner. Confirms first if THIS window also has unsaved edits,
+  // since reloading would otherwise silently discard them.
+  const refreshFromDisk = useCallback(async () => {
+    const cp = currentPageRef.current
+    if (!cp) return
+    if (isDirtyRef.current) {
+      const ok = await confirmDialog('이 창에도 저장되지 않은 변경 내용이 있습니다. 다른 창의 최신 내용으로 덮어쓸까요?', { danger: true })
+      if (!ok) return
+    }
+    try {
+      const data = await window.lightnote.loadPage(cp.notebookId, cp.sectionId, cp.pageId)
+      setTitleValue(data.title || 'Untitled')
+      lastSavedTitleRef.current = data.title || 'Untitled'
+      if (quillRef.current) {
+        const delta = data.delta as { ops?: unknown[] } | null
+        quillRef.current.setContents(delta && delta.ops ? delta as Parameters<typeof quillRef.current.setContents>[0] : [], 'silent')
+        quillRef.current.setSelection(0, 0, 'silent')
+        onRefOrderChangeRef.current?.(renumberRefs(quillRef.current.root, refLabelsRef.current))
+      }
+      setIsDirty(false)
+      isDirtyRef.current = false
+      setSaveState('saved')
+      setRemotelyChanged(false)
+    } catch (err) {
+      console.error('Refresh from disk failed:', err)
     }
   }, [])
 
@@ -713,6 +849,7 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
         },
         toolbar: {
           container: [
+            ['undo', 'redo'],
             [{ header: [1, 2, 3, false] }, { toclevel: [false, '1', '2', '3'] }],
             [{ size: SIZE_LIST }],
             ['bold', 'italic', 'underline', 'strike', { script: 'super' }, { script: 'sub' }, 'format-painter'],
@@ -732,6 +869,11 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
             ['clean'],
           ],
           handlers: {
+            // 되돌리기/다시 실행 — Quill 기본 history 모듈(Ctrl+Z / Ctrl+Shift+Z
+            // 로도 이미 동작)에 눈에 보이는 버튼을 붙인 것. 최대 100단계
+            // (Quill history 모듈 기본 maxStack).
+            undo: function (this: { quill: typeof quill }) { this.quill.history.undo() },
+            redo: function (this: { quill: typeof quill }) { this.quill.history.redo() },
             // 파일 첨부: 고른 파일을 페이지 폴더로 복사하고 델타에는 링크만
             // 남긴다. ('attach'는 Quill 포맷이 아니라서 생성 시점 handlers에
             // 있어야 버튼이 살아난다 — addHandler로 나중에 붙이면 무시됨.)
@@ -863,6 +1005,8 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
         '.ql-script[value="sub"]': '아래 첨자 (Subscript)',
         '.ql-indent[value="+1"]': '들여쓰기 (Indent) — 번호 목록은 1. → 가. → 1) 로 단계 변경',
         '.ql-indent[value="-1"]': '내어쓰기 (Outdent)',
+        '.ql-undo': '되돌리기 (Undo, Ctrl+Z)',
+        '.ql-redo': '다시 실행 (Redo, Ctrl+Shift+Z)',
         '.ql-format-painter': '서식 복사 — 서식을 복사할 글자를 선택하고 클릭한 뒤, 적용할 범위를 드래그',
         '.ql-attach': '파일 첨부 (PDF·엑셀 등) — 클릭하면 기본 프로그램으로 열림',
         '.ql-table-style': '표 스타일 — 머리행 강조 / 줄무늬 / 지우기 (표 안에 커서를 두고 사용)',
@@ -886,6 +1030,10 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
       })
       // The custom apply-buttons render empty — give them an "A" glyph (text) and
       // a highlighter glyph (bg); their underbar color comes from --ln-cur (CSS).
+      const undoBtn = tbContainer.querySelector('.ql-undo') as HTMLElement | null
+      if (undoBtn) undoBtn.textContent = '↶'
+      const redoBtn = tbContainer.querySelector('.ql-redo') as HTMLElement | null
+      if (redoBtn) redoBtn.textContent = '↷'
       const fpBtn = tbContainer.querySelector('.ql-format-painter') as HTMLElement | null
       if (fpBtn) fpBtn.textContent = '🖌'
       const atBtn = tbContainer.querySelector('.ql-attach') as HTMLElement | null
@@ -937,6 +1085,30 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
         })
         btn.addEventListener('click', (e) => { e.preventDefault(); apply() })
         sizeOptions.appendChild(row)
+      }
+
+      // Font-size stepper next to the dropdown: shows the current selection's
+      // size (blank when it mixes sizes, like other note apps) with −/+
+      // buttons that nudge it by 1px.
+      if (sizePicker) {
+        const stepper = document.createElement('span')
+        stepper.className = 'ln-size-stepper'
+        stepper.innerHTML = `
+          <button type="button" class="ln-size-dec">−</button>
+          <span class="ln-size-display"></span>
+          <button type="button" class="ln-size-inc">＋</button>
+        `
+        sizePicker.insertAdjacentElement('afterend', stepper)
+        const display = stepper.querySelector('.ln-size-display') as HTMLElement
+        const decBtn = stepper.querySelector('.ln-size-dec') as HTMLButtonElement
+        const incBtn = stepper.querySelector('.ln-size-inc') as HTMLButtonElement
+        decBtn.title = '글자 크기 1px 축소'
+        incBtn.title = '글자 크기 1px 확대'
+        const syncSizeDisplay = () => { display.textContent = currentFontSizeLabel(quill, quill.getSelection()) }
+        decBtn.addEventListener('click', (e) => { e.preventDefault(); stepFontSize(quill, -1); syncSizeDisplay() })
+        incBtn.addEventListener('click', (e) => { e.preventDefault(); stepFontSize(quill, 1); syncSizeDisplay() })
+        quill.on('selection-change', syncSizeDisplay)
+        syncSizeDisplay()
       }
     }
 
@@ -1295,7 +1467,24 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
         const t = e.target as HTMLElement
         const tt = t.closest('.ql-tooltip a.ql-preview') as HTMLAnchorElement | null
         if (!tt) return
-        const url = toExternalUrl(tt.getAttribute('href'))
+        const href = tt.getAttribute('href') || ''
+        // Attachment links (lnfile://): same handling as the in-content click
+        // listener above — open the real file directly, never a URL (toExternalUrl
+        // correctly rejects lnfile: now, but rejecting isn't enough on its own;
+        // this used to fall through and mangle it into "https://lnfile://…",
+        // which Windows then tried to resolve as a web address).
+        if (href.startsWith('lnfile://')) {
+          e.preventDefault()
+          e.stopPropagation()
+          const cp = currentPageRef.current
+          if (!cp) return
+          const stored = href.replace('lnfile://', '')
+          window.lightnote.attachOpen(cp.pageId, stored).then(r => {
+            if (r?.error === 'MISSING') alertToast('첨부 파일을 찾을 수 없습니다. 다른 PC에서 가져온 노트라면 파일은 함께 오지 않습니다.')
+          }).catch(() => {})
+          return
+        }
+        const url = toExternalUrl(href)
         if (url) {
           e.preventDefault()
           e.stopPropagation()
@@ -1377,7 +1566,7 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
       // (h1=24px) kept tall rows even when the text was shrunk. Applied as an
       // absolute px line-height (view-only; not part of the delta).
       const baseSize = (el: HTMLElement) =>
-        el.tagName === 'H1' ? 24 : el.tagName === 'H2' ? 20 : el.tagName === 'H3' ? 16 : 14
+        el.tagName === 'H1' ? 20 : el.tagName === 'H2' ? 16 : el.tagName === 'H3' ? 14 : 13
       const maxInlineSize = (el: HTMLElement, base: number): number => {
         let max = 0; let hasBare = false
         const walk = (node: HTMLElement) => {
@@ -1876,6 +2065,13 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
             <button onMouseDown={e => e.preventDefault()} className="ln-find-btn wide" onClick={replaceOne}>바꾸기</button>
             <button onMouseDown={e => e.preventDefault()} className="ln-find-btn wide" onClick={replaceAll}>모두 바꾸기</button>
             <button onMouseDown={e => e.preventDefault()} className="ln-find-btn" title="닫기 (Esc)" onClick={() => setFindOpen(false)}>✕</button>
+          </div>
+        )}
+        {remotelyChanged && (
+          <div className="ln-remote-banner">
+            <span>⚠ 이 페이지가 다른 창에서 저장되었습니다.</span>
+            <button onClick={refreshFromDisk}>새로고침</button>
+            <button className="ln-remote-dismiss" title="닫기" onClick={() => setRemotelyChanged(false)}>✕</button>
           </div>
         )}
         <div

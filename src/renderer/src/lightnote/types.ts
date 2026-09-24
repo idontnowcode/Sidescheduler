@@ -196,10 +196,12 @@ declare global {
         Promise<{ success?: boolean; canceled?: boolean; filePath?: string; error?: string }>
       importBundle: () => Promise<{ success?: boolean; canceled?: boolean; notebookId?: string; notebookName?: string; pageCount?: number; sectionCount?: number; error?: string }>
       exportReport: (pageIds: string[]) => Promise<{ success?: boolean; canceled?: boolean; filePath?: string; error?: string }>
+      templateStoreLocation: () => Promise<{ notebookId: string; sectionId: string }>
       listTemplates: () => Promise<PageTemplate[]>
       getTemplate: (id: string) => Promise<{ id: string; name: string; delta: unknown } | null>
       saveTemplate: (name: string, delta: unknown) => Promise<PageTemplate>
       removeTemplate: (id: string) => Promise<{ success: boolean }>
+      renameTemplate: (id: string, name: string) => Promise<PageTemplate>
       exportPdf: (title: string, html: string, pageId?: string) => Promise<{ success?: boolean; canceled?: boolean; filePath?: string; error?: string }>
       attachPick: (pageId: string) => Promise<{ success?: boolean; canceled?: boolean; files?: { stored: string; name: string; size: number }[]; error?: string }>
       attachOpen: (pageId: string, stored: string) => Promise<{ success?: boolean; error?: string }>
@@ -251,6 +253,7 @@ declare global {
       actionItemsSetPinned: (pinned: boolean) => Promise<boolean>
       actionItemsOpenPage: (notebookId: string, sectionId: string, pageId: string) => void
       onActionItemsRefresh: (cb: () => void) => () => void
+      onPageChangedElsewhere: (cb: (data: { notebookId: string; sectionId: string; pageId: string }) => void) => () => void
     }
   }
 }

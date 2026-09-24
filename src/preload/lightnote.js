@@ -42,11 +42,13 @@ contextBridge.exposeInMainWorld('lightnote', {
   // 업무 진행 현황 보고서 내보내기 (선택한 업무들 → 개조식 평문 .md)
   exportReport: (pageIds) => ipcRenderer.invoke('lightnote:export-report', { pageIds }),
 
-  // 페이지 템플릿
+  // 페이지 템플릿 (실제로는 숨김 노트북 안의 일반 페이지 — templateStoreLocation으로 열기)
+  templateStoreLocation: () => ipcRenderer.invoke('lightnote:templates:store-location'),
   listTemplates: () => ipcRenderer.invoke('lightnote:templates:list'),
   getTemplate: (id) => ipcRenderer.invoke('lightnote:templates:get', { id }),
   saveTemplate: (name, delta) => ipcRenderer.invoke('lightnote:templates:save', { name, delta }),
   removeTemplate: (id) => ipcRenderer.invoke('lightnote:templates:remove', { id }),
+  renameTemplate: (id, name) => ipcRenderer.invoke('lightnote:templates:rename', { id, name }),
 
   // PDF 내보내기
   exportPdf: (title, html, pageId) => ipcRenderer.invoke('lightnote:export-pdf', { title, html, pageId }),
@@ -154,4 +156,11 @@ contextBridge.exposeInMainWorld('lightnote', {
   actionItemsOpenPage: (notebookId, sectionId, pageId) =>
     ipcRenderer.send('action-items:open-page', { notebookId, sectionId, pageId }),
   onActionItemsRefresh: (cb) => { const h = () => cb(); ipcRenderer.on('action-items:refresh', h); return () => ipcRenderer.removeListener('action-items:refresh', h) },
+
+  // 다른 창에서 같은 페이지가 저장되면 알림 (자동 덮어쓰기 없음 — 배너로 새로고침 안내)
+  onPageChangedElsewhere: (cb) => {
+    const h = (_e, d) => cb(d)
+    ipcRenderer.on('lightnote:page-changed', h)
+    return () => ipcRenderer.removeListener('lightnote:page-changed', h)
+  },
 })

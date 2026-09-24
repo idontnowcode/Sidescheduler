@@ -56,7 +56,7 @@ export default function WorkQuickList({ onOpen, activePageId, refreshKey }: Prop
   return (
     <div className="wql-wrap">
       <button className="wql-head" onClick={toggleCollapsed} aria-expanded={!collapsed}>
-        <span className="wql-arrow">{collapsed ? '▸' : '▾'}</span>
+        <span className={`wql-arrow${collapsed ? '' : ' open'}`}>▶</span>
         <span className="wql-title">📋 업무</span>
         <span className="wql-count">{rows.length}</span>
       </button>
