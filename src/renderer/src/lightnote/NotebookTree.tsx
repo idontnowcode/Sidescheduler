@@ -524,8 +524,8 @@ const NotebookTree = forwardRef<TreeHandle, Props>(({ selected, onPageSelect, on
     } catch (e) { console.error('drop on page threw:', e) } finally { movingRef.current = false }
   }, [dragPage, reload, loadPages, selected, notebooks, sectionsByNb, onPageSelect])
 
-  // User notebooks in display order: pinned first, then by stored order.
-  const userNotebooks = notebooks.filter(n => !n.builtin)
+  // 노트북은 전부 동등하다(고정 PARA 없음): 고정한 것 먼저, 그다음 저장된 순서.
+  const userNotebooks = notebooks
     .sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0) || (a.order ?? 0) - (b.order ?? 0))
 
   const handleTogglePin = useCallback(async () => {
@@ -533,7 +533,7 @@ const NotebookTree = forwardRef<TreeHandle, Props>(({ selected, onPageSelect, on
     const id = ctxMenu.target.notebookId
     hideCtx()
     const nb = notebooks.find(n => n.id === id)
-    if (!nb || nb.builtin) return
+    if (!nb) return
     await window.lightnote.pinNotebook(id, !nb.pinned)
     await reload()
   }, [ctxMenu, hideCtx, notebooks, reload])
@@ -560,20 +560,19 @@ const NotebookTree = forwardRef<TreeHandle, Props>(({ selected, onPageSelect, on
         <div
           className={`nb-header${isSelected ? ' selected' : ''}${
             dropNb === nb.id ? (dropMode === 'into' ? ' drop-target' : ' nb-drop-line') : ''}`}
-          // User notebooks can be dragged to reorder. PARA (builtin) are fixed.
           // A dragged FOLDER can be dropped onto any notebook (incl. PARA) to
           // move it to that notebook's top level.
-          draggable={!nb.builtin}
-          onDragStart={e => { if (!nb.builtin) { e.stopPropagation(); setDragNb(nb.id) } }}
+          draggable
+          onDragStart={e => { e.stopPropagation(); setDragNb(nb.id) }}
           onDragEnd={() => { setDragNb(null); setDropNb(null); setDropMode(null) }}
           onDragOver={e => {
-            if (dragNb && !nb.builtin && dragNb !== nb.id) { e.preventDefault(); e.stopPropagation(); setDropNb(nb.id); setDropMode('reorder') }
+            if (dragNb && dragNb !== nb.id) { e.preventDefault(); e.stopPropagation(); setDropNb(nb.id); setDropMode('reorder') }
             else if (dragSec) { e.preventDefault(); e.stopPropagation(); setDropNb(nb.id); setDropMode('into') }
           }}
           onDragLeave={() => setDropNb(prev => (prev === nb.id ? null : prev))}
           onDrop={e => {
             if (dragSec) { e.preventDefault(); e.stopPropagation(); handleMoveSectionToNbRoot(nb.id) }
-            else if (dragNb && !nb.builtin) { e.preventDefault(); e.stopPropagation(); handleReorderNb(nb.id) }
+            else if (dragNb) { e.preventDefault(); e.stopPropagation(); handleReorderNb(nb.id) }
           }}
           onClick={() => toggleNb(nb.id)}
           onContextMenu={e => showCtx(e, { type: 'notebook', notebookId: nb.id })}
@@ -581,8 +580,7 @@ const NotebookTree = forwardRef<TreeHandle, Props>(({ selected, onPageSelect, on
           <span className={`nb-arrow${isOpen ? ' open' : ''}`}>▶</span>
           <span className="nb-color" style={{ background: nb.color }} />
           <span className="nb-name">{nb.name}</span>
-          {nb.builtin && <span className="nb-pin" title="Fixed notebook">📌</span>}
-          {!nb.builtin && nb.pinned && <span className="nb-pin" title="Pinned">📍</span>}
+          {nb.pinned && <span className="nb-pin" title="Pinned">📍</span>}
           <button className="icon-btn-sm nb-add-btn" title="Add folder"
             onClick={e => {
               e.stopPropagation()
@@ -811,20 +809,7 @@ const NotebookTree = forwardRef<TreeHandle, Props>(({ selected, onPageSelect, on
       <div className="notebook-tree" ref={autoScrollRef}>
         {notebooks.length === 0 ? (
           <div className="empty-hint">Loading…</div>
-        ) : (() => {
-          // PARA (built-in) notebooks pinned to the top in canonical order,
-          // then a divider, then the user's own notebooks.
-          const paraOrder = ['Projects', 'Areas', 'Resources', 'Archives']
-          const para = notebooks.filter(n => n.builtin)
-            .sort((a, b) => paraOrder.indexOf(a.name) - paraOrder.indexOf(b.name))
-          return (
-            <>
-              {para.map(renderNotebook)}
-              {para.length > 0 && userNotebooks.length > 0 && <div className="nb-divider" />}
-              {userNotebooks.map(renderNotebook)}
-            </>
-          )
-        })()}
+        ) : userNotebooks.map(renderNotebook)}
       </div>
 
       <TemplatesPanel onOpen={onPageSelect} />
@@ -832,9 +817,6 @@ const NotebookTree = forwardRef<TreeHandle, Props>(({ selected, onPageSelect, on
 
       {/* Context menu */}
       {ctxMenu && (() => {
-        // Fixed PARA notebooks can't be renamed or deleted.
-        const isBuiltinNb = ctxMenu.target.type === 'notebook' &&
-          !!notebooks.find(n => n.id === ctxMenu.target.notebookId)?.builtin
         return (
         <div ref={ctxMenuRef} className="context-menu" style={{ left: ctxMenu.x, top: ctxMenu.y }} onClick={e => e.stopPropagation()}>
           {msel.length > 1 && (
@@ -844,7 +826,7 @@ const NotebookTree = forwardRef<TreeHandle, Props>(({ selected, onPageSelect, on
               <div className="ctx-sep" />
             </>
           )}
-          {!isBuiltinNb && <div className="ctx-item" onClick={handleRename}>Rename</div>}
+          <div className="ctx-item" onClick={handleRename}>Rename</div>
           {ctxMenu.target.type === 'page' && (
             <>
               <div className="ctx-item" onClick={handleAddSubpage}>📑 하위 페이지 추가</div>
@@ -854,7 +836,7 @@ const NotebookTree = forwardRef<TreeHandle, Props>(({ selected, onPageSelect, on
             </>
           )}
           <div className="ctx-item" onClick={handleExport}>📤 내보내기…</div>
-          {!isBuiltinNb && <div className="ctx-item ctx-danger" onClick={handleDelete}>Delete</div>}
+          <div className="ctx-item ctx-danger" onClick={handleDelete}>Delete</div>
           {ctxMenu.target.type === 'section' && (
             <>
               <div className="ctx-sep" />
@@ -866,11 +848,9 @@ const NotebookTree = forwardRef<TreeHandle, Props>(({ selected, onPageSelect, on
           {ctxMenu.target.type === 'notebook' && (
             <>
               <div className="ctx-sep" />
-              {!isBuiltinNb && (
-                <div className="ctx-item" onClick={handleTogglePin}>
-                  {notebooks.find(n => n.id === ctxMenu.target.notebookId)?.pinned ? '📍 상단 고정 해제' : '📍 상단 고정'}
-                </div>
-              )}
+              <div className="ctx-item" onClick={handleTogglePin}>
+                {notebooks.find(n => n.id === ctxMenu.target.notebookId)?.pinned ? '📍 상단 고정 해제' : '📍 상단 고정'}
+              </div>
               <div className="ctx-item" onClick={handleAddChild}>Add folder</div>
             </>
           )}

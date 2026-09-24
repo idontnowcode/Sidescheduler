@@ -1,4 +1,5 @@
-// Verify user-notebook reordering (drag) and pin-to-top, while PARA stays fixed.
+// 노트북 순서 바꾸기(드래그)와 상단 고정. PARA 기본 노트북은 없앴으므로
+// 트리에는 사용자가 만든 노트북만 있고, 전부 동등하게 옮기고 고정할 수 있다.
 import { _electron as electron } from 'playwright'
 import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -27,8 +28,7 @@ await ln.reload(); await ln.waitForFunction(() => !!window.lightnote, null, { ti
 const userOrder = () => ln.evaluate(() => {
   const tree = document.querySelector('.notebook-tree')
   const names = [...tree.querySelectorAll(':scope > div > .nb-header > .nb-name')].map(n => n.textContent)
-  // drop the 4 PARA names at the front
-  return names.filter(n => !['Projects', 'Areas', 'Resources', 'Archives'].includes(n))
+  return names
 })
 ok('initial user order A,B,C', JSON.stringify(await userOrder()) === JSON.stringify(['A', 'B', 'C']), JSON.stringify(await userOrder()))
 
@@ -59,11 +59,12 @@ await ln.evaluate(async () => {
 await ln.reload(); await ln.waitForFunction(() => !!window.lightnote, null, { timeout: 8000 }); await ln.waitForTimeout(500)
 ok('pinning B moves it to the top of the user group (B,C,A)', JSON.stringify(await userOrder()) === JSON.stringify(['B', 'C', 'A']), JSON.stringify(await userOrder()))
 
-// PARA still first + fixed
+// PARA 기본 노트북은 더 이상 만들어지지 않는다 — 트리에 내 노트북만 남는다.
 const full = await ln.evaluate(() => [...document.querySelectorAll('.nb-header > .nb-name')].map(n => n.textContent))
-ok('PARA notebooks remain pinned at the very top', JSON.stringify(full.slice(0, 4)) === JSON.stringify(['Projects', 'Areas', 'Resources', 'Archives']), JSON.stringify(full))
+ok('PARA 기본 노트북이 더 이상 생기지 않음',
+  !full.some(n => ['Projects', 'Areas', 'Resources', 'Archives'].includes(n)), JSON.stringify(full))
 
-// Pinned B carries the 📍 marker (user pin, distinct from PARA 📌)
+// 고정한 B에는 📍 표시가 붙는다
 const bPinned = await ln.evaluate(() => {
   const b = [...document.querySelectorAll('.nb-header')].find(h => h.querySelector('.nb-name')?.textContent === 'B')
   return !!b?.querySelector('.nb-pin')

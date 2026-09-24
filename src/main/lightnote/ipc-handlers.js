@@ -43,8 +43,9 @@ function registerIpcHandlers(ipcMain, getWindow, safeStorage, dialog, app, sched
   attachments.init(DATA_ROOT);
   referenceStorage.init(DATA_ROOT);
   storage.init(safeStorage);
-  // Seed the fixed PARA notebooks if they don't exist yet (built-in defaults).
-  noteStorage.ensureDefaultNotebooks().catch((e) => console.error('ensureDefaultNotebooks:', e));
+  // PARA(Projects/Areas/Resources/Archives) 기본 노트북은 더 이상 만들지
+  // 않는다 — 안내 페이지만 든 채 트리 맨 위를 차지했고, 실제 정리는 각자
+  // 주제별 노트북(회사·제품 등)으로 하고 있었다. 노트북은 이제 전부 동등하다.
   // Ensure the hidden template-store notebook/section exist (see note-storage.js).
   noteStorage.ensureTemplateStore().catch((e) => console.error('ensureTemplateStore:', e));
 

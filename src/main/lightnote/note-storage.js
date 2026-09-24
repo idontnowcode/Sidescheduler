@@ -46,12 +46,11 @@ async function getNotebooks() {
   return ((await readJson(notebooksPath())) || []).filter(n => !n.templateStore);
 }
 
-async function createNotebook(name, color = '#5b5fc7', builtin = false) {
+async function createNotebook(name, color = '#5b5fc7') {
   const notebooks = await getNotebooks();
   const id = crypto.randomUUID();
   const now = Date.now();
   const notebook = { id, name, color, createdAt: now, updatedAt: now, order: notebooks.length };
-  if (builtin) notebook.builtin = true;
   notebooks.push(notebook);
   await writeJson(notebooksPath(), notebooks);
   await fs.mkdir(path.join(notebookDir(id), 'sections'), { recursive: true });
@@ -63,7 +62,6 @@ async function renameNotebook(id, name) {
   const notebooks = await getNotebooks();
   const nb = notebooks.find(n => n.id === id);
   if (!nb) return null;
-  if (nb.builtin) return nb; // fixed default PARA notebook — not renamable
   nb.name = name;
   nb.updatedAt = Date.now();
   await writeJson(notebooksPath(), notebooks);
@@ -74,7 +72,7 @@ async function renameNotebook(id, name) {
 async function setNotebookPinned(id, pinned) {
   const notebooks = await getNotebooks();
   const nb = notebooks.find(n => n.id === id);
-  if (!nb || nb.builtin) return nb || null; // built-ins are already pinned to top
+  if (!nb) return null;
   if (pinned) nb.pinned = true; else delete nb.pinned;
   nb.updatedAt = Date.now();
   await writeJson(notebooksPath(), notebooks);
@@ -93,7 +91,6 @@ async function reorderNotebooks(ids) {
 async function deleteNotebook(id) {
   const notebooks = await getNotebooks();
   const nb = notebooks.find(n => n.id === id);
-  if (nb && nb.builtin) return; // fixed default PARA notebook — not deletable
   await writeJson(notebooksPath(), notebooks.filter(n => n.id !== id));
   try { await fs.rm(notebookDir(id), { recursive: true, force: true }); } catch {}
 }
@@ -434,7 +431,6 @@ async function softDeleteNotebook(id) {
   const nbs = await getNotebooks();
   const nb = nbs.find(n => n.id === id);
   if (!nb) return { success: false };
-  if (nb.builtin) return { success: false, error: 'BUILTIN' }; // PARA defaults aren't deletable
   nb.deletedAt = Date.now();
   await writeJson(notebooksPath(), nbs);
   return { success: true };
@@ -664,49 +660,6 @@ async function saveOpenTabs(tabs) {
   return { success: true };
 }
 
-// === DEFAULT (PARA) NOTEBOOKS =============================================
-// The PARA method notebooks are fixed built-ins: seeded once, not renamable or
-// deletable. They give every user a consistent top-level structure.
-const PARA_DEFAULTS = [
-  { name: 'Projects',  color: '#e8590c', intro: '# Projects\n\n지금 진행 중이고 마감이 있는 목표.\n- 명확한 결과와 기한이 있는 활동\n- 완료되면 Archives로 이동\n\n예: 앱 출시, 보고서 작성, 여행 준비' },
-  { name: 'Areas',     color: '#5b5fc7', intro: '# Areas\n\n지속적으로 관리하는 책임 영역 (마감 없음).\n- 꾸준히 유지해야 하는 기준이 있는 영역\n\n예: 건강, 재무, 커리어, 가족' },
-  { name: 'Resources', color: '#2f9e44', intro: '# Resources\n\n관심 주제·참고 자료 모음.\n- 나중에 쓸 수 있는 정보/템플릿/노하우\n\n예: 디자인 레퍼런스, 코드 스니펫, 아이디어' },
-  { name: 'Archives',  color: '#868e96', intro: '# Archives\n\n완료·비활성 항목 보관소.\n- 위 세 곳에서 더 이상 활성이 아닌 것들\n\n예: 끝난 프로젝트, 예전 관심사' },
-];
-
-function introToDelta(intro) {
-  return { ops: intro.split('\n').map(line => {
-    const h = line.match(/^# (.+)/);
-    if (h) return [{ insert: h[1] }, { insert: '\n', attributes: { header: 1 } }];
-    const b = line.match(/^- (.+)/);
-    if (b) return [{ insert: b[1] }, { insert: '\n', attributes: { list: 'bullet' } }];
-    return [{ insert: line + '\n' }];
-  }).flat() };
-}
-
-/** Ensure the PARA notebooks exist AND are flagged as fixed built-ins.
- *  Safe to call on every launch. Also upgrades legacy PARA notebooks that were
- *  created before the built-in flag existed, so they become non-deletable too. */
-async function ensureDefaultNotebooks() {
-  // 1) Create any missing PARA notebooks (with intro pages).
-  const names = new Set((await getNotebooks()).map(n => n.name));
-  for (const p of PARA_DEFAULTS) {
-    if (names.has(p.name)) continue;
-    const nb = await createNotebook(p.name, p.color, true);
-    const sec = await createSection(nb.id, 'Overview', null);
-    const page = await createPage(nb.id, sec.id, `About ${p.name}`);
-    await savePage(nb.id, sec.id, page.id, introToDelta(p.intro), `About ${p.name}`);
-  }
-  // 2) Upgrade any PARA-named notebook (incl. pre-existing ones) to built-in.
-  const paraNames = new Set(PARA_DEFAULTS.map(p => p.name));
-  const all = await getNotebooks();
-  let mutated = false;
-  for (const nb of all) {
-    if (paraNames.has(nb.name) && !nb.builtin) { nb.builtin = true; mutated = true; }
-  }
-  if (mutated) await writeJson(notebooksPath(), all);
-}
-
 // === HIDDEN TEMPLATE STORE ==================================================
 // Templates are real pages (title = template name, delta = template body)
 // living in one dedicated, permanently-hidden notebook/section — so opening
@@ -787,7 +740,7 @@ async function deduplicatePages() {
 
 module.exports = {
   getOpenTabs, saveOpenTabs,
-  init, ensureDefaultNotebooks, deduplicatePages, getNotebooks, createNotebook, renameNotebook, deleteNotebook,
+  init, deduplicatePages, getNotebooks, createNotebook, renameNotebook, deleteNotebook,
   setNotebookPinned, reorderNotebooks,
   getSections, createSection, renameSection, deleteSection, moveSection, reorderSection,
   getPages, createPage, loadPage, savePage, renamePage, deletePage,

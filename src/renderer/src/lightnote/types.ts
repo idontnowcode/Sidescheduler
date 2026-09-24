@@ -11,7 +11,6 @@ export interface Notebook {
   id: string
   name: string
   color: string
-  builtin?: boolean
   pinned?: boolean
   order?: number
 }
