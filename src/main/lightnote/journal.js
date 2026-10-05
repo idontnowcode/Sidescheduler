@@ -136,6 +136,22 @@ async function append(text, at = Date.now()) {
   return { success: true, ...loc, at };
 }
 
+/** 이미지를 기록 한 줄로 붙인다. 본문 이미지와 같은 방식(델타에 data URL
+ *  임베드)이라, 그 날짜 페이지를 편집기로 열면 평소처럼 보이고 PDF 내보내기
+ *  같은 기존 기능도 그대로 걸린다. */
+async function appendImage(dataUrl, text = '', at = Date.now()) {
+  if (!/^data:image\/[a-z0-9+.-]+;base64,/i.test(String(dataUrl || ''))) return { error: 'BAD_IMAGE' };
+  const loc = await ensureDayPage(at);
+  const content = await noteStorage.loadPage(loc.notebookId, loc.sectionId, loc.pageId);
+  const delta = (content && content.delta) || { ops: [] };
+  const plain = deltaToLines(delta).map((l) => l.text).join('').trim();
+  const head = `${timeLabel(at)}  ${String(text || '').trim()}`.replace(/\s+$/, '');
+  const add = [{ insert: head }, { insert: { image: dataUrl } }, { insert: '\n' }];
+  const ops = plain ? [...(delta.ops || []), ...add] : add;
+  await noteStorage.savePage(loc.notebookId, loc.sectionId, loc.pageId, { ops }, loc.title);
+  return { success: true, ...loc, at };
+}
+
 /** 한 날짜의 기록 카드 목록. */
 async function readDay(key) {
   const [y, m, d] = String(key).split('-').map(Number);
@@ -193,6 +209,6 @@ async function listDays({ days = 30, withRecords = false } = {}) {
 }
 
 module.exports = {
-  NOTEBOOK_NAME, append, readDay, listDays, ensureDayPage,
+  NOTEBOOK_NAME, append, appendImage, readDay, listDays, ensureDayPage,
   dateKey, dayTitle, timeLabel, deltaToLines, linesToRecords,
 };

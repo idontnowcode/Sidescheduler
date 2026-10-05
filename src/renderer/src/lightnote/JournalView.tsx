@@ -81,6 +81,24 @@ export default function JournalView({ onClose, onOpenPage }: Props) {
     listRef.current?.scrollTo({ top: 0 })
   }, [draft, reload, wholeRange, query])
 
+  // 사진은 붙여넣으면 바로 오늘 기록으로 들어간다(채팅창과 같은 동작).
+  const pasteImages = useCallback(async (files: File[]) => {
+    const images = files.filter(f => f.type.startsWith('image/'))
+    if (!images.length) return
+    const caption = draft.trim()
+    setDraft('')
+    for (const [i, file] of images.entries()) {
+      const dataUrl = await new Promise<string>((res, rej) => {
+        const fr = new FileReader()
+        fr.onload = () => res(String(fr.result))
+        fr.onerror = () => rej(new Error('read failed'))
+        fr.readAsDataURL(file)
+      })
+      await window.lightnote.journalAppendImage(dataUrl, i === 0 ? caption : '')
+    }
+    await reload(wholeRange || !!query.trim())
+  }, [draft, reload, wholeRange, query])
+
   const jumpTo = useCallback((date: string) => {
     setPicked(date)
     if (oneDay) return
@@ -135,6 +153,10 @@ export default function JournalView({ onClose, onOpenPage }: Props) {
             value={draft}
             onChange={e => setDraft(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter') add() }}
+            onPaste={e => {
+              const files = Array.from(e.clipboardData?.files || [])
+              if (files.some(f => f.type.startsWith('image/'))) { e.preventDefault(); pasteImages(files) }
+            }}
           />
           <div className="jn-days">
             {sideDays.map(d => (

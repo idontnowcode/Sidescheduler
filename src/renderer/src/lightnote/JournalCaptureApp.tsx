@@ -10,7 +10,9 @@ export default function JournalCaptureApp() {
   const [text, setText] = useState('')
   const [records, setRecords] = useState<JournalRecord[]>([])
   const [dateLabel, setDateLabel] = useState('')
+  const [dropping, setDropping] = useState(false)
   const ref = useRef<HTMLTextAreaElement>(null)
+  const fileRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
 
   const reload = useCallback(async () => {
@@ -43,8 +45,36 @@ export default function JournalCaptureApp() {
     ref.current?.focus()
   }
 
+  // 사진은 채팅방에서처럼 붙여넣거나 끌어다 놓으면 들어간다. 지금 입력칸에
+  // 쓰던 글이 있으면 그 사진의 설명으로 함께 들어간다.
+  const sendImages = useCallback(async (files: File[]) => {
+    const images = files.filter(f => f.type.startsWith('image/'))
+    if (!images.length) return
+    const caption = text.trim()
+    setText('')
+    for (const [i, file] of images.entries()) {
+      const dataUrl = await new Promise<string>((res, rej) => {
+        const fr = new FileReader()
+        fr.onload = () => res(String(fr.result))
+        fr.onerror = () => rej(new Error('read failed'))
+        fr.readAsDataURL(file)
+      })
+      await window.lightnote.journalAppendImage(dataUrl, i === 0 ? caption : '')
+    }
+    await reload()
+    ref.current?.focus()
+  }, [text, reload])
+
+  const onPaste = (e: React.ClipboardEvent) => {
+    const files = Array.from(e.clipboardData?.files || [])
+    if (files.some(f => f.type.startsWith('image/'))) { e.preventDefault(); sendImages(files) }
+  }
+
   return (
-    <div className="jc-wrap">
+    <div className="jc-wrap"
+      onDragOver={e => { e.preventDefault(); setDropping(true) }}
+      onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDropping(false) }}
+      onDrop={e => { e.preventDefault(); setDropping(false); sendImages(Array.from(e.dataTransfer.files)) }}>
       <div className="jc-head">
         <span className="jc-title">📓 기록장</span>
         <span className="jc-date">{dateLabel}</span>
@@ -52,14 +82,18 @@ export default function JournalCaptureApp() {
         <button className="jc-close" title="닫기 (Esc)" onClick={() => window.lightnote.journalCaptureClose?.()}>×</button>
       </div>
 
+      {dropping && <div className="jc-drop">여기에 놓으면 오늘 기록에 사진이 들어갑니다</div>}
       <div className="jc-list" ref={listRef}>
         {records.length === 0 ? (
           <div className="jc-blank">오늘 첫 기록을 남겨보세요.</div>
         ) : records.map((r, i) => (
           <div className="jc-msg" key={i}>
             <div className="jc-bubble">
-              <div className="jc-line">{r.text}</div>
-              {r.extra.map((e, j) => <div className="jc-line" key={j}>{e.text}</div>)}
+              {r.text.trim() && <div className="jc-line">{r.text}</div>}
+              {r.extra.map((e, j) => e.text.trim() ? <div className="jc-line" key={j}>{e.text}</div> : null)}
+              {[...r.images, ...r.extra.flatMap(e => e.images)].map((src, j) => (
+                <img className="jc-img" key={j} src={src} alt="" />
+              ))}
             </div>
             <span className="jc-time">{r.time}</span>
           </div>
@@ -67,6 +101,9 @@ export default function JournalCaptureApp() {
       </div>
 
       <div className="jc-compose">
+        <button className="jc-attach" title="사진 넣기" onClick={() => fileRef.current?.click()}>🖼</button>
+        <input ref={fileRef} type="file" accept="image/*" multiple hidden
+          onChange={e => { sendImages(Array.from(e.target.files || [])); e.target.value = '' }} />
         <textarea
           ref={ref}
           className="jc-input"
@@ -74,6 +111,7 @@ export default function JournalCaptureApp() {
           placeholder="오늘 기록 남기기"
           value={text}
           onChange={e => setText(e.target.value)}
+          onPaste={onPaste}
           onKeyDown={e => {
             if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() }
             if (e.key === 'Escape') window.lightnote.journalCaptureClose?.()

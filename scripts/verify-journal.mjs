@@ -130,6 +130,25 @@ await ln.locator('.jn-search').fill('')
 await ln.waitForTimeout(600)
 ok('검색을 지우면 원래대로', await ln.locator('.jn-day-group').count() === groups)
 
+// ── 사진 기록 ───────────────────────────────────────────────────────────
+// 요청: "기록장에 이미지도 추가하고 싶어." 본문 이미지와 같은 방식(델타에
+// data URL 임베드)이라, 그 날짜 페이지를 편집기로 열어도 평소처럼 보인다.
+const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
+const imgRes = await ln.evaluate((d) => window.lightnote.journalAppendImage(d, '측정 화면'), PNG)
+ok('사진을 기록으로 넣을 수 있음', imgRes?.success === true, JSON.stringify(imgRes))
+
+const withImg = await ln.evaluate(async () => {
+  const days = await window.lightnote.journalDays(1, true)
+  return days[0].records.filter(r => r.images.length > 0)
+})
+ok('그 기록에 사진이 붙어 있음', withImg.length === 1 && withImg[0].images.length === 1,
+  JSON.stringify(withImg.map(r => [r.text, r.images.length])))
+ok('같이 적은 설명도 함께 들어감', withImg[0].text.includes('측정 화면'), withImg[0].text)
+ok('사진 기록에도 시각이 붙음', /^(오전|오후) \d/.test(withImg[0].time), withImg[0].time)
+
+const badImg = await ln.evaluate(() => window.lightnote.journalAppendImage('그냥 글자'))
+ok('사진이 아닌 걸 넣으면 조용히 저장하지 않음', badImg?.error === 'BAD_IMAGE', JSON.stringify(badImg))
+
 // ── 채팅창: 띄워놓고 쓰는 창 ─────────────────────────────────────────────
 // 단축키로 불러내는 팝업이 아니라, 열어두고 채팅하듯 쓰는 창이다.
 await main.evaluate(() => window.electronAPI.lightnoteOpen())
@@ -138,15 +157,16 @@ const jc = await app.waitForEvent('window', { predicate: (w) => w.url().includes
 await jc.waitForFunction(() => !!window.lightnote, null, { timeout: 8000 })
 await jc.waitForTimeout(900)
 
+const msgsBefore = await jc.locator('.jc-msg').count()
 ok('기록장 창에 오늘 적은 것들이 쌓여 보임 (입력칸만 있는 게 아니라)',
-  await jc.locator('.jc-msg').count() === 3, String(await jc.locator('.jc-msg').count()))
+  msgsBefore >= 3, String(msgsBefore))
 
 // 여러 줄 입력 — 늘 한 줄만 쓰는 게 아니다
 await jc.locator('.jc-input').fill(['회의 정리', '- 일정 재조정', '- 자재 확인'].join('\n'))
 await jc.locator('.jc-input').press('Enter')
 await jc.waitForTimeout(1200)
-ok('Enter로 보내면 말풍선이 하나 늘어남', await jc.locator('.jc-msg').count() === 4,
-  String(await jc.locator('.jc-msg').count()))
+ok('Enter로 보내면 말풍선이 하나 늘어남', await jc.locator('.jc-msg').count() === msgsBefore + 1,
+  `${msgsBefore} → ${await jc.locator('.jc-msg').count()}`)
 const lastBubble = await jc.locator('.jc-bubble').last().innerText()
 ok('여러 줄로 적어도 한 기록으로 묶여 그대로 보임',
   lastBubble.includes('회의 정리') && lastBubble.includes('일정 재조정') && lastBubble.includes('자재 확인'),
@@ -156,11 +176,17 @@ const stored = await ln.evaluate(async () => {
   const days = await window.lightnote.journalDays(1)
   return window.lightnote.journalDay(days[0].date)
 })
-ok('저장도 한 기록(시각 하나)으로 들어감', stored.records.length === 4 && stored.records[3].extra.length === 2,
-  JSON.stringify(stored.records[3]))
+const lastRec = stored.records[stored.records.length - 1]
+ok('저장도 한 기록(시각 하나)으로 들어감', lastRec.text === '회의 정리' && lastRec.extra.length === 2,
+  JSON.stringify(lastRec))
 
 const settingsPath = join(tempRoot, 'userData', 'window-settings.json')
 const journalOpen = JSON.parse(readFileSync(settingsPath, 'utf-8')).journalOpen
+
+// 채팅창 말풍선에도 사진이 보인다
+ok('채팅창 말풍선에 사진이 보임', await jc.locator('.jc-img').count() >= 1,
+  String(await jc.locator('.jc-img').count()))
+ok('사진 넣기 버튼이 있음', await jc.locator('.jc-attach').count() === 1)
 ok('창을 띄운 상태가 설정에 남아 다음 실행에 복원됨', journalOpen === true, String(journalOpen))
 
 await app.close()

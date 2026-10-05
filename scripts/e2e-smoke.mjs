@@ -238,7 +238,13 @@ await main.evaluate(() => { const s = [...document.querySelectorAll('button')].f
 // ── Count-up (stopwatch) focus mode ────────────────────────────────────────
 const countup = await main.evaluate(async () => {
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
-  const sw = [...document.querySelectorAll('button')].find((b) => b.textContent?.trim() === 'Stopwatch')
+  // 모드 토글은 세션이 멈춘 뒤(idle)에만 그려진다. 바로 앞에서 Stop을 눌렀으니
+  // 그 상태가 반영될 때까지 잠깐 기다린다 — 느린 머신에서 먼저 찾으면 없다.
+  let sw = null
+  for (let i = 0; i < 40 && !sw; i++) {
+    sw = [...document.querySelectorAll('button')].find((b) => b.textContent?.trim() === 'Stopwatch')
+    if (!sw) await sleep(50)
+  }
   if (!sw) return { ok: false, reason: 'no stopwatch toggle' }
   sw.click()
   await sleep(80)

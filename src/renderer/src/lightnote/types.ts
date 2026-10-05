@@ -229,6 +229,7 @@ declare global {
       refsRemove: (pageId: string, id: string) => Promise<PageReference[]>
       refsImage: (pageId: string, file: string) => Promise<string | null>
       journalAppend: (text: string, at?: number) => Promise<{ success?: boolean; error?: string } & Partial<JournalPageLoc>>
+      journalAppendImage: (dataUrl: string, text?: string, at?: number) => Promise<{ success?: boolean; error?: string }>
       journalDays: (days?: number, withRecords?: boolean) => Promise<JournalDay[]>
       journalDay: (date: string) => Promise<{ date: string; records: JournalRecord[]; page: JournalPageLoc | null }>
       journalTodayPage: () => Promise<JournalPageLoc | null>
