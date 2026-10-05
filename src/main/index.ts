@@ -271,6 +271,7 @@ function buildTrayMenu() {
     { type: 'separator' },
     { label: `📝 Open LightNote${hotkeyLabel(lightNoteHotkey)}`, click: () => openLightNoteWindow() },
     { label: `🗒 Action Items${hotkeyLabel(actionItemsHotkey)}`, click: () => toggleActionItemsWindow() },
+    { label: `📓 기록장에 한 줄${hotkeyLabel(journalHotkey)}`, click: () => openJournalCapture() },
     { type: 'separator' },
     {
       label: 'Show Sidebar', type: 'checkbox', checked: !sidebarHidden,
@@ -294,6 +295,7 @@ function buildTrayMenu() {
 // 실제로 등록에 성공한 단축키(없으면 null). 트레이 메뉴에 표시한다.
 let lightNoteHotkey: string | null = null
 let actionItemsHotkey: string | null = null
+let journalHotkey: string | null = null
 
 // globalShortcut.register는 다른 앱이 이미 쓰고 있으면 예외를 던지는 게
 // 아니라 false를 돌려준다 — try/catch로만 감싸두면 조용히 실패한다.
@@ -939,6 +941,51 @@ function actionItemsBounds() {
   return { x: workArea.x + workArea.width - W - MARGIN, y: workArea.y + MARGIN, width: W, height: H }
 }
 
+// ── 기록장 빠른 입력 ──────────────────────────────────────────────────────
+// 전역 단축키로 뜨는 한 줄 입력창. 채팅방에 적던 속도를 유지하려는 것이라,
+// 화면 가운데 위쪽에 작게 띄우고 적자마자 오늘 날짜에 쌓는다.
+let journalCaptureWindow: BrowserWindow | null = null
+
+function openJournalCapture(): void {
+  if (journalCaptureWindow && !journalCaptureWindow.isDestroyed()) {
+    journalCaptureWindow.show()
+    journalCaptureWindow.focus()
+    return
+  }
+  const { workArea } = screen.getPrimaryDisplay()
+  const width = 520
+  const height = 124
+  journalCaptureWindow = new BrowserWindow({
+    x: Math.round(workArea.x + (workArea.width - width) / 2),
+    y: Math.round(workArea.y + workArea.height * 0.22),
+    width, height,
+    frame: false, transparent: true, alwaysOnTop: true, skipTaskbar: true,
+    resizable: false, hasShadow: true, show: false,
+    webPreferences: {
+      preload: join(__dirname, '../preload/lightnote.js'),
+      contextIsolation: true, nodeIntegration: false, sandbox: false
+    }
+  })
+  journalCaptureWindow.setAlwaysOnTop(true, 'screen-saver')
+  journalCaptureWindow.once('ready-to-show', () => journalCaptureWindow?.show())
+  journalCaptureWindow.on('closed', () => { journalCaptureWindow = null })
+  // 다른 창을 누르면 조용히 사라진다(캡처·팔레트 창과 같은 습관).
+  journalCaptureWindow.on('blur', () => {
+    if (!process.env.DSP_TEST_DATA_DIR) journalCaptureWindow?.close()
+  })
+
+  if (process.env.NODE_ENV === 'development' && process.env['ELECTRON_RENDERER_URL']) {
+    journalCaptureWindow.loadURL(process.env['ELECTRON_RENDERER_URL'] + '#journalcapture')
+  } else {
+    journalCaptureWindow.loadFile(join(__dirname, '../renderer/index.html'), { hash: 'journalcapture' })
+  }
+}
+
+ipcMain.on('journal:capture-open', () => openJournalCapture())
+ipcMain.on('journal:capture-close', () => {
+  if (journalCaptureWindow && !journalCaptureWindow.isDestroyed()) journalCaptureWindow.close()
+})
+
 function openActionItemsWindow(): void {
   if (actionItemsWindow && !actionItemsWindow.isDestroyed()) {
     actionItemsWindow.show()
@@ -1181,6 +1228,11 @@ app.whenReady().then(() => {
   actionItemsHotkey = registerFirstAvailable(
     ['CommandOrControl+Shift+A', 'CommandOrControl+Alt+A'],
     () => toggleActionItemsWindow(),
+  )
+  // 기록장 빠른 입력 — 채팅방에 적던 속도를 유지하려면 어디서든 떠야 한다.
+  journalHotkey = registerFirstAvailable(
+    ['CommandOrControl+Shift+J', 'CommandOrControl+Alt+J', 'CommandOrControl+Shift+D'],
+    () => openJournalCapture(),
   )
   tray?.setContextMenu(buildTrayMenu())   // 라벨에 실제로 잡힌 키를 반영
 

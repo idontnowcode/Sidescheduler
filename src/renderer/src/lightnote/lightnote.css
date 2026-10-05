@@ -1531,6 +1531,71 @@ button.ql-text-to-table, button.ql-table-to-text { width: 30px !important; }
 /* 세로로 쌓인 목록이라 위/아래 절반으로 놓일 자리를 보여준다 */
 .ln-tab-overflow-item.ln-tab-drop-before { box-shadow: inset 0 3px 0 -1px var(--accent); }
 .ln-tab-overflow-item.ln-tab-drop-after  { box-shadow: inset 0 -3px 0 -1px var(--accent); }
+/* ── 기록장 ───────────────────────────────────────────────────────────── */
+.jn-view { position: absolute; inset: 0; z-index: 50; background: var(--bg); display: flex; flex-direction: column; overflow: hidden; }
+.jn-head { display: flex; align-items: center; gap: 10px; padding: 12px 18px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+.jn-title { font-size: 15px; font-weight: 700; color: var(--text); }
+.jn-sub { font-size: 11.5px; color: var(--text-dim); }
+.jn-spacer { flex: 1; }
+.jn-close { border: none; background: none; color: var(--text-dim); font-size: 20px; line-height: 1; cursor: pointer; padding: 0 4px; }
+.jn-close:hover { color: var(--text); }
+
+.jn-main { flex: 1; display: flex; min-height: 0; }
+.jn-side { width: 240px; min-width: 240px; border-right: 1px solid var(--border); display: flex; flex-direction: column; padding: 10px; gap: 8px; }
+.jn-input {
+  background: var(--bg2); border: 1px solid var(--border); border-radius: 8px;
+  padding: 8px 10px; font-size: 12.5px; color: var(--text); outline: none;
+}
+.jn-input:focus { border-color: var(--accent); }
+.jn-days { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 1px; }
+.jn-day {
+  display: flex; align-items: center; gap: 6px; width: 100%; text-align: left;
+  border: none; background: none; cursor: pointer; border-radius: 6px;
+  padding: 7px 9px; font-size: 12px; color: var(--text);
+}
+.jn-day:hover { background: var(--bg3); }
+.jn-day.active { background: var(--bg3); font-weight: 600; }
+/* 기록 없는 날도 한 줄로 남겨 "그날은 아무것도 없었다"가 보이게 한다 */
+.jn-day.empty { color: var(--text-dim); }
+.jn-day-label { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.jn-day-count { font-size: 11px; color: var(--text-dim); flex-shrink: 0; }
+
+.jn-list { flex: 1; overflow-y: auto; padding: 14px 18px 24px; display: flex; flex-direction: column; gap: 8px; }
+.jn-date-head { display: flex; align-items: center; gap: 8px; margin-bottom: 2px; }
+.jn-date { font-size: 14px; font-weight: 700; color: var(--text); }
+.jn-date-count { font-size: 11px; color: var(--text-dim); background: var(--bg3); border-radius: 999px; padding: 2px 8px; }
+.jn-open { border: 1px solid var(--border); background: transparent; color: var(--text-dim); border-radius: 6px; font-size: 11px; padding: 3px 9px; cursor: pointer; }
+.jn-open:hover { border-color: var(--accent); color: var(--accent); }
+.jn-empty, .jn-blank { font-size: 12px; color: var(--text-dim); padding: 18px 2px; }
+
+.jn-card {
+  display: flex; gap: 12px; align-items: flex-start;
+  border: 1px solid var(--border); border-radius: 9px; background: var(--bg2); padding: 10px 12px;
+}
+.jn-time { font-size: 11px; color: var(--text-dim); flex-shrink: 0; min-width: 56px; padding-top: 1px; }
+.jr-body { flex: 1; min-width: 0; display: flex; gap: 10px; align-items: flex-start; }
+.jr-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.jr-line { font-size: 12.5px; color: var(--text); line-height: 1.6; word-break: break-word; }
+.jr-check { font-size: 12.5px; color: var(--text); line-height: 1.6; display: flex; gap: 6px; }
+.jr-check.done { color: var(--text-dim); text-decoration: line-through; }
+.jr-box { flex-shrink: 0; }
+.jr-img { max-width: 160px; max-height: 110px; border-radius: 6px; flex-shrink: 0; }
+
+/* 기록장 빠른 입력 창(전역 단축키) */
+.jc-wrap {
+  height: 100vh; box-sizing: border-box;
+  display: flex; flex-direction: column; gap: 7px; justify-content: center;
+  background: var(--bg2); border: 1px solid var(--border); border-radius: 12px;
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.45); padding: 14px 16px;
+}
+.jc-head { font-size: 11.5px; color: var(--text-dim); }
+.jc-input {
+  background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+  padding: 9px 11px; font-size: 13.5px; color: var(--text); outline: none; font-family: inherit;
+}
+.jc-input:focus { border-color: var(--accent); }
+.jc-foot { font-size: 11px; color: var(--text-dim); }
+
 /* ── 참조([1] 마커 + 참조 탭) ─────────────────────────────────────────── */
 /* 번호는 자식 노드가 아니라 속성으로 그린다 — Quill Embed가 커서용으로
    넣어둔 ﻿ 가드를 건드리지 않기 위해서다. */

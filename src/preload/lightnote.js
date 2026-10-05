@@ -68,6 +68,14 @@ contextBridge.exposeInMainWorld('lightnote', {
   refsRemove: (pageId, id) => ipcRenderer.invoke('lightnote:refs:remove', { pageId, id }),
   refsImage: (pageId, file) => ipcRenderer.invoke('lightnote:refs:image', { pageId, file }),
 
+  // 기록장
+  journalAppend: (text, at) => ipcRenderer.invoke('lightnote:journal:append', { text, at }),
+  journalDays: (days) => ipcRenderer.invoke('lightnote:journal:days', { days }),
+  journalDay: (date) => ipcRenderer.invoke('lightnote:journal:day', { date }),
+  journalTodayPage: () => ipcRenderer.invoke('lightnote:journal:today-page'),
+  journalCaptureOpen: () => ipcRenderer.send('journal:capture-open'),
+  journalCaptureClose: () => ipcRenderer.send('journal:capture-close'),
+
   // 페이지 버전 기록
   listVersions: (pageId) => ipcRenderer.invoke('lightnote:versions:list', { pageId }),
   getVersion: (pageId, versionId) => ipcRenderer.invoke('lightnote:versions:get', { pageId, versionId }),

@@ -11,6 +11,7 @@ const customFonts = require('./custom-fonts');
 const pageVersions = require('./page-versions');
 const attachments = require('./attachments');
 const referenceStorage = require('./reference-storage');
+const journal = require('./journal');
 const path = require('path');
 const fs = require('fs').promises;
 const { shell, BrowserWindow } = require('electron');
@@ -550,6 +551,14 @@ function registerIpcHandlers(ipcMain, getWindow, safeStorage, dialog, app, sched
       return { error: err.message || 'REF_IMAGE_FAILED' };
     }
   });
+
+  // === 기록장 ===
+  // 날짜별 페이지에 한 줄씩 쌓는다. 하루가 지나면 자동으로 다음 날짜 페이지가
+  // 생기는 건, 넣는 순간의 날짜로 페이지를 찾기 때문이다(타이머 없음).
+  ipcMain.handle('lightnote:journal:append', async (_, { text, at }) => journal.append(text, at || Date.now()));
+  ipcMain.handle('lightnote:journal:days', async (_, { days } = {}) => journal.listDays({ days: days || 30 }));
+  ipcMain.handle('lightnote:journal:day', async (_, { date }) => journal.readDay(date));
+  ipcMain.handle('lightnote:journal:today-page', async () => journal.ensureDayPage(Date.now()));
 
   // 사용자 폰트 폴더 — %APPDATA%/lightnote/fonts 에 넣은 폰트 파일을 스캔해
   // data: URI로 돌려준다(파일 시스템 워처 없음: 다음 실행부터 반영).

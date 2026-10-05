@@ -9,6 +9,7 @@ import SearchBar from './SearchBar'
 import TocPanel from './TocPanel'
 import WorkObjectPanel from './WorkObjectPanel'
 import WorkListView from './WorkListView'
+import JournalView from './JournalView'
 import WorkQuickList from './WorkQuickList'
 import AIAssistant from './AIAssistant'
 import SettingsModal, { initAppearance } from './SettingsModal'
@@ -51,6 +52,7 @@ export default function LightnoteApp() {
   ])), [refs])
   const refNumberOf = useMemo(() => new Map(refOrder.map((id, i) => [id, i + 1])), [refOrder])
   const [showWorkList, setShowWorkList] = useState(false)
+  const [showJournal, setShowJournal] = useState(false)
   // Resizable side panels (persisted).
   const [leftW, setLeftW] = useState(() => Number(localStorage.getItem('ln-left-w')) || 220)
   const [rightW, setRightW] = useState(() => Number(localStorage.getItem('ln-right-w')) || 280)
@@ -457,6 +459,10 @@ export default function LightnoteApp() {
             onClick={() => setShowWorkList(v => !v)}>
             📋 업무 현황
           </button>
+          <button className={`icon-btn${showJournal ? ' active' : ''}`} title="기록장 — 날짜별로 자동 정리되는 짧은 기록"
+            onClick={() => setShowJournal(v => !v)}>
+            📓 기록장
+          </button>
           <button className="icon-btn" title="AI Assistant (Ctrl+F)" onClick={() => setIsAiOpen(v => !v)}>
             🤖 AI
           </button>
@@ -467,6 +473,12 @@ export default function LightnoteApp() {
       </header>
 
       <div className="main-layout" style={{ position: 'relative' }}>
+        {showJournal && (
+          <JournalView
+            onClose={() => setShowJournal(false)}
+            onOpenPage={handlePageSelect}
+          />
+        )}
         {showWorkList && (
           <WorkListView
             onOpen={(item) => {

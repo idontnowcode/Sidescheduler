@@ -21,15 +21,18 @@ await main.waitForTimeout(700)
 
 const LIGHTNOTE = ['CommandOrControl+Shift+L', 'CommandOrControl+Alt+L', 'CommandOrControl+Shift+N']
 const ACTION = ['CommandOrControl+Shift+A', 'CommandOrControl+Alt+A']
+const JOURNAL = ['CommandOrControl+Shift+J', 'CommandOrControl+Alt+J', 'CommandOrControl+Shift+D']
 
-const reg = await app.evaluate(({ globalShortcut }, { LIGHTNOTE, ACTION }) => ({
+const reg = await app.evaluate(({ globalShortcut }, { LIGHTNOTE, ACTION, JOURNAL }) => ({
   lightnote: LIGHTNOTE.filter(a => globalShortcut.isRegistered(a)),
   action: ACTION.filter(a => globalShortcut.isRegistered(a)),
-}), { LIGHTNOTE, ACTION })
+  journal: JOURNAL.filter(a => globalShortcut.isRegistered(a)),
+}), { LIGHTNOTE, ACTION, JOURNAL })
 
 ok('LightNote 단축키가 후보 중 하나로 반드시 잡힘 (선점돼 있어도 조용히 실패하지 않음)',
   reg.lightnote.length === 1, JSON.stringify(reg.lightnote))
 ok('할일 팝업 단축키도 하나 잡힘', reg.action.length === 1, JSON.stringify(reg.action))
+ok('기록장 빠른 입력 단축키도 하나 잡힘', reg.journal.length === 1, JSON.stringify(reg.journal))
 
 // 잡힌 키가 실제로 창을 여는지 — 단축키 자체는 OS가 보내는 것이라 테스트가
 // 누를 수 없으므로, 같은 진입점(openLightNoteWindow)이 동작하는지로 확인한다.

@@ -123,6 +123,18 @@ export interface PageReference {
   createdAt: number
 }
 
+// 기록장: 한 줄 기록 하나. 시각이 붙은 문단이 기록이고, 그 아래 시각 없는
+// 줄들은 그 기록에 딸린 내용(extra)으로 묶인다.
+export interface JournalRecord {
+  time: string
+  text: string
+  images: string[]
+  list: string | null
+  extra: { text: string; images: string[]; list: string | null }[]
+}
+export interface JournalPageLoc { notebookId: string; sectionId: string; pageId: string; title: string }
+export interface JournalDay { date: string; label: string; count: number; page: JournalPageLoc | null }
+
 // A font file found in %APPDATA%/lightnote/fonts at last launch.
 export interface CustomFont { id: string; family: string; dataUrl: string }
 
@@ -216,6 +228,12 @@ declare global {
       refsUpdate: (pageId: string, id: string, patch: { caption?: string; text?: string }) => Promise<PageReference[]>
       refsRemove: (pageId: string, id: string) => Promise<PageReference[]>
       refsImage: (pageId: string, file: string) => Promise<string | null>
+      journalAppend: (text: string, at?: number) => Promise<{ success?: boolean; error?: string } & Partial<JournalPageLoc>>
+      journalDays: (days?: number) => Promise<JournalDay[]>
+      journalDay: (date: string) => Promise<{ date: string; records: JournalRecord[]; page: JournalPageLoc | null }>
+      journalTodayPage: () => Promise<JournalPageLoc | null>
+      journalCaptureOpen?: () => void
+      journalCaptureClose?: () => void
       listVersions: (pageId: string) => Promise<PageVersion[]>
       getVersion: (pageId: string, versionId: string) => Promise<{ at: number; title: string; delta: unknown } | null>
       restoreVersion: (notebookId: string, sectionId: string, pageId: string, versionId: string) =>
