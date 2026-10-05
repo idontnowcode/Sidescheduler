@@ -1661,6 +1661,7 @@ button.ql-text-to-table, button.ql-table-to-text { width: 30px !important; }
   padding: 10px 12px; border-bottom: 1px solid var(--border);
   -webkit-app-region: drag;
 }
+.jc-brand { display: flex; color: var(--accent); flex-shrink: 0; }
 .jc-title { font-size: 12.5px; font-weight: 700; color: var(--text); }
 .jc-date { font-size: 11px; color: var(--text-dim); }
 .jc-spacer { flex: 1; }
@@ -1672,14 +1673,21 @@ button.ql-text-to-table, button.ql-table-to-text { width: 30px !important; }
 .jc-close:hover { color: var(--text); }
 
 /* 메신저처럼 아래에 붙여 쌓는다 — 위에서부터 채우면 적은 게 몇 줄일 때
-   입력칸과 멀찍이 떨어져 허전하고, 방금 쓴 줄을 눈이 다시 찾아야 한다. */
-.jc-list {
-  flex: 1; overflow-y: auto; padding: 12px;
-  display: flex; flex-direction: column; justify-content: flex-end; gap: 8px;
+   입력칸과 멀찍이 떨어져 허전하고, 방금 쓴 줄을 눈이 다시 찾아야 한다.
+   단, 아래 붙이기를 바깥 상자의 justify-content로 하면 넘친 윗부분이 잘려
+   스크롤로 못 올라간다. 안쪽 묶음을 margin-top:auto로 밀어 붙인다. */
+.jc-list { flex: 1; min-height: 0; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; }
+.jc-stack { margin-top: auto; display: flex; flex-direction: column; gap: 8px; }
+/* 손잡이가 바탕에 묻으면 "스크롤이 없다"고 읽힌다 — 바탕색이 아니라 글자색을
+   옅게 써서 밝은 테마·어두운 테마 양쪽에서 보이게 한다. */
+.jc-list::-webkit-scrollbar { width: 10px; }
+.jc-list::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--text-dim) 55%, transparent);
+  border-radius: 5px; border: 2px solid transparent; background-clip: padding-box;
 }
-.jc-list::-webkit-scrollbar { width: 6px; }
-.jc-list::-webkit-scrollbar-thumb { background: var(--bg4); border-radius: 3px; }
-.jc-list::-webkit-scrollbar-thumb:hover { background: var(--border); }
+.jc-list::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--text-dim) 90%, transparent); background-clip: padding-box;
+}
 .jc-blank { font-size: 12px; color: var(--text-dim); margin: auto; }
 /* 내가 쓴 말이라 오른쪽에 붙인다(메신저와 같은 배치) */
 .jc-msg { display: flex; align-items: flex-end; gap: 6px; justify-content: flex-end; }
@@ -1702,10 +1710,16 @@ button.ql-text-to-table, button.ql-table-to-text { width: 30px !important; }
   font-variant-numeric: tabular-nums;
 }
 
-/* 붙여넣거나 끌어다 놓은 사진 */
-/* 세로로 긴 캡처 한 장이 창을 다 차지하지 않도록 높이를 묶는다(잘라내지 않고
-   줄이기만 한다 — 원본은 날짜 페이지를 편집기로 열면 그대로 있다). */
-.jc-img { display: block; max-width: 100%; max-height: 240px; border-radius: 7px; margin-top: 5px; }
+/* 사진만 올린 기록은 말풍선 치장을 걷어낸다 — 글용 여백·테두리를 그대로
+   두면 사진이 파란 액자에 갇혀 보인다(캡처를 올렸을 때 특히). */
+.jc-bubble.img-only {
+  padding: 3px; background: var(--bg3);
+  border-color: var(--border); border-radius: 10px 10px 4px 10px;
+}
+/* 붙여넣거나 끌어다 놓은 사진. 세로로 긴 캡처 한 장이 창을 다 차지하지
+   않도록 높이를 묶는다(잘라내지 않고 줄이기만 — 원본은 날짜 페이지에 그대로). */
+.jc-img { display: block; max-width: 100%; max-height: 220px; border-radius: 7px; }
+.jc-img + .jc-img { margin-top: 3px; }
 .jc-line + .jc-img { margin-top: 6px; }
 .jc-drop {
   position: absolute; inset: 0; z-index: 5; margin: 8px;
@@ -1715,25 +1729,36 @@ button.ql-text-to-table, button.ql-table-to-text { width: 30px !important; }
   font-size: 12.5px; color: var(--text); pointer-events: none;
 }
 
-.jc-compose { display: flex; align-items: flex-end; gap: 6px; padding: 10px; border-top: 1px solid var(--border); flex-shrink: 0; }
-.jc-attach {
-  flex-shrink: 0; width: 32px; height: 32px; border-radius: 8px;
-  border: 1px solid var(--border); background: transparent; color: var(--text-dim);
-  font-size: 14px; cursor: pointer;
+/* 사진·입력칸·보내기를 한 덩어리로 — 버튼이 칸 밖에 떠 있으면 무엇에
+   딸린 건지 눈으로 안 잡힌다. 테두리는 묶음이 쥐고, 안의 버튼은 민낯으로. */
+.jc-compose { padding: 10px; border-top: 1px solid var(--border); flex-shrink: 0; }
+.jc-field {
+  display: flex; align-items: flex-end; gap: 2px;
+  background: var(--bg); border: 1px solid var(--border); border-radius: 13px;
+  padding: 4px; transition: border-color 0.12s ease;
 }
-.jc-attach:hover { border-color: var(--accent); color: var(--text); }
+.jc-field:focus-within { border-color: var(--accent); }
+.jc-attach {
+  flex-shrink: 0; width: 28px; height: 28px; border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  border: none; background: transparent; color: var(--text-dim); cursor: pointer;
+}
+.jc-attach:hover { background: var(--bg3); color: var(--text); }
 .jc-input {
-  flex: 1; resize: none; overflow-y: auto; max-height: 160px;
-  background: var(--bg); border: 1px solid var(--border); border-radius: 10px;
-  padding: 8px 11px; font-size: 12.5px; line-height: 1.5; color: var(--text);
+  flex: 1; min-width: 0; resize: none; overflow-y: auto; max-height: 140px;
+  background: transparent; border: none; border-radius: 0;
+  padding: 5px 4px; font-size: 12.5px; line-height: 1.5; color: var(--text);
   outline: none; font-family: inherit;
 }
-.jc-input:focus { border-color: var(--accent); }
+.jc-input::placeholder { color: var(--text-dim); }
 .jc-send {
-  flex-shrink: 0; width: 32px; height: 32px; border-radius: 50%;
-  border: none; background: var(--accent); color: #fff; font-size: 15px; cursor: pointer;
+  flex-shrink: 0; width: 28px; height: 28px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  border: none; background: var(--accent); color: #fff; cursor: pointer;
+  transition: background 0.12s ease, opacity 0.12s ease;
 }
-.jc-send:disabled { background: var(--bg4); color: var(--text-dim); cursor: default; }
+.jc-send:hover:not(:disabled) { background: color-mix(in srgb, var(--accent) 85%, #fff); }
+.jc-send:disabled { background: transparent; color: var(--text-dim); opacity: 0.5; cursor: default; }
 
 /* ── 참조([1] 마커 + 참조 탭) ─────────────────────────────────────────── */
 /* 번호는 자식 노드가 아니라 속성으로 그린다 — Quill Embed가 커서용으로

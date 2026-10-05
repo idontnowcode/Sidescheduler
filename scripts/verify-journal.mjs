@@ -210,6 +210,51 @@ const journalOpen = JSON.parse(readFileSync(settingsPath, 'utf-8')).journalOpen
 ok('채팅창 말풍선에 사진이 보임', await jc.locator('.jc-img').count() >= 1,
   String(await jc.locator('.jc-img').count()))
 ok('사진 넣기 버튼이 있음', await jc.locator('.jc-attach').count() === 1)
+ok('보내기 버튼이 입력칸과 한 덩어리로 묶여 있음',
+  await jc.locator('.jc-field > .jc-attach').count() === 1 && await jc.locator('.jc-field > .jc-send').count() === 1)
+ok('아이콘을 그림문자가 아니라 선 아이콘으로 그림(윈도우에서 제각각 칠해지지 않게)',
+  await jc.locator('.jc-attach svg').count() === 1 && await jc.locator('.jc-send svg').count() === 1)
+
+// ── 쌓인 기록을 위로 거슬러 읽을 수 있어야 한다 ─────────────────────────
+// 아래 붙이기를 바깥 상자의 justify-content로 하면 넘친 윗부분이 잘려
+// 스크롤로 못 올라간다("스크롤도 없음"의 정체).
+for (let i = 0; i < 14; i++) await jc.evaluate((n) => window.lightnote.journalAppend(`쌓기 ${n}`), i)
+await jc.reload()
+await jc.waitForFunction(() => !!window.lightnote, null, { timeout: 8000 })
+await jc.waitForTimeout(1400)
+
+const sc = await jc.evaluate(() => {
+  const l = document.querySelector('.jc-list')
+  return { h: l.scrollHeight, c: l.clientHeight, top: l.scrollTop }
+})
+ok('기록이 창보다 길어지면 스크롤이 생김', sc.h > sc.c + 20, JSON.stringify(sc))
+ok('열면 맨 아래(가장 최근)에 가 있음', Math.abs(sc.h - sc.c - sc.top) < 6, JSON.stringify(sc))
+
+await jc.evaluate(() => document.querySelector('.jc-list').scrollTo({ top: 0 }))
+await jc.waitForTimeout(400)
+const up = await jc.evaluate(() => {
+  const l = document.querySelector('.jc-list')
+  const first = document.querySelector('.jc-msg')
+  return { top: l.scrollTop, firstTop: Math.round(first.getBoundingClientRect().top), listTop: Math.round(l.getBoundingClientRect().top) }
+})
+ok('위로 끝까지 올리면 첫 기록이 잘리지 않고 다 보임', up.firstTop >= up.listTop - 1, JSON.stringify(up))
+
+// 위를 읽는 중에 새 기록이 들어와도 화면을 끌어내리지 않는다
+await jc.evaluate(() => window.lightnote.journalAppend('뒤늦게 들어온 기록'))
+await jc.waitForTimeout(700)
+ok('예전 기록을 읽는 중이면 새 기록이 들어와도 끌려 내려가지 않음',
+  await jc.evaluate(() => document.querySelector('.jc-list').scrollTop) < 40)
+
+// 내가 직접 적으면 그건 보여준다
+await jc.locator('.jc-input').fill('내가 적은 건 보여야 함')
+await jc.locator('.jc-input').press('Enter')
+await jc.waitForTimeout(1200)
+const back = await jc.evaluate(() => {
+  const l = document.querySelector('.jc-list')
+  return Math.abs(l.scrollHeight - l.clientHeight - l.scrollTop) < 6
+})
+ok('내가 적으면 맨 아래로 따라 내려감', back)
+
 ok('창을 띄운 상태가 설정에 남아 다음 실행에 복원됨', journalOpen === true, String(journalOpen))
 
 await app.close()
