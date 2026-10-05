@@ -147,8 +147,13 @@ async function readDay(key) {
 }
 
 /** 날짜 목록. 기록이 있는 날은 개수를, 없는 날은 0을 돌려준다 — 빈 날도 목록에
- *  한 줄로 남겨 "그날은 아무것도 없었다"가 보이게 하려는 것. */
-async function listDays({ days = 30 } = {}) {
+ *  한 줄로 남겨 "그날은 아무것도 없었다"가 보이게 하려는 것.
+ *
+ *  withRecords를 주면 각 날의 기록까지 함께 돌려준다. 어차피 개수를 세려고
+ *  페이지를 읽고 있어서 거의 공짜다 — 여러 날짜를 한 화면에 이어 보여줄 때
+ *  날짜마다 IPC를 왕복하지 않게 하려는 것.
+ *  days = 0 이면 달력으로 빈 날을 채우지 않고, 기록이 있는 날만 돌려준다. */
+async function listDays({ days = 30, withRecords = false } = {}) {
   const nbs = await noteStorage.getNotebooks();
   const nb = nbs.find((n) => n.name === NOTEBOOK_NAME && !n.deletedAt);
   const counts = new Map();
@@ -160,8 +165,10 @@ async function listDays({ days = 30 } = {}) {
         const key = (pg.title || '').slice(0, 10);
         if (!/^\d{4}-\d{2}-\d{2}$/.test(key)) continue;
         const content = await noteStorage.loadPage(nb.id, sec.id, pg.id).catch(() => null);
+        const records = linesToRecords(deltaToLines(content && content.delta));
         counts.set(key, {
-          count: linesToRecords(deltaToLines(content && content.delta)).length,
+          count: records.length,
+          records: withRecords ? records : undefined,
           page: { notebookId: nb.id, sectionId: sec.id, pageId: pg.id, title: pg.title },
         });
       }
@@ -179,6 +186,7 @@ async function listDays({ days = 30 } = {}) {
       date: key,
       label: `${y}년 ${m}월 ${d}일 (${DOW[new Date(y, m - 1, d).getDay()]})`,
       count: hit ? hit.count : 0,
+      records: withRecords ? (hit && hit.records) || [] : undefined,
       page: hit ? hit.page : null,
     };
   });

@@ -70,7 +70,7 @@ contextBridge.exposeInMainWorld('lightnote', {
 
   // 기록장
   journalAppend: (text, at) => ipcRenderer.invoke('lightnote:journal:append', { text, at }),
-  journalDays: (days) => ipcRenderer.invoke('lightnote:journal:days', { days }),
+  journalDays: (days, withRecords) => ipcRenderer.invoke('lightnote:journal:days', { days, withRecords }),
   journalDay: (date) => ipcRenderer.invoke('lightnote:journal:day', { date }),
   journalTodayPage: () => ipcRenderer.invoke('lightnote:journal:today-page'),
   journalCaptureOpen: () => ipcRenderer.send('journal:capture-open'),

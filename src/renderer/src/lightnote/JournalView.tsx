@@ -1,25 +1,39 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import type { JournalDay, JournalRecord, JournalPageLoc } from './types'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { JournalDay, JournalRecord } from './types'
 
 // 기록장 — 채팅방에 적듯 한 줄씩 적어두고, 날짜별로 자동 정리해 다시 찾는 화면.
-// 저장은 "기록장" 노트북의 날짜별 페이지라, 적어둔 기록이 결국 보통 노트다
-// (검색·이미지·체크리스트·내보내기가 전부 기존 기능 그대로 걸린다).
+// 저장은 "기록장" 노트북의 날짜별 페이지라, 적어둔 기록이 결국 보통 노트다.
+//
+// 기본은 여러 날짜를 시간순으로 쭉 이어 보여준다(날짜 머리글로 구분). 왼쪽
+// 날짜를 누르면 그 자리로 스크롤하고, "이 날짜만"을 켜면 그 하루만 본다.
+// 검색은 기록 한 줄 단위로 걸린다 — 전체 검색은 날짜 페이지를 통째로 열어
+// 주는데, 다시 찾을 때 필요한 건 그 한 줄이라서.
 interface Props {
   onClose: () => void
   onOpenPage: (nbId: string, secId: string, pageId: string, crumb: string) => void
 }
 
-function RecordBody({ r }: { r: JournalRecord }) {
+function RecordBody({ r, q }: { r: JournalRecord; q: string }) {
+  const mark = (text: string) => {
+    if (!q.trim()) return text
+    const i = text.toLowerCase().indexOf(q.trim().toLowerCase())
+    if (i < 0) return text
+    return (<>
+      {text.slice(0, i)}
+      <mark className="jn-hit">{text.slice(i, i + q.trim().length)}</mark>
+      {text.slice(i + q.trim().length)}
+    </>)
+  }
   const line = (text: string, list: string | null, key: string) => {
     if (!text.trim()) return null
     if (list) {
       return (
         <div key={key} className={`jr-check${list === 'checked' ? ' done' : ''}`}>
-          <span className="jr-box">{list === 'checked' ? '☑' : '☐'}</span>{text}
+          <span className="jr-box">{list === 'checked' ? '☑' : '☐'}</span>{mark(text)}
         </div>
       )
     }
-    return <div key={key} className="jr-line">{text}</div>
+    return <div key={key} className="jr-line">{mark(text)}</div>
   }
   return (
     <div className="jr-body">
@@ -34,62 +48,88 @@ function RecordBody({ r }: { r: JournalRecord }) {
   )
 }
 
+const hits = (r: JournalRecord, q: string) => {
+  const needle = q.trim().toLowerCase()
+  if (!needle) return true
+  return [r.text, ...r.extra.map(e => e.text)].some(t => t.toLowerCase().includes(needle))
+}
+
 export default function JournalView({ onClose, onOpenPage }: Props) {
   const [days, setDays] = useState<JournalDay[]>([])
   const [picked, setPicked] = useState<string | null>(null)
-  const [records, setRecords] = useState<JournalRecord[]>([])
-  const [page, setPage] = useState<JournalPageLoc | null>(null)
+  const [oneDay, setOneDay] = useState(false)
+  const [query, setQuery] = useState('')
   const [draft, setDraft] = useState('')
-  const inputRef = useRef<HTMLInputElement>(null)
+  // 기본 30일. 검색하거나 "전체 기간"을 켜면 기록이 있는 날을 모두 읽는다.
+  const [wholeRange, setWholeRange] = useState(false)
+  const listRef = useRef<HTMLDivElement>(null)
 
-  const reloadDays = useCallback(async () => {
-    const list = await window.lightnote.journalDays(30)
+  const reload = useCallback(async (all: boolean) => {
+    const list = await window.lightnote.journalDays(all ? 0 : 30, true)
     setDays(list)
-    setPicked(prev => prev ?? list[0]?.date ?? null)
+    setPicked(prev => prev ?? list.find(d => d.count > 0)?.date ?? list[0]?.date ?? null)
   }, [])
 
-  const reloadDay = useCallback(async (date: string) => {
-    const d = await window.lightnote.journalDay(date)
-    setRecords(d.records)
-    setPage(d.page)
-  }, [])
-
-  useEffect(() => { reloadDays() }, [reloadDays])
-  useEffect(() => { if (picked) reloadDay(picked) }, [picked, reloadDay])
-  useEffect(() => { inputRef.current?.focus() }, [])
+  useEffect(() => { reload(wholeRange || !!query.trim()) }, [reload, wholeRange, query])
 
   const add = useCallback(async () => {
     const text = draft.trim()
     if (!text) return
     setDraft('')
     await window.lightnote.journalAppend(text)
-    // 적은 건 늘 오늘로 들어간다 — 과거 날짜를 보고 있었다면 오늘로 옮겨 보여준다.
-    const today = (await window.lightnote.journalDays(1))[0]?.date
-    await reloadDays()
-    if (today) { setPicked(today); await reloadDay(today) }
-  }, [draft, reloadDays, reloadDay])
+    await reload(wholeRange || !!query.trim())
+    listRef.current?.scrollTo({ top: 0 })
+  }, [draft, reload, wholeRange, query])
 
-  const openInEditor = useCallback(() => {
-    if (!page) return
-    onOpenPage(page.notebookId, page.sectionId, page.pageId, `기록장 › ${page.title}`)
-    onClose()
-  }, [page, onOpenPage, onClose])
+  const jumpTo = useCallback((date: string) => {
+    setPicked(date)
+    if (oneDay) return
+    const el = listRef.current?.querySelector(`[data-date="${date}"]`)
+    el?.scrollIntoView({ block: 'start', behavior: 'smooth' })
+  }, [oneDay])
 
-  const pickedDay = days.find(d => d.date === picked)
+  // 화면에 그릴 날짜들: 검색어가 있으면 걸린 기록만 남기고, "이 날짜만"이면
+  // 고른 하루만. 기록이 없는 날은 이어 보기에서 빼고 왼쪽 목록에만 남긴다.
+  const shown = useMemo(() => {
+    let rows = days
+    if (oneDay && picked) rows = rows.filter(d => d.date === picked)
+    return rows
+      .map(d => ({ ...d, records: (d.records || []).filter(r => hits(r, query)) }))
+      .filter(d => d.records.length > 0)
+  }, [days, oneDay, picked, query])
+
+  const total = useMemo(() => shown.reduce((n, d) => n + d.records.length, 0), [shown])
+  const searching = !!query.trim()
+
+  // 검색 중에는 왼쪽 목록도 걸린 날짜만 남기고 개수를 적중 수로 바꾼다 —
+  // 결과가 없는 날짜가 목록에 남아 있으면 눌러도 아무것도 안 나와 헷갈린다.
+  const sideDays = useMemo(() => {
+    if (!searching) return days
+    const hitCount = new Map(shown.map(d => [d.date, d.records.length]))
+    return days.filter(d => hitCount.has(d.date)).map(d => ({ ...d, count: hitCount.get(d.date)! }))
+  }, [days, shown, searching])
 
   return (
     <div className="jn-view">
       <div className="jn-head">
         <span className="jn-title">📓 기록장</span>
-        <span className="jn-sub">적으면 오늘 날짜에 쌓입니다</span>
+        <input
+          className="jn-search"
+          placeholder="기록 검색"
+          value={query}
+          onChange={e => setQuery(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Escape') setQuery('') }}
+        />
+        {searching && <span className="jn-sub">{total}건</span>}
         <div className="jn-spacer" />
+        <button className={`jn-toggle${oneDay ? '' : ' active'}`} onClick={() => setOneDay(false)}>이어 보기</button>
+        <button className={`jn-toggle${oneDay ? ' active' : ''}`} onClick={() => setOneDay(true)}>이 날짜만</button>
         <button className="jn-close" title="닫기" onClick={onClose}>×</button>
       </div>
 
       <div className="jn-main">
         <div className="jn-side">
           <input
-            ref={inputRef}
             className="jn-input"
             placeholder="+ 새 기록하기"
             value={draft}
@@ -97,43 +137,49 @@ export default function JournalView({ onClose, onOpenPage }: Props) {
             onKeyDown={e => { if (e.key === 'Enter') add() }}
           />
           <div className="jn-days">
-            {days.map(d => (
+            {sideDays.map(d => (
               <button
                 key={d.date}
                 className={`jn-day${d.date === picked ? ' active' : ''}${d.count === 0 ? ' empty' : ''}`}
-                onClick={() => setPicked(d.date)}
+                onClick={() => jumpTo(d.date)}
               >
                 <span className="jn-day-label">{d.label}</span>
                 <span className="jn-day-count">{d.count || '-'}</span>
               </button>
             ))}
           </div>
+          <button className="jn-range" onClick={() => setWholeRange(v => !v)}>
+            {wholeRange ? '최근 30일만 보기' : '예전 기록까지 모두 보기'}
+          </button>
         </div>
 
-        <div className="jn-list">
-          {!pickedDay ? (
-            <div className="jn-empty">기록장을 불러오는 중…</div>
-          ) : (
-            <>
+        <div className="jn-list" ref={listRef}>
+          {shown.length === 0 ? (
+            <div className="jn-blank">
+              {searching ? `"${query.trim()}"에 걸리는 기록이 없습니다.` : '아직 기록이 없습니다. 왼쪽에서 한 줄 적어보세요.'}
+            </div>
+          ) : shown.map(d => (
+            <section className="jn-day-group" key={d.date} data-date={d.date}>
               <div className="jn-date-head">
-                <span className="jn-date">{pickedDay.label}</span>
-                <span className="jn-date-count">{records.length}개의 기록</span>
+                <span className="jn-date">{d.label}</span>
+                <span className="jn-date-count">{d.records.length}개의 기록</span>
                 <div className="jn-spacer" />
-                {page && (
+                {d.page && (
                   <button className="jn-open" title="이 날짜 페이지를 편집기로 열기 (사진·체크리스트는 여기서)"
-                    onClick={openInEditor}>✎ 편집기로 열기</button>
+                    onClick={() => {
+                      onOpenPage(d.page!.notebookId, d.page!.sectionId, d.page!.pageId, `기록장 › ${d.page!.title}`)
+                      onClose()
+                    }}>✎ 편집기로 열기</button>
                 )}
               </div>
-              {records.length === 0 ? (
-                <div className="jn-blank">이 날은 기록이 없습니다.</div>
-              ) : records.map((r, i) => (
+              {d.records.map((r, i) => (
                 <div className="jn-card" key={i}>
                   <span className="jn-time">{r.time || '—'}</span>
-                  <RecordBody r={r} />
+                  <RecordBody r={r} q={query} />
                 </div>
               ))}
-            </>
-          )}
+            </section>
+          ))}
         </div>
       </div>
     </div>

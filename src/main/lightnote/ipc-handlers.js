@@ -556,7 +556,8 @@ function registerIpcHandlers(ipcMain, getWindow, safeStorage, dialog, app, sched
   // 날짜별 페이지에 한 줄씩 쌓는다. 하루가 지나면 자동으로 다음 날짜 페이지가
   // 생기는 건, 넣는 순간의 날짜로 페이지를 찾기 때문이다(타이머 없음).
   ipcMain.handle('lightnote:journal:append', async (_, { text, at }) => journal.append(text, at || Date.now()));
-  ipcMain.handle('lightnote:journal:days', async (_, { days } = {}) => journal.listDays({ days: days || 30 }));
+  ipcMain.handle('lightnote:journal:days', async (_, { days, withRecords } = {}) =>
+    journal.listDays({ days: days === 0 ? 0 : (days || 30), withRecords: !!withRecords }));
   ipcMain.handle('lightnote:journal:day', async (_, { date }) => journal.readDay(date));
   ipcMain.handle('lightnote:journal:today-page', async () => journal.ensureDayPage(Date.now()));
 

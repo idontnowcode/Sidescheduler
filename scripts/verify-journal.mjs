@@ -65,28 +65,70 @@ await ln.waitForTimeout(700)
 ok('기록장 화면이 열림', await ln.locator('.jn-view').count() === 1)
 ok('왼쪽에 날짜 목록이 보임', await ln.locator('.jn-day').count() >= 2, String(await ln.locator('.jn-day').count()))
 ok('기록 없는 날은 "-"로 표시', (await ln.locator('.jn-day.empty .jn-day-count').first().textContent()) === '-')
-ok('오늘 기록 2건이 카드로 보임', await ln.locator('.jn-card').count() === 2, String(await ln.locator('.jn-card').count()))
+const todayGroup = ln.locator('.jn-day-group').first()
+ok('오늘 묶음에 기록 2건이 카드로 보임', await todayGroup.locator('.jn-card').count() === 2,
+  String(await todayGroup.locator('.jn-card').count()))
 ok('카드에 시각이 보임', /^(오전|오후) \d/.test((await ln.locator('.jn-time').first().textContent()) || ''),
   await ln.locator('.jn-time').first().textContent())
 
-// 다른 날짜를 누르면 그 날 기록으로 바뀐다 (= 다시 찾기)
+// 지난 날짜로 찾아가기 — "이 날짜만"으로 좁히면 그 하루만 남는다
+await ln.locator('.jn-toggle', { hasText: '이 날짜만' }).click()
+await ln.waitForTimeout(300)
 await ln.locator('.jn-day', { hasText: String(Number(yesterdayKey.slice(8, 10))) + '일' }).first().click()
-await ln.waitForTimeout(600)
-ok('지난 날짜를 누르면 그날 기록이 보임(다시 찾기)',
+await ln.waitForTimeout(700)
+ok('지난 날짜를 고르면 그날 기록만 보임(다시 찾기)',
   (await ln.locator('.jn-card').count()) === 1
   && ((await ln.locator('.jr-line').first().textContent()) || '').includes('어제 적은 기록'),
   await ln.locator('.jr-line').first().textContent())
+await ln.locator('.jn-toggle', { hasText: '이어 보기' }).click()
+await ln.waitForTimeout(500)
 
 // ── 화면 상단 입력바로도 적을 수 있다 ───────────────────────────────────
 await ln.locator('.jn-input').fill('입력바로 적은 기록')
 await ln.locator('.jn-input').press('Enter')
 await ln.waitForTimeout(1200)
-ok('입력바로 적으면 오늘 날짜로 들어가고 화면이 오늘로 돌아옴',
-  (await ln.locator('.jn-card').count()) === 3, String(await ln.locator('.jn-card').count()))
+ok('입력바로 적으면 오늘 묶음에 들어감',
+  (await ln.locator('.jn-day-group').first().locator('.jn-card').count()) === 3,
+  String(await ln.locator('.jn-day-group').first().locator('.jn-card').count()))
 
 // ── 기록이 보통 노트라서 검색에 걸린다 ──────────────────────────────────
 const found = await ln.evaluate(() => window.lightnote.searchNotes('카페에서'))
 ok('적어둔 기록이 기존 검색에 그대로 걸림', found.length >= 1, JSON.stringify(found.map(f => f.title)))
+
+// ── 여러 날짜를 한 화면에서 이어 보기 ───────────────────────────────────
+// "한 페이지에서 여러 날짜를 볼 수도 있었으면. 원할 때는 특정 날짜, 또는
+// 시간 순서대로 기록한 모든 내용."
+const groups = await ln.locator('.jn-day-group').count()
+ok('기본이 이어 보기 — 여러 날짜가 한 화면에 쌓임', groups >= 2, String(groups))
+const headCount = await ln.locator('.jn-day-group .jn-date').count()
+ok('날짜마다 머리글로 구분됨', headCount === groups, String(headCount))
+ok('기록 없는 날은 이어 보기에 끼어들지 않음(목록에만 남음)',
+  groups < await ln.locator('.jn-day').count())
+
+// 특정 날짜만 보기
+await ln.locator('.jn-toggle', { hasText: '이 날짜만' }).click()
+await ln.waitForTimeout(500)
+ok('"이 날짜만"을 켜면 고른 하루만 보임', await ln.locator('.jn-day-group').count() === 1,
+  String(await ln.locator('.jn-day-group').count()))
+await ln.locator('.jn-toggle', { hasText: '이어 보기' }).click()
+await ln.waitForTimeout(500)
+ok('다시 이어 보기로 돌아옴', await ln.locator('.jn-day-group').count() === groups)
+
+// ── 기록 한 줄 단위 검색 ────────────────────────────────────────────────
+await ln.locator('.jn-search').fill('어제')
+await ln.waitForTimeout(700)
+const foundCards = await ln.locator('.jn-card').count()
+ok('검색하면 걸린 기록만 남음', foundCards === 1, String(foundCards))
+ok('찾은 말이 강조됨', await ln.locator('.jn-hit').count() >= 1)
+ok('안 걸린 날짜 묶음은 사라짐', await ln.locator('.jn-day-group').count() === 1)
+ok('왼쪽 목록도 걸린 날짜만 남음(눌러도 빈 날짜가 안 나오게)',
+  await ln.locator('.jn-day').count() === 1, String(await ln.locator('.jn-day').count()))
+await ln.locator('.jn-search').fill('없는말없는말')
+await ln.waitForTimeout(600)
+ok('결과가 없으면 그렇다고 알려줌', (await ln.locator('.jn-blank').textContent() || '').includes('없는말없는말'))
+await ln.locator('.jn-search').fill('')
+await ln.waitForTimeout(600)
+ok('검색을 지우면 원래대로', await ln.locator('.jn-day-group').count() === groups)
 
 // ── 채팅창: 띄워놓고 쓰는 창 ─────────────────────────────────────────────
 // 단축키로 불러내는 팝업이 아니라, 열어두고 채팅하듯 쓰는 창이다.

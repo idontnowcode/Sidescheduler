@@ -133,7 +133,7 @@ export interface JournalRecord {
   extra: { text: string; images: string[]; list: string | null }[]
 }
 export interface JournalPageLoc { notebookId: string; sectionId: string; pageId: string; title: string }
-export interface JournalDay { date: string; label: string; count: number; page: JournalPageLoc | null }
+export interface JournalDay { date: string; label: string; count: number; page: JournalPageLoc | null; records?: JournalRecord[] }
 
 // A font file found in %APPDATA%/lightnote/fonts at last launch.
 export interface CustomFont { id: string; family: string; dataUrl: string }
@@ -229,7 +229,7 @@ declare global {
       refsRemove: (pageId: string, id: string) => Promise<PageReference[]>
       refsImage: (pageId: string, file: string) => Promise<string | null>
       journalAppend: (text: string, at?: number) => Promise<{ success?: boolean; error?: string } & Partial<JournalPageLoc>>
-      journalDays: (days?: number) => Promise<JournalDay[]>
+      journalDays: (days?: number, withRecords?: boolean) => Promise<JournalDay[]>
       journalDay: (date: string) => Promise<{ date: string; records: JournalRecord[]; page: JournalPageLoc | null }>
       journalTodayPage: () => Promise<JournalPageLoc | null>
       journalCaptureOpen?: () => void

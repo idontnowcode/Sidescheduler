@@ -1586,7 +1586,30 @@ button.ql-text-to-table, button.ql-table-to-text { width: 30px !important; }
   color: var(--accent); border-radius: 999px; padding: 1px 6px; font-weight: 600;
 }
 
+.jn-search {
+  width: 200px; background: var(--bg); border: 1px solid var(--border); border-radius: 7px;
+  padding: 5px 9px; font-size: 12px; color: var(--text); outline: none;
+}
+.jn-search:focus { border-color: var(--accent); }
+.jn-toggle {
+  border: 1px solid var(--border); background: transparent; color: var(--text-dim);
+  border-radius: 6px; font-size: 11.5px; padding: 4px 10px; cursor: pointer;
+}
+.jn-toggle:hover { color: var(--text); }
+.jn-toggle.active { background: var(--accent); border-color: transparent; color: #fff; font-weight: 600; }
+/* 예전 기록까지 읽어오는 건 날짜가 쌓일수록 느려지므로 기본은 30일, 필요할 때만 */
+.jn-range {
+  border: 1px dashed var(--border); background: transparent; color: var(--text-dim);
+  border-radius: 7px; font-size: 11px; padding: 6px 8px; cursor: pointer; flex-shrink: 0;
+}
+.jn-range:hover { border-color: var(--accent); color: var(--accent); }
+.jn-hit { background: color-mix(in srgb, var(--accent) 35%, transparent); color: inherit; border-radius: 2px; padding: 0 1px; }
+
 .jn-list { flex: 1; overflow-y: auto; padding: 16px 18px 28px; display: flex; flex-direction: column; gap: 8px; }
+/* 날짜 묶음 — 머리글 하나에 그날 기록이 붙고, 묶음끼리는 넉넉히 띄운다 */
+.jn-day-group { display: flex; flex-direction: column; gap: 8px; }
+.jn-day-group + .jn-day-group { margin-top: 18px; }
+.jn-day-group .jn-date-head { position: sticky; top: -16px; background: var(--bg); padding: 6px 0 4px; z-index: 1; }
 .jn-list::-webkit-scrollbar { width: 8px; }
 .jn-list::-webkit-scrollbar-thumb { background: var(--bg4); border-radius: 4px; }
 /* 창이 넓어도 글줄이 화면 끝까지 늘어나면 읽기 어렵다 — 읽기 좋은 폭으로 묶는다 */
