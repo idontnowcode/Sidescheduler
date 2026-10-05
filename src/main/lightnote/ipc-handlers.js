@@ -561,6 +561,10 @@ function registerIpcHandlers(ipcMain, getWindow, safeStorage, dialog, app, sched
   ipcMain.handle('lightnote:journal:day', async (_, { date }) => journal.readDay(date));
   ipcMain.handle('lightnote:journal:append-image', async (_, { dataUrl, text, at }) =>
     journal.appendImage(dataUrl, text, at || Date.now()));
+  ipcMain.handle('lightnote:journal:edit', async (_, { date, index, text }) =>
+    journal.editRecord(date, index, text));
+  ipcMain.handle('lightnote:journal:delete', async (_, { date, index }) =>
+    journal.deleteRecord(date, index));
   ipcMain.handle('lightnote:journal:today-page', async () => journal.ensureDayPage(Date.now()));
 
   // 사용자 폰트 폴더 — %APPDATA%/lightnote/fonts 에 넣은 폰트 파일을 스캔해

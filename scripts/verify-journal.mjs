@@ -84,6 +84,11 @@ await ln.locator('.jn-toggle', { hasText: '이어 보기' }).click()
 await ln.waitForTimeout(500)
 
 // ── 화면 상단 입력바로도 적을 수 있다 ───────────────────────────────────
+// 입력바는 "왼쪽에서 고른 날짜"에 적는다(지난 날짜에 뒤늦게 적으라고).
+// 바로 위에서 어제를 골라 봤으니 오늘로 되돌려 놓고 적는다.
+await ln.locator('.jn-day').first().click()
+await ln.waitForTimeout(400)
+ok('오늘을 고른 상태에선 날짜·시각 줄이 안 나옴', await ln.locator('.jn-backfill').count() === 0)
 await ln.locator('.jn-input').fill('입력바로 적은 기록')
 await ln.locator('.jn-input').press('Enter')
 await ln.waitForTimeout(1200)
@@ -227,6 +232,137 @@ ok('누른 뒤에도 기록장 화면 그대로', await ln.locator('.jn-view').c
 
 await ln.locator('.jn-search').fill('')
 await ln.waitForTimeout(800)
+
+// ── 지난 기록 추가·고치기·지우기 ────────────────────────────────────────
+// 요청: "과거에 기록을 못한 경우에 기록을 추가/편집할 수 있게."
+const DAY = 86400000
+const twoDaysAgo = await ln.evaluate(() => {
+  const t = Date.now() - 2 * 86400000
+  const d = new Date(t)
+  const p = (n) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
+})
+const [y2, m2, d2] = twoDaysAgo.split('-').map(Number)
+const at2 = (h, mi) => new Date(y2, m2 - 1, d2, h, mi).getTime()
+
+// 일부러 늦은 시각을 먼저 넣고, 이른 시각을 나중에 넣는다.
+await ln.evaluate((t) => window.lightnote.journalAppend('오후 회의 — 설계 변경 합의', t), at2(14, 20))
+await ln.evaluate((t) => window.lightnote.journalAppend('오전 입고 검수 https://example.com/lot-77', t), at2(9, 5))
+await ln.evaluate((t) => window.lightnote.journalAppend('저녁 정리\n- 도면 갱신\n- 발주 확인', t), at2(19, 40))
+
+let past = await ln.evaluate((k) => window.lightnote.journalDay(k), twoDaysAgo)
+ok('기록을 못한 지난 날짜에도 적을 수 있음', past.records.length === 3,
+  JSON.stringify(past.records.map(r => [r.time, r.text])))
+ok('나중에 적어도 그날 시각 순서대로 자리잡음',
+  past.records.map(r => r.time).join(' | ') === '오전 9:05 | 오후 2:20 | 오후 7:40',
+  past.records.map(r => r.time).join(' | '))
+ok('지난 날짜 기록에도 링크가 걸림',
+  (past.records[0].segs || []).some(s => s.link === 'https://example.com/lot-77'),
+  JSON.stringify(past.records[0].segs))
+ok('여러 줄로 적으면 딸린 줄로 들어감', past.records[2].extra.length === 2,
+  JSON.stringify(past.records[2].extra.map(e => e.text)))
+
+// 고치기 — 시각은 그대로 두고 글만 바뀐다
+await ln.evaluate((k) => window.lightnote.journalEdit(k, 1, '오후 회의 — 설계 변경 보류됨 https://example.com/minutes'), twoDaysAgo)
+past = await ln.evaluate((k) => window.lightnote.journalDay(k), twoDaysAgo)
+ok('적어둔 기록을 고쳐 쓸 수 있음', past.records[1].text === '오후 회의 — 설계 변경 보류됨 https://example.com/minutes',
+  past.records[1].text)
+ok('고쳐도 시각은 그대로', past.records[1].time === '오후 2:20', past.records[1].time)
+ok('고친 글의 링크도 다시 걸림',
+  (past.records[1].segs || []).some(s => s.link === 'https://example.com/minutes'))
+ok('고쳐도 다른 기록은 건드리지 않음',
+  past.records.length === 3 && past.records[0].text.startsWith('오전 입고 검수'),
+  JSON.stringify(past.records.map(r => r.text)))
+
+// 여러 줄로 고치면 딸린 줄이 새로 짜인다
+await ln.evaluate((k) => window.lightnote.journalEdit(k, 2, '저녁 정리\n- 도면 갱신 완료'), twoDaysAgo)
+past = await ln.evaluate((k) => window.lightnote.journalDay(k), twoDaysAgo)
+ok('여러 줄짜리 기록도 줄 수를 바꿔 고칠 수 있음',
+  past.records[2].extra.length === 1 && past.records[2].extra[0].text === '- 도면 갱신 완료',
+  JSON.stringify(past.records[2].extra.map(e => e.text)))
+ok('줄 수가 바뀌어도 기록 개수는 그대로', past.records.length === 3, String(past.records.length))
+
+// 사진이 붙은 기록을 고쳐도 사진은 살아남는다
+await ln.evaluate(([d, t]) => window.lightnote.journalAppendImage(d, '계측 캡처', t), [PNG, at2(21, 0)])
+await ln.evaluate((k) => window.lightnote.journalEdit(k, 3, '계측 캡처 — 재측정 필요'), twoDaysAgo)
+past = await ln.evaluate((k) => window.lightnote.journalDay(k), twoDaysAgo)
+ok('사진이 붙은 기록을 고쳐도 사진은 남음',
+  past.records[3].text === '계측 캡처 — 재측정 필요' && past.records[3].images.length === 1,
+  JSON.stringify([past.records[3].text, past.records[3].images.length]))
+
+// 되돌릴 수 있게 스냅샷을 남긴다
+const versions = await ln.evaluate((k) => window.lightnote.journalDay(k)
+  .then(d => window.lightnote.listVersions(d.page.pageId)), twoDaysAgo)
+ok('고치기 전 내용이 페이지 기록에 남아 되돌릴 수 있음', versions.length >= 1, String(versions.length))
+
+// 지우기 — 딸린 줄까지 함께
+await ln.evaluate((k) => window.lightnote.journalDelete(k, 2), twoDaysAgo)
+past = await ln.evaluate((k) => window.lightnote.journalDay(k), twoDaysAgo)
+ok('적어둔 기록을 지울 수 있음', past.records.length === 3, String(past.records.length))
+ok('지운 기록의 딸린 줄도 함께 사라짐',
+  !past.records.some(r => r.text.includes('저녁 정리') || r.extra.some(e => e.text.includes('도면 갱신'))),
+  JSON.stringify(past.records.map(r => [r.text, r.extra.length])))
+ok('지워도 나머지는 순서 그대로',
+  past.records.map(r => r.time).join(' | ') === '오전 9:05 | 오후 2:20 | 오후 9:00',
+  past.records.map(r => r.time).join(' | '))
+
+const noSuch = await ln.evaluate((k) => window.lightnote.journalEdit(k, 99, '없는 기록'), twoDaysAgo)
+ok('없는 기록을 고치라고 하면 조용히 거절', noSuch?.error === 'NO_RECORD', JSON.stringify(noSuch))
+
+// ── 화면에서 지난 날짜에 적기 ───────────────────────────────────────────
+await ln.reload()
+await ln.waitForFunction(() => !!window.lightnote, null, { timeout: 8000 })
+await ln.waitForTimeout(600)
+await ln.locator('.icon-btn', { hasText: '기록장' }).click()
+await ln.waitForSelector('.jn-view', { timeout: 4000 })
+await ln.waitForTimeout(900)
+
+ok('오늘을 보고 있을 땐 날짜·시각 줄이 안 나옴', await ln.locator('.jn-backfill').count() === 0)
+const label2 = `${y2}년 ${m2}월 ${d2}일`
+await ln.locator('.jn-day', { hasText: label2 }).first().click()
+await ln.waitForTimeout(600)
+ok('지난 날짜를 고르면 어느 날에 적히는지 알려줌', await ln.locator('.jn-backfill').count() === 1)
+ok('시각도 골라서 적을 수 있음', await ln.locator('.jn-backfill-time').count() === 1)
+ok('입력칸 안내도 그 날짜에 적는다고 바뀜',
+  ((await ln.locator('.jn-input').getAttribute('placeholder')) || '').includes('이 날짜에'))
+
+await ln.locator('.jn-backfill-time').fill('07:30')
+await ln.locator('.jn-input').fill('아침 안전점검 (뒤늦게 적음)')
+await ln.locator('.jn-input').press('Enter')
+await ln.waitForTimeout(1400)
+past = await ln.evaluate((k) => window.lightnote.journalDay(k), twoDaysAgo)
+ok('화면에서 지난 날짜에 적으면 그 날짜·그 시각으로 들어감',
+  past.records[0].time === '오전 7:30' && past.records[0].text.includes('아침 안전점검'),
+  JSON.stringify(past.records.map(r => [r.time, r.text])))
+
+// 카드에서 고치기 — 이어 보기라 여러 날짜가 한 화면에 있으니 그날 묶음 안에서.
+const group2 = ln.locator(`.jn-day-group[data-date="${twoDaysAgo}"]`)
+const card = group2.locator('.jn-card').first()
+await card.hover()
+await card.locator('.jn-act[title="고치기"]').click()
+await ln.waitForSelector('.jn-edit-box', { timeout: 3000 })
+await ln.locator('.jn-edit-box').fill('아침 안전점검 — 이상 없음')
+await ln.locator('.jn-act.primary').click()
+await ln.waitForTimeout(1300)
+past = await ln.evaluate((k) => window.lightnote.journalDay(k), twoDaysAgo)
+ok('카드에서 바로 고쳐 쓸 수 있음', past.records[0].text === '아침 안전점검 — 이상 없음', past.records[0].text)
+
+// 카드에서 지우기 (지울지 한 번 묻는다)
+const before = past.records.length
+await group2.locator('.jn-card').first().hover()
+await group2.locator('.jn-card').first().locator('.jn-act[title="지우기"]').click()
+await ln.waitForSelector('.modal-box', { timeout: 3000 })
+ok('지우기 전에 한 번 묻는다', (await ln.locator('.modal-message').textContent() || '').includes('지울까요'))
+await ln.locator('.modal-actions .btn-danger').click()
+await ln.waitForTimeout(1300)
+past = await ln.evaluate((k) => window.lightnote.journalDay(k), twoDaysAgo)
+ok('카드에서 지우면 그 기록이 사라짐',
+  past.records.length === before - 1 && !past.records.some(r => r.text.includes('아침 안전점검')),
+  JSON.stringify(past.records.map(r => r.text)))
+
+// 오늘로 돌아와 둔다 (뒤 검사들이 오늘을 본다)
+await ln.locator('.jn-day').first().click()
+await ln.waitForTimeout(500)
 
 // ── 채팅창: 띄워놓고 쓰는 창 ─────────────────────────────────────────────
 // 단축키로 불러내는 팝업이 아니라, 열어두고 채팅하듯 쓰는 창이다.

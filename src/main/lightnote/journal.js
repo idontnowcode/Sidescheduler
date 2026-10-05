@@ -8,6 +8,7 @@
 // 하루가 지나면 자동으로 다음 날짜에 쌓이는 건 타이머가 아니라, 기록을 넣는
 // 순간의 날짜로 페이지를 찾고 없으면 만들기 때문이다. AI-free.
 const noteStorage = require('./note-storage');
+const pageVersions = require('./page-versions');
 
 const NOTEBOOK_NAME = '기록장';
 const NOTEBOOK_COLOR = '#2f9e44';
@@ -41,6 +42,13 @@ function timeLabel(ts) {
 // 줄이 끝난다. 여기서 공백을 강제했더니 그런 줄이 기록으로 안 잡히고 바로 앞
 // 기록에 딸려 들어갔다(사진 세 장이 한 말풍선에 뭉친 원인).
 const TIME_RE = /^(오전|오후)\s\d{1,2}:\d{2}(?:\s{1,2}|$)/;
+/** "오전 9:12" → 552 (그날 0시부터의 분). 시각이 없으면 null. */
+function timeMinutes(text) {
+  const m = /^(오전|오후)\s(\d{1,2}):(\d{2})/.exec(String(text || ''));
+  if (!m) return null;
+  const h = (Number(m[2]) % 12) + (m[1] === '오후' ? 12 : 0);
+  return h * 60 + Number(m[3]);
+}
 
 // 붙여넣은 주소는 링크로 저장한다 — 버튼을 따로 두지 않고 "그냥 붙여넣으면
 // 된다"가 목표라서. 눈대중으로 도메인을 찍지 않고 http(s):// 나 www. 로
@@ -111,6 +119,47 @@ function deltaToLines(delta) {
   return lines;
 }
 
+/** 델타를 줄 단위 op 묶음으로 쪼갠다. deltaToLines 는 "읽어서 보여주기"용이라
+ *  글자만 들고 나오는데, 고쳐 쓰려면 원래 op을 그대로 쥐고 있어야 한다 —
+ *  편집기에서 굵게 쓴 글씨 같은 걸 수정 한 번에 날려버리지 않으려는 것. */
+function splitOpLines(delta) {
+  const lines = [];
+  let cur = { ops: [], nl: null };
+  for (const op of (delta && delta.ops) || []) {
+    const ins = op.insert;
+    if (typeof ins === 'string') {
+      const parts = ins.split('\n');
+      for (let i = 0; i < parts.length; i++) {
+        if (parts[i]) cur.ops.push(op.attributes ? { insert: parts[i], attributes: op.attributes } : { insert: parts[i] });
+        if (i < parts.length - 1) { cur.nl = op.attributes || null; lines.push(cur); cur = { ops: [], nl: null }; }
+      }
+    } else {
+      cur.ops.push(op);
+    }
+  }
+  if (cur.ops.length) lines.push(cur);
+  return lines;
+}
+function joinOpLines(lines) {
+  const ops = [];
+  for (const ln of lines) {
+    ops.push(...ln.ops);
+    ops.push(ln.nl ? { insert: '\n', attributes: ln.nl } : { insert: '\n' });
+  }
+  return { ops };
+}
+/** 기록 하나가 차지하는 줄 범위 [from, to). 머리줄 + 딸린 줄들. */
+function recordSpans(lines) {
+  const spans = [];
+  lines.forEach((ln, i) => {
+    const hasBody = ln.text.trim() || ln.images.length;
+    if (TIME_RE.test(ln.text)) spans.push({ from: i, to: i + 1 });
+    else if (spans.length && hasBody) spans[spans.length - 1].to = i + 1;
+    else if (hasBody) spans.push({ from: i, to: i + 1 });
+  });
+  return spans;
+}
+
 /** 시각이 붙은 줄만 기록으로 센다. 사용자가 페이지에 자유롭게 쓴 줄은 세지
  *  않되, 카드 목록에서는 바로 앞 기록에 딸린 내용으로 보여준다. */
 function linesToRecords(lines) {
@@ -169,17 +218,38 @@ async function ensureDayPage(ts, { create = true } = {}) {
   return { notebookId: nb.id, sectionId: sec.id, pageId: made.id, title };
 }
 
-/** 오늘(또는 주어진 시각) 날짜 페이지 끝에 기록 한 줄을 붙인다. */
+/** 그 날짜 페이지에 줄 묶음을 시각 순서에 맞춰 끼워 넣고 저장한다.
+ *  꽁무니에 붙이지 않는 건 지난 날짜에 뒤늦게 적을 때를 위해서다 — 오후 2시
+ *  기록 뒤에 오전 9시 기록이 와 있으면 그날을 훑어볼 수가 없다. */
+async function insertLines(loc, at, newLines) {
+  const content = await noteStorage.loadPage(loc.notebookId, loc.sectionId, loc.pageId);
+  const delta = (content && content.delta) || { ops: [] };
+  const lines = deltaToLines(delta);
+  if (!lines.some((l) => l.text.trim() || l.images.length)) {
+    await noteStorage.savePage(loc.notebookId, loc.sectionId, loc.pageId, joinOpLines(newLines), loc.title);
+    return;
+  }
+  const opLines = splitOpLines(delta);
+  const mins = timeMinutes(timeLabel(at));
+  let pos = opLines.length;
+  for (const sp of recordSpans(lines)) {
+    const t = timeMinutes(lines[sp.from].text);
+    if (t !== null && mins !== null && t > mins) { pos = sp.from; break; }
+  }
+  opLines.splice(pos, 0, ...newLines);
+  await noteStorage.savePage(loc.notebookId, loc.sectionId, loc.pageId, joinOpLines(opLines), loc.title);
+}
+
+/** 오늘(또는 주어진 시각) 날짜 페이지에 기록 한 줄을 넣는다. */
 async function append(text, at = Date.now()) {
   const body = String(text || '').trim();
   if (!body) return { error: 'EMPTY' };
   const loc = await ensureDayPage(at);
-  const content = await noteStorage.loadPage(loc.notebookId, loc.sectionId, loc.pageId);
-  const delta = (content && content.delta) || { ops: [] };
-  const plain = deltaToLines(delta).map((l) => l.text).join('').trim();
-  const line = [{ insert: `${timeLabel(at)}  ` }, ...textOps(body), { insert: '\n' }];
-  const ops = plain ? [...(delta.ops || []), ...line] : line;
-  await noteStorage.savePage(loc.notebookId, loc.sectionId, loc.pageId, { ops }, loc.title);
+  const parts = body.split('\n');
+  await insertLines(loc, at, parts.map((t, i) => ({
+    ops: [...(i === 0 ? [{ insert: `${timeLabel(at)}  ` }] : []), ...textOps(t)],
+    nl: null,
+  })));
   return { success: true, ...loc, at };
 }
 
@@ -189,26 +259,96 @@ async function append(text, at = Date.now()) {
 async function appendImage(dataUrl, text = '', at = Date.now()) {
   if (!/^data:image\/[a-z0-9+.-]+;base64,/i.test(String(dataUrl || ''))) return { error: 'BAD_IMAGE' };
   const loc = await ensureDayPage(at);
+  const caption = String(text || '').trim();
+  await insertLines(loc, at, [{
+    ops: [
+      { insert: caption ? `${timeLabel(at)}  ` : timeLabel(at) },
+      ...textOps(caption),
+      { insert: { image: dataUrl } },
+    ],
+    nl: null,
+  }]);
+  return { success: true, ...loc, at };
+}
+
+/** 2026-10-05 → 그 날 0시의 타임스탬프. 못 읽으면 null. */
+function keyToTs(key) {
+  const [y, m, d] = String(key).split('-').map(Number);
+  if (!y || !m || !d) return null;
+  return new Date(y, m - 1, d).getTime();
+}
+
+// ── 지난 기록 고치기 ────────────────────────────────────────────────────
+// "과거에 기록을 못한 경우에 기록을 추가/편집할 수 있게." 추가는 append 에
+// 그 날짜의 시각을 넘기면 되고(지난 날짜 페이지도 그때 만들어진다), 고치기와
+// 지우기는 아래에서 그 줄만 바꿔 쓴다. 덮어쓰기 전에 스냅샷을 남겨 페이지
+// 기록에서 되돌릴 수 있게 한다.
+
+/** 고칠 기록의 자리를 찾아 둔다 — 고치기·지우기가 똑같이 쓴다. */
+async function locateRecord(key, index) {
+  const ts = keyToTs(key);
+  if (ts === null) return { error: 'BAD_DATE' };
+  const loc = await ensureDayPage(ts, { create: false });
+  if (!loc) return { error: 'NO_PAGE' };
   const content = await noteStorage.loadPage(loc.notebookId, loc.sectionId, loc.pageId);
   const delta = (content && content.delta) || { ops: [] };
-  const plain = deltaToLines(delta).map((l) => l.text).join('').trim();
-  const caption = String(text || '').trim();
-  const add = [
-    { insert: caption ? `${timeLabel(at)}  ` : timeLabel(at) },
-    ...textOps(caption),
-    { insert: { image: dataUrl } },
-    { insert: '\n' },
-  ];
-  const ops = plain ? [...(delta.ops || []), ...add] : add;
-  await noteStorage.savePage(loc.notebookId, loc.sectionId, loc.pageId, { ops }, loc.title);
-  return { success: true, ...loc, at };
+  const lines = deltaToLines(delta);
+  const span = recordSpans(lines)[index];
+  if (!span) return { error: 'NO_RECORD' };
+  return { loc, content, delta, lines, span, opLines: splitOpLines(delta) };
+}
+
+async function saveEdited(loc, prev, next) {
+  try { await pageVersions.snapshot(loc.pageId, prev, true); } catch { /* 스냅샷 실패가 수정을 막진 않는다 */ }
+  await noteStorage.savePage(loc.notebookId, loc.sectionId, loc.pageId, next, loc.title);
+}
+
+/** 기록 하나의 글을 고쳐 쓴다. 시각과 그 기록에 붙은 사진은 그대로 둔다. */
+async function editRecord(key, index, text) {
+  const body = String(text || '').trim();
+  if (!body) return { error: 'EMPTY' };
+  const at = await locateRecord(key, index);
+  if (at.error) return { error: at.error };
+  const { loc, content, lines, span, opLines } = at;
+
+  const m = TIME_RE.exec(lines[span.from].text);
+  const prefix = m ? m[0] : '';
+  // 그 기록에 붙어 있던 사진은 살린다 — 글만 고치는 자리라서.
+  const images = [];
+  for (let i = span.from; i < span.to; i++) {
+    for (const op of (opLines[i] || { ops: [] }).ops) {
+      if (op.insert && typeof op.insert === 'object' && op.insert.image) images.push(op);
+    }
+  }
+  const parts = body.split('\n');
+  const made = parts.map((t, i) => ({
+    ops: [
+      ...(i === 0 && prefix ? [{ insert: prefix }] : []),
+      ...textOps(t),
+      ...(i === parts.length - 1 ? images : []),
+    ],
+    nl: i === 0 ? (opLines[span.from] || {}).nl || null : null,
+  }));
+  opLines.splice(span.from, span.to - span.from, ...made);
+  await saveEdited(loc, content, joinOpLines(opLines));
+  return { success: true, ...loc };
+}
+
+/** 기록 하나를 지운다 (딸린 줄과 사진까지). */
+async function deleteRecord(key, index) {
+  const at = await locateRecord(key, index);
+  if (at.error) return { error: at.error };
+  const { loc, content, span, opLines } = at;
+  opLines.splice(span.from, span.to - span.from);
+  await saveEdited(loc, content, joinOpLines(opLines));
+  return { success: true, ...loc };
 }
 
 /** 한 날짜의 기록 카드 목록. */
 async function readDay(key) {
-  const [y, m, d] = String(key).split('-').map(Number);
-  if (!y || !m || !d) return { date: key, records: [] };
-  const loc = await ensureDayPage(new Date(y, m - 1, d).getTime(), { create: false });
+  const ts = keyToTs(key);
+  if (ts === null) return { date: key, records: [] };
+  const loc = await ensureDayPage(ts, { create: false });
   if (!loc) return { date: key, records: [], page: null };
   const content = await noteStorage.loadPage(loc.notebookId, loc.sectionId, loc.pageId);
   return { date: key, records: linesToRecords(deltaToLines(content && content.delta)), page: loc };
@@ -261,6 +401,7 @@ async function listDays({ days = 30, withRecords = false } = {}) {
 }
 
 module.exports = {
-  NOTEBOOK_NAME, append, appendImage, readDay, listDays, ensureDayPage,
-  dateKey, dayTitle, timeLabel, deltaToLines, linesToRecords, linkSegments,
+  NOTEBOOK_NAME, append, appendImage, editRecord, deleteRecord, readDay, listDays,
+  ensureDayPage, dateKey, dayTitle, timeLabel, deltaToLines, linesToRecords,
+  linkSegments, recordSpans,
 };

@@ -1621,10 +1621,52 @@ button.ql-text-to-table, button.ql-table-to-text { width: 30px !important; }
 .jn-open:hover { border-color: var(--accent); color: var(--accent); }
 .jn-empty, .jn-blank { font-size: 12px; color: var(--text-dim); padding: 18px 2px; }
 
+/* 지난 날짜에 적을 때만 나오는 줄 — 어느 날, 몇 시로 들어가는지 꺼내 보인다.
+   안 보여 주면 적고 나서 "오늘로 들어갔네"를 뒤늦게 발견한다. */
+.jn-backfill {
+  display: flex; align-items: center; gap: 6px; margin-bottom: 6px;
+  padding: 6px 8px; border-radius: 8px;
+  background: color-mix(in srgb, var(--accent) 12%, var(--bg2));
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+}
+.jn-backfill-day { flex: 1; min-width: 0; font-size: 11.5px; color: var(--text); font-weight: 600; }
+.jn-backfill-time {
+  flex-shrink: 0; background: var(--bg); color: var(--text);
+  border: 1px solid var(--border); border-radius: 6px;
+  font-size: 11px; padding: 2px 4px; font-family: inherit;
+}
+.jn-backfill-time:focus { outline: none; border-color: var(--accent); }
+.jn-backfill-time::-webkit-calendar-picker-indicator { filter: invert(0.6); cursor: pointer; }
+
 .jn-card {
+  position: relative;
   display: flex; gap: 12px; align-items: flex-start;
   border: 1px solid var(--border); border-radius: 9px; background: var(--bg2); padding: 10px 12px;
 }
+/* 고치기·지우기는 평소엔 숨어 있다 — 기록을 읽을 때 눈에 걸리지 않게. */
+.jn-card-acts {
+  position: absolute; top: 5px; right: 6px;
+  display: flex; gap: 2px; opacity: 0; transition: opacity 0.12s ease;
+}
+.jn-card:hover .jn-card-acts, .jn-card:focus-within .jn-card-acts { opacity: 1; }
+.jn-act {
+  border: 1px solid var(--border); background: var(--bg2); color: var(--text-dim);
+  border-radius: 6px; font-size: 11px; line-height: 1; padding: 4px 7px; cursor: pointer;
+}
+.jn-act:hover { border-color: var(--accent); color: var(--text); }
+.jn-act.danger:hover { border-color: var(--danger); color: var(--danger); }
+.jn-act.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.jn-act.primary:hover { filter: brightness(1.1); }
+.jn-act:disabled { opacity: 0.5; cursor: default; filter: none; }
+
+.jn-edit { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.jn-edit-box {
+  width: 100%; box-sizing: border-box; min-height: 56px; resize: vertical;
+  background: var(--bg); color: var(--text); border: 1px solid var(--accent); border-radius: 7px;
+  padding: 7px 9px; font-size: 12.5px; line-height: 1.6; font-family: inherit; outline: none;
+}
+.jn-edit-acts { display: flex; align-items: center; gap: 6px; }
+.jn-edit-hint { font-size: 10.5px; color: var(--text-dim); }
 .jn-time { font-size: 11px; color: var(--text-dim); flex-shrink: 0; min-width: 54px; padding-top: 2px; font-variant-numeric: tabular-nums; }
 /* 글 아래에 사진 — 오른쪽에 붙여 두면 한 줄짜리 기록에서 가운데가 통째로
    비어 카드가 휑하다. 위에서 아래로 읽는 순서와도 맞다. */

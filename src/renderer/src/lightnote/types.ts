@@ -234,6 +234,8 @@ declare global {
       refsImage: (pageId: string, file: string) => Promise<string | null>
       journalAppend: (text: string, at?: number) => Promise<{ success?: boolean; error?: string } & Partial<JournalPageLoc>>
       journalAppendImage: (dataUrl: string, text?: string, at?: number) => Promise<{ success?: boolean; error?: string }>
+      journalEdit: (date: string, index: number, text: string) => Promise<{ success?: boolean; error?: string }>
+      journalDelete: (date: string, index: number) => Promise<{ success?: boolean; error?: string }>
       journalDays: (days?: number, withRecords?: boolean) => Promise<JournalDay[]>
       journalDay: (date: string) => Promise<{ date: string; records: JournalRecord[]; page: JournalPageLoc | null }>
       journalTodayPage: () => Promise<JournalPageLoc | null>
