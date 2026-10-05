@@ -6,7 +6,7 @@
 // 하루가 지나면 자동으로 다음 날짜에 쌓이는 건 넣는 순간의 날짜로 페이지를
 // 찾기 때문(타이머 없음) — 과거/미래 시각을 넘겨 그 동작을 직접 확인한다.
 import { _electron as electron } from 'playwright'
-import { mkdtempSync } from 'node:fs'
+import { mkdtempSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -87,6 +87,39 @@ ok('입력바로 적으면 오늘 날짜로 들어가고 화면이 오늘로 돌
 // ── 기록이 보통 노트라서 검색에 걸린다 ──────────────────────────────────
 const found = await ln.evaluate(() => window.lightnote.searchNotes('카페에서'))
 ok('적어둔 기록이 기존 검색에 그대로 걸림', found.length >= 1, JSON.stringify(found.map(f => f.title)))
+
+// ── 채팅창: 띄워놓고 쓰는 창 ─────────────────────────────────────────────
+// 단축키로 불러내는 팝업이 아니라, 열어두고 채팅하듯 쓰는 창이다.
+await main.evaluate(() => window.electronAPI.lightnoteOpen())
+await ln.evaluate(() => window.lightnote.journalCaptureOpen?.())
+const jc = await app.waitForEvent('window', { predicate: (w) => w.url().includes('#journalcapture'), timeout: 8000 })
+await jc.waitForFunction(() => !!window.lightnote, null, { timeout: 8000 })
+await jc.waitForTimeout(900)
+
+ok('기록장 창에 오늘 적은 것들이 쌓여 보임 (입력칸만 있는 게 아니라)',
+  await jc.locator('.jc-msg').count() === 3, String(await jc.locator('.jc-msg').count()))
+
+// 여러 줄 입력 — 늘 한 줄만 쓰는 게 아니다
+await jc.locator('.jc-input').fill(['회의 정리', '- 일정 재조정', '- 자재 확인'].join('\n'))
+await jc.locator('.jc-input').press('Enter')
+await jc.waitForTimeout(1200)
+ok('Enter로 보내면 말풍선이 하나 늘어남', await jc.locator('.jc-msg').count() === 4,
+  String(await jc.locator('.jc-msg').count()))
+const lastBubble = await jc.locator('.jc-bubble').last().innerText()
+ok('여러 줄로 적어도 한 기록으로 묶여 그대로 보임',
+  lastBubble.includes('회의 정리') && lastBubble.includes('일정 재조정') && lastBubble.includes('자재 확인'),
+  JSON.stringify(lastBubble))
+
+const stored = await ln.evaluate(async () => {
+  const days = await window.lightnote.journalDays(1)
+  return window.lightnote.journalDay(days[0].date)
+})
+ok('저장도 한 기록(시각 하나)으로 들어감', stored.records.length === 4 && stored.records[3].extra.length === 2,
+  JSON.stringify(stored.records[3]))
+
+const settingsPath = join(tempRoot, 'userData', 'window-settings.json')
+const journalOpen = JSON.parse(readFileSync(settingsPath, 'utf-8')).journalOpen
+ok('창을 띄운 상태가 설정에 남아 다음 실행에 복원됨', journalOpen === true, String(journalOpen))
 
 await app.close()
 const passed = results.filter(Boolean).length

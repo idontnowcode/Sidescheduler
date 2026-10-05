@@ -271,7 +271,7 @@ function buildTrayMenu() {
     { type: 'separator' },
     { label: `📝 Open LightNote${hotkeyLabel(lightNoteHotkey)}`, click: () => openLightNoteWindow() },
     { label: `🗒 Action Items${hotkeyLabel(actionItemsHotkey)}`, click: () => toggleActionItemsWindow() },
-    { label: `📓 기록장에 한 줄${hotkeyLabel(journalHotkey)}`, click: () => openJournalCapture() },
+    { label: `📓 기록장 열기${hotkeyLabel(journalHotkey)}`, click: () => openJournalCapture() },
     { type: 'separator' },
     {
       label: 'Show Sidebar', type: 'checkbox', checked: !sidebarHidden,
@@ -953,32 +953,47 @@ function openJournalCapture(): void {
     return
   }
   const { workArea } = screen.getPrimaryDisplay()
-  const width = 520
-  const height = 124
+  const saved = loadSettings().journalBounds
+  const width = saved?.width ?? 400
+  const height = saved?.height ?? 520
   journalCaptureWindow = new BrowserWindow({
-    x: Math.round(workArea.x + (workArea.width - width) / 2),
-    y: Math.round(workArea.y + workArea.height * 0.22),
-    width, height,
-    frame: false, transparent: true, alwaysOnTop: true, skipTaskbar: true,
-    resizable: false, hasShadow: true, show: false,
+    x: saved?.x ?? Math.round(workArea.x + workArea.width - width - 40),
+    y: saved?.y ?? Math.round(workArea.y + 80),
+    width, height, minWidth: 300, minHeight: 300,
+    frame: false, transparent: true, resizable: true, hasShadow: true, show: false,
+    // 띄워놓고 쓰는 창이라 작업표시줄에도 남겨, 가려지면 거기서 다시 부른다.
+    skipTaskbar: false, title: '기록장',
     webPreferences: {
       preload: join(__dirname, '../preload/lightnote.js'),
       contextIsolation: true, nodeIntegration: false, sandbox: false
     }
   })
-  journalCaptureWindow.setAlwaysOnTop(true, 'screen-saver')
   journalCaptureWindow.once('ready-to-show', () => journalCaptureWindow?.show())
-  journalCaptureWindow.on('closed', () => { journalCaptureWindow = null })
-  // 다른 창을 누르면 조용히 사라진다(캡처·팔레트 창과 같은 습관).
-  journalCaptureWindow.on('blur', () => {
-    if (!process.env.DSP_TEST_DATA_DIR) journalCaptureWindow?.close()
+  // 켜둔 상태와 위치·크기를 기억한다 — 앱을 다시 켜면 그대로 떠 있게.
+  const remember = () => {
+    if (!journalCaptureWindow || journalCaptureWindow.isDestroyed()) return
+    const b = journalCaptureWindow.getBounds()
+    saveSettings({ journalBounds: { x: b.x, y: b.y, width: b.width, height: b.height } })
+  }
+  journalCaptureWindow.on('moved', remember)
+  journalCaptureWindow.on('resized', remember)
+  journalCaptureWindow.on('closed', () => {
+    journalCaptureWindow = null
+    saveSettings({ journalOpen: false })
   })
+  saveSettings({ journalOpen: true })
 
   if (process.env.NODE_ENV === 'development' && process.env['ELECTRON_RENDERER_URL']) {
     journalCaptureWindow.loadURL(process.env['ELECTRON_RENDERER_URL'] + '#journalcapture')
   } else {
     journalCaptureWindow.loadFile(join(__dirname, '../renderer/index.html'), { hash: 'journalcapture' })
   }
+}
+
+/** 단축키는 켜고 끄는 토글로 둔다 — 띄워놓고 쓰는 창이라 "부르는" 키가 아니다. */
+function toggleJournalCapture(): void {
+  if (journalCaptureWindow && !journalCaptureWindow.isDestroyed()) journalCaptureWindow.close()
+  else openJournalCapture()
 }
 
 ipcMain.on('journal:capture-open', () => openJournalCapture())
@@ -1232,8 +1247,11 @@ app.whenReady().then(() => {
   // 기록장 빠른 입력 — 채팅방에 적던 속도를 유지하려면 어디서든 떠야 한다.
   journalHotkey = registerFirstAvailable(
     ['CommandOrControl+Shift+J', 'CommandOrControl+Alt+J', 'CommandOrControl+Shift+D'],
-    () => openJournalCapture(),
+    () => toggleJournalCapture(),
   )
+  // 지난번에 띄워둔 채로 껐으면 이번에도 그대로 띄운다 — "그냥 띄워놓고
+  // 채팅하듯 쓴다"가 이 창의 사용 방식이라, 매번 다시 부르게 하지 않는다.
+  if (loadSettings().journalOpen) openJournalCapture()
   tray?.setContextMenu(buildTrayMenu())   // 라벨에 실제로 잡힌 키를 반영
 
   // If the app was cold-launched via a lightnote:// deep link, the URL is in argv.

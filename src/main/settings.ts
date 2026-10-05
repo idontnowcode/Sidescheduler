@@ -23,6 +23,10 @@ export interface WindowSettings {
   // 액션 아이템 팝업(Ctrl+Shift+A)의 항상 위 고정 여부. 기본은 켜짐 —
   // 다른 앱 작업 중에도 눈에 띄어야 쓸모가 있는 팝업이라서.
   actionItemsPinned?: boolean
+  // 기록장 창은 "띄워놓고 채팅하듯 쓰는" 창이라, 켜둔 상태와 위치·크기를
+  // 기억했다가 앱을 다시 켤 때 그대로 띄운다.
+  journalOpen?: boolean
+  journalBounds?: { x: number; y: number; width: number; height: number }
 }
 
 const DEFAULT: WindowSettings = {
@@ -37,7 +41,8 @@ const DEFAULT: WindowSettings = {
   // 이제 기본값 자체를 숨김으로 바꾼다. 대시보드(Insights/Habits/포커스
   // 타이머 등)는 트레이의 "Open Dashboard"로 계속 열 수 있다.
   sidebarHidden: true,
-  actionItemsPinned: true
+  actionItemsPinned: true,
+  journalOpen: false
 }
 
 let cache: WindowSettings | null = null

@@ -1581,20 +1581,55 @@ button.ql-text-to-table, button.ql-table-to-text { width: 30px !important; }
 .jr-box { flex-shrink: 0; }
 .jr-img { max-width: 160px; max-height: 110px; border-radius: 6px; flex-shrink: 0; }
 
-/* 기록장 빠른 입력 창(전역 단축키) */
+/* 기록장 창 — 띄워놓고 채팅하듯 쓰는 창. 적은 것이 위에 쌓이고 아래에서
+   이어 쓴다(입력칸만 띄웠더니 뭘 적었는지 안 보여 불편했다). */
 .jc-wrap {
   height: 100vh; box-sizing: border-box;
-  display: flex; flex-direction: column; gap: 7px; justify-content: center;
+  display: flex; flex-direction: column;
   background: var(--bg2); border: 1px solid var(--border); border-radius: 12px;
-  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.45); padding: 14px 16px;
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.45); overflow: hidden;
 }
-.jc-head { font-size: 11.5px; color: var(--text-dim); }
+/* 테두리 없는 창이라 이 줄을 잡아 옮긴다 */
+.jc-head {
+  display: flex; align-items: center; gap: 8px; flex-shrink: 0;
+  padding: 10px 12px; border-bottom: 1px solid var(--border);
+  -webkit-app-region: drag;
+}
+.jc-title { font-size: 12.5px; font-weight: 700; color: var(--text); }
+.jc-date { font-size: 11px; color: var(--text-dim); }
+.jc-spacer { flex: 1; }
+.jc-close {
+  border: none; background: none; color: var(--text-dim);
+  font-size: 18px; line-height: 1; cursor: pointer; padding: 0 2px;
+  -webkit-app-region: no-drag;
+}
+.jc-close:hover { color: var(--text); }
+
+.jc-list { flex: 1; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+.jc-blank { font-size: 12px; color: var(--text-dim); margin: auto; }
+/* 내가 쓴 말이라 오른쪽에 붙인다(메신저와 같은 배치) */
+.jc-msg { display: flex; align-items: flex-end; gap: 6px; justify-content: flex-end; }
+.jc-bubble {
+  max-width: 78%; background: var(--accent); color: #fff;
+  border-radius: 12px 12px 3px 12px; padding: 7px 11px;
+  font-size: 12.5px; line-height: 1.55; word-break: break-word; white-space: pre-wrap;
+}
+.jc-line + .jc-line { margin-top: 2px; }
+.jc-time { font-size: 10px; color: var(--text-dim); flex-shrink: 0; padding-bottom: 2px; }
+
+.jc-compose { display: flex; align-items: flex-end; gap: 6px; padding: 10px; border-top: 1px solid var(--border); flex-shrink: 0; }
 .jc-input {
-  background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
-  padding: 9px 11px; font-size: 13.5px; color: var(--text); outline: none; font-family: inherit;
+  flex: 1; resize: none; overflow-y: auto; max-height: 160px;
+  background: var(--bg); border: 1px solid var(--border); border-radius: 10px;
+  padding: 8px 11px; font-size: 12.5px; line-height: 1.5; color: var(--text);
+  outline: none; font-family: inherit;
 }
 .jc-input:focus { border-color: var(--accent); }
-.jc-foot { font-size: 11px; color: var(--text-dim); }
+.jc-send {
+  flex-shrink: 0; width: 32px; height: 32px; border-radius: 50%;
+  border: none; background: var(--accent); color: #fff; font-size: 15px; cursor: pointer;
+}
+.jc-send:disabled { background: var(--bg4); color: var(--text-dim); cursor: default; }
 
 /* ── 참조([1] 마커 + 참조 탭) ─────────────────────────────────────────── */
 /* 번호는 자식 노드가 아니라 속성으로 그린다 — Quill Embed가 커서용으로
