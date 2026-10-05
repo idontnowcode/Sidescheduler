@@ -18,6 +18,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // 화면 우측 상단 할일 팝업(Ctrl+Shift+A로도 열림) — 사이드바에 버튼은
   // 안 두지만, 단축키와 같은 진입점을 테스트/다른 창에서도 쓸 수 있게 노출.
   openActionItems: () => ipcRenderer.send('action-items:open'),
+  // 기록장 창 — 사이드바 버튼/트레이/단축키가 같은 진입점을 쓴다.
+  openJournal: () => ipcRenderer.send('journal:capture-open'),
   closeCapture:   () => ipcRenderer.send('capture:close'),
   setSidebarHeight: (height: number) => ipcRenderer.send('sidebar:set-height', height),
   openEditor:     (payload: unknown) => ipcRenderer.send('editor:open', payload),

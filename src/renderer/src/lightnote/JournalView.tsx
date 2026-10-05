@@ -81,7 +81,7 @@ export default function JournalView({ onClose, onOpenPage }: Props) {
     <div className="jn-view">
       <div className="jn-head">
         <span className="jn-title">📓 기록장</span>
-        <span className="jn-sub">날짜별로 자동 정리되는 기록 — 적으면 오늘 날짜에 쌓입니다</span>
+        <span className="jn-sub">적으면 오늘 날짜에 쌓입니다</span>
         <div className="jn-spacer" />
         <button className="jn-close" title="닫기" onClick={onClose}>×</button>
       </div>
@@ -91,7 +91,7 @@ export default function JournalView({ onClose, onOpenPage }: Props) {
           <input
             ref={inputRef}
             className="jn-input"
-            placeholder="+ 새 기록하기 (Enter)"
+            placeholder="+ 새 기록하기"
             value={draft}
             onChange={e => setDraft(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter') add() }}

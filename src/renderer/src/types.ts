@@ -248,6 +248,7 @@ declare global {
       openCapture: () => void
       closeCapture: () => void
       openActionItems: () => void
+  openJournal: () => void
       setSidebarHeight: (height: number) => void
       openEditor: (payload: EditorPayload) => void
       closeEditor: () => void

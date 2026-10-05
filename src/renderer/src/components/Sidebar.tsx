@@ -106,6 +106,12 @@ export default function Sidebar({ onHover, anchor = 'top', dimmed = false }: Pro
         <NoteIcon size={iconSize} />
       </IconBtn>
 
+      {/* 기록장 — 띄워놓고 채팅하듯 적는 창 */}
+      <IconBtn title="기록장" size={btnSize}
+        onClick={(e) => { e.stopPropagation(); window.electronAPI.openJournal() }}>
+        <JournalIcon size={iconSize} />
+      </IconBtn>
+
       {/* Help & guide */}
       <IconBtn title="Help & guide" size={btnSize}
         onClick={(e) => { e.stopPropagation(); window.electronAPI.openDashboardView('help') }}>
@@ -210,6 +216,17 @@ function UnlockIcon({ size }: { size: number }) {
     </svg>
   )
 }
+// 말풍선 + 줄 — "적어서 쌓는 기록"을 뜻한다. 옆 아이콘들과 같은 선 굵기(1.8).
+function JournalIcon({ size }: { size: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
+      <line x1="8.5" y1="10" x2="15.5" y2="10" />
+      <line x1="8.5" y1="13.5" x2="13" y2="13.5" />
+    </svg>
+  )
+}
+
 function NoteIcon({ size }: { size: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">

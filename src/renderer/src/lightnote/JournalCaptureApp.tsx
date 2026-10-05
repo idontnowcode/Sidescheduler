@@ -71,7 +71,7 @@ export default function JournalCaptureApp() {
           ref={ref}
           className="jc-input"
           rows={1}
-          placeholder="메시지 입력  (Enter 전송 · Shift+Enter 줄바꿈)"
+          placeholder="오늘 기록 남기기"
           value={text}
           onChange={e => setText(e.target.value)}
           onKeyDown={e => {

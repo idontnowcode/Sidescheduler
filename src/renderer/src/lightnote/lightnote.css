@@ -1561,6 +1561,8 @@ button.ql-text-to-table, button.ql-table-to-text { width: 30px !important; }
 }
 .jn-input:focus { border-color: var(--accent); }
 .jn-days { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 1px; }
+.jn-days::-webkit-scrollbar { width: 6px; }
+.jn-days::-webkit-scrollbar-thumb { background: var(--bg4); border-radius: 3px; }
 .jn-day {
   display: flex; align-items: center; gap: 6px; width: 100%; text-align: left;
   border: none; background: none; cursor: pointer; border-radius: 6px;
@@ -1568,14 +1570,29 @@ button.ql-text-to-table, button.ql-table-to-text { width: 30px !important; }
 }
 .jn-day:hover { background: var(--bg3); }
 .jn-day.active { background: var(--bg3); font-weight: 600; }
-/* 기록 없는 날도 한 줄로 남겨 "그날은 아무것도 없었다"가 보이게 한다 */
-.jn-day.empty { color: var(--text-dim); }
+/* 기록 없는 날도 한 줄로 남겨 "그날은 아무것도 없었다"가 보이게 하되,
+   목록의 대부분이 빈 날이라 같은 무게로 두면 기록이 있는 날이 묻힌다.
+   빈 날은 줄 간격까지 줄여 눈이 기록 있는 날로 먼저 가게 한다. */
+.jn-day.empty { color: var(--text-dim); opacity: 0.55; padding-top: 5px; padding-bottom: 5px; }
+.jn-day.empty:hover { opacity: 1; }
 .jn-day-label { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.jn-day-count { font-size: 11px; color: var(--text-dim); flex-shrink: 0; }
+.jn-day-count {
+  font-size: 10.5px; color: var(--text-dim); flex-shrink: 0;
+  min-width: 18px; text-align: center; font-variant-numeric: tabular-nums;
+}
+/* 기록이 있는 날은 개수를 칩으로 — 목록을 훑을 때 바로 눈에 걸린다 */
+.jn-day:not(.empty) .jn-day-count {
+  background: color-mix(in srgb, var(--accent) 20%, transparent);
+  color: var(--accent); border-radius: 999px; padding: 1px 6px; font-weight: 600;
+}
 
-.jn-list { flex: 1; overflow-y: auto; padding: 14px 18px 24px; display: flex; flex-direction: column; gap: 8px; }
-.jn-date-head { display: flex; align-items: center; gap: 8px; margin-bottom: 2px; }
-.jn-date { font-size: 14px; font-weight: 700; color: var(--text); }
+.jn-list { flex: 1; overflow-y: auto; padding: 16px 18px 28px; display: flex; flex-direction: column; gap: 8px; }
+.jn-list::-webkit-scrollbar { width: 8px; }
+.jn-list::-webkit-scrollbar-thumb { background: var(--bg4); border-radius: 4px; }
+/* 창이 넓어도 글줄이 화면 끝까지 늘어나면 읽기 어렵다 — 읽기 좋은 폭으로 묶는다 */
+.jn-list > * { max-width: 780px; width: 100%; }
+.jn-date-head { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+.jn-date { font-size: 15px; font-weight: 700; color: var(--text); letter-spacing: -0.01em; }
 .jn-date-count { font-size: 11px; color: var(--text-dim); background: var(--bg3); border-radius: 999px; padding: 2px 8px; }
 .jn-open { border: 1px solid var(--border); background: transparent; color: var(--text-dim); border-radius: 6px; font-size: 11px; padding: 3px 9px; cursor: pointer; }
 .jn-open:hover { border-color: var(--accent); color: var(--accent); }
@@ -1585,7 +1602,7 @@ button.ql-text-to-table, button.ql-table-to-text { width: 30px !important; }
   display: flex; gap: 12px; align-items: flex-start;
   border: 1px solid var(--border); border-radius: 9px; background: var(--bg2); padding: 10px 12px;
 }
-.jn-time { font-size: 11px; color: var(--text-dim); flex-shrink: 0; min-width: 56px; padding-top: 1px; }
+.jn-time { font-size: 11px; color: var(--text-dim); flex-shrink: 0; min-width: 54px; padding-top: 2px; font-variant-numeric: tabular-nums; }
 .jr-body { flex: 1; min-width: 0; display: flex; gap: 10px; align-items: flex-start; }
 .jr-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .jr-line { font-size: 12.5px; color: var(--text); line-height: 1.6; word-break: break-word; }
@@ -1621,17 +1638,36 @@ button.ql-text-to-table, button.ql-table-to-text { width: 30px !important; }
 }
 .jc-close:hover { color: var(--text); }
 
-.jc-list { flex: 1; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+/* 메신저처럼 아래에 붙여 쌓는다 — 위에서부터 채우면 적은 게 몇 줄일 때
+   입력칸과 멀찍이 떨어져 허전하고, 방금 쓴 줄을 눈이 다시 찾아야 한다. */
+.jc-list {
+  flex: 1; overflow-y: auto; padding: 12px;
+  display: flex; flex-direction: column; justify-content: flex-end; gap: 8px;
+}
+.jc-list::-webkit-scrollbar { width: 6px; }
+.jc-list::-webkit-scrollbar-thumb { background: var(--bg4); border-radius: 3px; }
+.jc-list::-webkit-scrollbar-thumb:hover { background: var(--border); }
 .jc-blank { font-size: 12px; color: var(--text-dim); margin: auto; }
 /* 내가 쓴 말이라 오른쪽에 붙인다(메신저와 같은 배치) */
 .jc-msg { display: flex; align-items: flex-end; gap: 6px; justify-content: flex-end; }
+/* 전부 내 글이라 꽉 찬 강조색으로 칠하면 긴 기록을 읽기 피곤하다.
+   강조색을 옅게 깐 면 + 본문색으로 — 말풍선 모양은 유지하되 읽기 좋게. */
 .jc-bubble {
-  max-width: 78%; background: var(--accent); color: #fff;
+  max-width: 80%;
+  background: color-mix(in srgb, var(--accent) 15%, var(--bg3));
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+  color: var(--text);
   border-radius: 12px 12px 3px 12px; padding: 7px 11px;
-  font-size: 12.5px; line-height: 1.55; word-break: break-word; white-space: pre-wrap;
+  font-size: 12.5px; line-height: 1.6; word-break: break-word; white-space: pre-wrap;
 }
-.jc-line + .jc-line { margin-top: 2px; }
-.jc-time { font-size: 10px; color: var(--text-dim); flex-shrink: 0; padding-bottom: 2px; }
+.jc-line + .jc-line { margin-top: 1px; }
+/* 시각은 읽는 데 방해되지 않게 뒤로 물리고, 폭을 고정해 세로로 맞춘다 —
+   말풍선 길이에 따라 들쭉날쭉하면 훑어볼 때 눈이 걸린다. */
+.jc-time {
+  font-size: 10px; color: var(--text-dim); flex-shrink: 0;
+  min-width: 46px; text-align: right; padding-bottom: 3px;
+  font-variant-numeric: tabular-nums;
+}
 
 .jc-compose { display: flex; align-items: flex-end; gap: 6px; padding: 10px; border-top: 1px solid var(--border); flex-shrink: 0; }
 .jc-input {
