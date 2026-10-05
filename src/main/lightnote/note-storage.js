@@ -38,6 +38,16 @@ async function writeJson(filePath, data) {
 function notebooksPath() { return path.join(DATA_ROOT, 'notebooks.json'); }
 function notebookDir(id) { return path.join(DATA_ROOT, 'notebooks', id); }
 
+/** 쓰기용 원본 목록 — 숨겨둔 템플릿 저장소까지 그대로 포함한다.
+ *  getNotebooks()는 그걸 걸러낸 "화면에 보여줄 목록"이라, 그 결과를 기준으로
+ *  notebooks.json을 통째로 덮어쓰면 숨겨둔 노트북이 매 저장마다 지워진다.
+ *  실제로 그래서 템플릿 저장소가 실행할 때마다 새로 만들어져 중복으로 쌓였고,
+ *  그 와중에 서로 다른 스냅샷으로 덮어쓰다 기록장 노트북까지 목록에서
+ *  사라졌다. 목록을 바꾸는 함수는 반드시 이 원본을 기준으로 써야 한다. */
+async function readAllNotebooks() {
+  return (await readJson(notebooksPath())) || [];
+}
+
 async function getNotebooks() {
   // The hidden template-store notebook (see ensureTemplateStore below) is
   // deliberately excluded here — every listing, search and picker in the app
@@ -47,7 +57,7 @@ async function getNotebooks() {
 }
 
 async function createNotebook(name, color = '#5b5fc7') {
-  const notebooks = await getNotebooks();
+  const notebooks = await readAllNotebooks();
   const id = crypto.randomUUID();
   const now = Date.now();
   const notebook = { id, name, color, createdAt: now, updatedAt: now, order: notebooks.length };
@@ -59,7 +69,7 @@ async function createNotebook(name, color = '#5b5fc7') {
 }
 
 async function renameNotebook(id, name) {
-  const notebooks = await getNotebooks();
+  const notebooks = await readAllNotebooks();
   const nb = notebooks.find(n => n.id === id);
   if (!nb) return null;
   nb.name = name;
@@ -70,7 +80,7 @@ async function renameNotebook(id, name) {
 
 /** Pin/unpin a user notebook so it sorts to the top of the user group. */
 async function setNotebookPinned(id, pinned) {
-  const notebooks = await getNotebooks();
+  const notebooks = await readAllNotebooks();
   const nb = notebooks.find(n => n.id === id);
   if (!nb) return null;
   if (pinned) nb.pinned = true; else delete nb.pinned;
@@ -81,7 +91,7 @@ async function setNotebookPinned(id, pinned) {
 
 /** Apply a new display order to user notebooks (ids in desired order). */
 async function reorderNotebooks(ids) {
-  const notebooks = await getNotebooks();
+  const notebooks = await readAllNotebooks();
   const orderMap = new Map(ids.map((id, i) => [id, i]));
   for (const nb of notebooks) if (orderMap.has(nb.id)) nb.order = orderMap.get(nb.id);
   await writeJson(notebooksPath(), notebooks);
@@ -89,7 +99,7 @@ async function reorderNotebooks(ids) {
 }
 
 async function deleteNotebook(id) {
-  const notebooks = await getNotebooks();
+  const notebooks = await readAllNotebooks();
   const nb = notebooks.find(n => n.id === id);
   await writeJson(notebooksPath(), notebooks.filter(n => n.id !== id));
   try { await fs.rm(notebookDir(id), { recursive: true, force: true }); } catch {}
@@ -428,7 +438,7 @@ async function softDeleteSection(nbId, secId) {
   return { success: true };
 }
 async function softDeleteNotebook(id) {
-  const nbs = await getNotebooks();
+  const nbs = await readAllNotebooks();
   const nb = nbs.find(n => n.id === id);
   if (!nb) return { success: false };
   nb.deletedAt = Date.now();
@@ -440,7 +450,7 @@ async function softDeleteNotebook(id) {
 //    a reachable home (restoring a page whose folder is also trashed brings the
 //    folder back too — least-surprising "it's back where it was").
 async function ensureNotebookVisible(nbId) {
-  const nbs = await getNotebooks();
+  const nbs = await readAllNotebooks();
   const nb = nbs.find(n => n.id === nbId);
   if (nb && nb.deletedAt) { delete nb.deletedAt; await writeJson(notebooksPath(), nbs); }
 }
@@ -476,7 +486,7 @@ async function restoreSection(nbId, secId) {
   return { success: true };
 }
 async function restoreNotebook(id) {
-  const nbs = await getNotebooks();
+  const nbs = await readAllNotebooks();
   const nb = nbs.find(n => n.id === id);
   if (!nb) return { success: false };
   delete nb.deletedAt;
@@ -563,7 +573,7 @@ async function purgeSection(nbId, secId) {
 async function purgeNotebook(id) {
   const pageIds = [];
   for (const s of await getSections(id)) for (const p of await getPages(id, s.id)) pageIds.push(p.id);
-  const nbs = await getNotebooks();
+  const nbs = await readAllNotebooks();
   await writeJson(notebooksPath(), nbs.filter(n => n.id !== id));
   try { await fs.rm(notebookDir(id), { recursive: true, force: true }); } catch {}
   return { pageIds };
