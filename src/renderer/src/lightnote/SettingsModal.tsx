@@ -90,6 +90,14 @@ export function applyFont(key: string) {
   localStorage.setItem('lightnote-font', key)
 }
 
+// 줄노트 표기 — 본문 줄마다 옅은 밑줄을 그어 줄을 구분한다. 고정 간격의
+// 배경선(진짜 줄노트 종이)은 문단마다 글자 크기와 여백이 달라 글줄과 어긋나
+// 금세 밀리므로, 문단 자체에 밑줄을 긋는 쪽을 택했다(항상 글줄에 붙는다).
+export function applyRuled(on: boolean) {
+  document.documentElement.classList.toggle('ln-ruled', on)
+  localStorage.setItem('lightnote-ruled', on ? '1' : '0')
+}
+
 export async function initAppearance() {
   const t = localStorage.getItem('lightnote-theme')
   const a = localStorage.getItem('lightnote-accent')
@@ -98,6 +106,7 @@ export async function initAppearance() {
   if (a) applyAccent(a)
   await loadCustomFonts()
   applyFont(f || 'sans')
+  applyRuled(localStorage.getItem('lightnote-ruled') === '1')
 }
 
 interface Props { onClose: () => void }
@@ -106,6 +115,7 @@ export default function SettingsModal({ onClose }: Props) {
   const [currentTheme, setCurrentTheme] = useState(localStorage.getItem('lightnote-theme') || 'dark')
   const [currentAccent, setCurrentAccent] = useState(localStorage.getItem('lightnote-accent') || 'blue')
   const [currentFont, setCurrentFont] = useState(localStorage.getItem('lightnote-font') || 'sans')
+  const [ruled, setRuled] = useState(localStorage.getItem('lightnote-ruled') === '1')
   const [apiKey, setApiKey] = useState('')
   const [showKey, setShowKey] = useState(false)
   const [keyStatus, setKeyStatus] = useState<{ text: string; ok: boolean | null }>({ text: '', ok: null })
@@ -240,6 +250,15 @@ export default function SettingsModal({ onClose }: Props) {
               onClick={() => handleAccent(key)} />
           ))}
         </div>
+
+        <div className="settings-divider" />
+
+        <div className="settings-section-title">줄노트 표기</div>
+        <label className="ln-ruled-row">
+          <input type="checkbox" checked={ruled}
+            onChange={e => { setRuled(e.target.checked); applyRuled(e.target.checked) }} />
+          <span>본문 줄마다 옅은 밑줄을 그어 줄을 구분합니다</span>
+        </label>
 
         <div className="settings-divider" />
 

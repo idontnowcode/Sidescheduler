@@ -1531,6 +1531,19 @@ button.ql-text-to-table, button.ql-table-to-text { width: 30px !important; }
 /* 세로로 쌓인 목록이라 위/아래 절반으로 놓일 자리를 보여준다 */
 .ln-tab-overflow-item.ln-tab-drop-before { box-shadow: inset 0 3px 0 -1px var(--accent); }
 .ln-tab-overflow-item.ln-tab-drop-after  { box-shadow: inset 0 -3px 0 -1px var(--accent); }
+/* ── 줄노트 표기 (설정에서 켜고 끔) ───────────────────────────────────── */
+/* 줄 간격이 문단마다(글자 크기마다) 다르고 여백도 있어서, 고정 간격의 배경
+   줄무늬는 글줄과 금세 어긋난다. 그래서 문단 자체에 밑줄을 긋는다 — 항상
+   글줄에 붙고, 글자 크기를 바꿔도 따라간다. */
+.ln-ruled .ql-editor > :is(p, h1, h2, h3, blockquote),
+.ln-ruled .ql-editor > :is(ol, ul) > li {
+  border-bottom: 1px solid var(--ruled-line, rgba(128, 128, 128, 0.22));
+  padding-bottom: 2px;
+}
+/* 표 안은 이미 칸 테두리가 있어 겹치면 지저분해진다 */
+.ln-ruled .ql-editor td :is(p, h1, h2, h3), .ln-ruled .ql-editor th :is(p, h1, h2, h3) { border-bottom: none; }
+.ln-ruled .ql-ver-box :is(p, h1, h2, h3) { border-bottom: none; }
+
 /* ── 기록장 ───────────────────────────────────────────────────────────── */
 .jn-view { position: absolute; inset: 0; z-index: 50; background: var(--bg); display: flex; flex-direction: column; overflow: hidden; }
 .jn-head { display: flex; align-items: center; gap: 10px; padding: 12px 18px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
@@ -1580,6 +1593,9 @@ button.ql-text-to-table, button.ql-table-to-text { width: 30px !important; }
 .jr-check.done { color: var(--text-dim); text-decoration: line-through; }
 .jr-box { flex-shrink: 0; }
 .jr-img { max-width: 160px; max-height: 110px; border-radius: 6px; flex-shrink: 0; }
+
+.ln-ruled-row { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--text); cursor: pointer; }
+.ln-ruled-row input { cursor: pointer; }
 
 /* 기록장 창 — 띄워놓고 채팅하듯 쓰는 창. 적은 것이 위에 쌓이고 아래에서
    이어 쓴다(입력칸만 띄웠더니 뭘 적었는지 안 보여 불편했다). */
