@@ -149,6 +149,29 @@ ok('사진 기록에도 시각이 붙음', /^(오전|오후) \d/.test(withImg[0]
 const badImg = await ln.evaluate(() => window.lightnote.journalAppendImage('그냥 글자'))
 ok('사진이 아닌 걸 넣으면 조용히 저장하지 않음', badImg?.error === 'BAD_IMAGE', JSON.stringify(badImg))
 
+// 설명 없이 사진만 올리면 줄이 "오전 12:37"에서 끝난다. 시각 뒤 공백을
+// 강제하던 탓에 이런 줄이 기록으로 안 잡히고 앞 기록에 딸려 들어갔다.
+const bareBefore = await ln.evaluate(async () => (await window.lightnote.journalDays(1, true))[0].records.length)
+await ln.evaluate((d) => window.lightnote.journalAppendImage(d), PNG)
+await ln.evaluate((d) => window.lightnote.journalAppendImage(d), PNG)
+const bare = await ln.evaluate(async () => (await window.lightnote.journalDays(1, true))[0].records)
+ok('설명 없는 사진도 각각 제 기록이 됨', bare.length === bareBefore + 2, `${bareBefore} → ${bare.length}`)
+const last2 = bare.slice(-2)
+ok('설명 없는 사진 기록에도 시각이 붙음', last2.every(r => /^(오전|오후) \d/.test(r.time)),
+  JSON.stringify(last2.map(r => r.time)))
+ok('설명 없는 사진이 앞 기록에 딸려 들어가지 않음',
+  last2.every(r => r.images.length === 1 && !r.text.trim() && r.extra.length === 0),
+  JSON.stringify(last2.map(r => [r.text, r.images.length, r.extra.length])))
+
+// 화면은 직접 적었을 때만 다시 읽는다 — 검색칸을 한 번 거쳐 새로 그리게 한다.
+await ln.locator('.jn-search').fill('사진')
+await ln.waitForTimeout(600)
+await ln.locator('.jn-search').fill('')
+await ln.waitForTimeout(900)
+const bareCards = await ln.evaluate(() => [...document.querySelectorAll('.jn-card')]
+  .filter(c => c.querySelector('.jr-imgs') && !c.querySelector('.jr-text')).length)
+ok('설명 없는 사진 기록은 빈 글 칸 없이 사진만 보여줌', bareCards >= 2, String(bareCards))
+
 // ── 채팅창: 띄워놓고 쓰는 창 ─────────────────────────────────────────────
 // 단축키로 불러내는 팝업이 아니라, 열어두고 채팅하듯 쓰는 창이다.
 await main.evaluate(() => window.electronAPI.lightnoteOpen())

@@ -35,15 +35,26 @@ function RecordBody({ r, q }: { r: JournalRecord; q: string }) {
     }
     return <div key={key} className="jr-line">{mark(text)}</div>
   }
+  const images = [...r.images, ...r.extra.flatMap(e => e.images)]
+  // 사진만 올린 기록에는 빈 글 칸을 그리지 않는다 — 자리만 차지해 사진이
+  // 카드 오른쪽 끝으로 밀려난다.
+  const hasText = [r.text, ...r.extra.map(e => e.text)].some(t => t.trim())
   return (
     <div className="jr-body">
-      <div className="jr-text">
-        {line(r.text, r.list, 'main')}
-        {r.extra.map((e, i) => line(e.text, e.list, `x${i}`))}
-      </div>
-      {[...r.images, ...r.extra.flatMap(e => e.images)].slice(0, 3).map((src, i) => (
-        <img key={i} className="jr-img" src={src} alt="" />
-      ))}
+      {hasText && (
+        <div className="jr-text">
+          {line(r.text, r.list, 'main')}
+          {r.extra.map((e, i) => line(e.text, e.list, `x${i}`))}
+        </div>
+      )}
+      {images.length > 0 && (
+        <div className="jr-imgs">
+          {images.slice(0, 3).map((src, i) => (
+            <img key={i} className="jr-img" src={src} alt="" />
+          ))}
+          {images.length > 3 && <span className="jr-more">+{images.length - 3}</span>}
+        </div>
+      )}
     </div>
   )
 }
