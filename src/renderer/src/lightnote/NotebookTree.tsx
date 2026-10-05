@@ -31,6 +31,15 @@ export interface TreeHandle {
 
 const COLORS = ['#4dabf7','#69db7c','#ffa94d','#da77f2','#f783ac','#a9e34b','#66d9e8','#ffd43b']
 
+// 지워진 노트북/폴더의 id가 남아 있어도 해가 없다 — 그냥 아무것도 안 걸릴 뿐.
+function loadIdSet(key: string): Set<string> {
+  try { return new Set<string>(JSON.parse(localStorage.getItem(key) || '[]')) }
+  catch { return new Set<string>() }
+}
+function saveIdSet(key: string, ids: Set<string>): void {
+  try { localStorage.setItem(key, JSON.stringify([...ids])) } catch { /* private mode */ }
+}
+
 function buildSectionTree(sections: Section[]): Section[] {
   const map: Record<string, Section> = {}
   sections.forEach(s => { map[s.id] = { ...s, children: [] } })
@@ -84,8 +93,12 @@ function findSection(sections: Section[], id: string): Section | undefined {
 const NotebookTree = forwardRef<TreeHandle, Props>(({ selected, onPageSelect, onEditorClear, onTrashOpen, width }, ref) => {
   const trashRef = useRef<TrashPanelHandle>(null)
   const [notebooks, setNotebooks] = useState<Notebook[]>([])
-  const [expandedNbs, setExpandedNbs] = useState<Set<string>>(new Set())
-  const [expandedSecs, setExpandedSecs] = useState<Set<string>>(new Set())
+  // 펼쳐둔 가지는 앱을 껐다 켜도 유지한다. 예전엔 매번 전부 접힌 채로 시작해서,
+  // 켤 때마다 노트북 → 폴더를 다시 두 번 눌러야 페이지가 보였다.
+  const [expandedNbs, setExpandedNbs] = useState<Set<string>>(() => loadIdSet('ln-expanded-nbs'))
+  const [expandedSecs, setExpandedSecs] = useState<Set<string>>(() => loadIdSet('ln-expanded-secs'))
+  useEffect(() => { saveIdSet('ln-expanded-nbs', expandedNbs) }, [expandedNbs])
+  useEffect(() => { saveIdSet('ln-expanded-secs', expandedSecs) }, [expandedSecs])
   const [sectionsByNb, setSectionsByNb] = useState<Record<string, Section[]>>({})
   const [pagesBySec, setPagesBySec] = useState<Record<string, Page[]>>({})
   // pageIds with an enabled 업무 속성 — swaps 📄 → 📋 in the tree so work
@@ -180,6 +193,28 @@ const NotebookTree = forwardRef<TreeHandle, Props>(({ selected, onPageSelect, on
   }))
 
   useEffect(() => { loadNotebooks() }, [loadNotebooks])
+
+  // 시작할 때는 노트북 목록만 읽으므로, 지난번에 펼쳐둔 가지의 폴더·페이지는
+  // 따로 채워 넣어야 한다. 한 번만 돈다(그 뒤로는 펼칠 때 그때그때 불러온다).
+  const hydratedRef = useRef(false)
+  useEffect(() => {
+    if (hydratedRef.current || notebooks.length === 0) return
+    if (expandedNbs.size === 0) { hydratedRef.current = true; return }
+    hydratedRef.current = true
+    ;(async () => {
+      for (const nb of notebooks) {
+        if (!expandedNbs.has(nb.id)) continue
+        const tree = await loadSections(nb.id)
+        const walk = async (secs: Section[]) => {
+          for (const s of secs) {
+            if (expandedSecs.has(s.id)) await loadPages(nb.id, s.id)
+            if (s.children?.length) await walk(s.children)
+          }
+        }
+        await walk(tree)
+      }
+    })()
+  }, [notebooks, expandedNbs, expandedSecs, loadSections, loadPages])
 
   const openInputModal = useCallback((title: string, defaultVal: string, onConfirm: (val: string) => void) => {
     setInputValue(defaultVal)
