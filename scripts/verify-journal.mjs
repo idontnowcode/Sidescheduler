@@ -172,6 +172,62 @@ const bareCards = await ln.evaluate(() => [...document.querySelectorAll('.jn-car
   .filter(c => c.querySelector('.jr-imgs') && !c.querySelector('.jr-text')).length)
 ok('설명 없는 사진 기록은 빈 글 칸 없이 사진만 보여줌', bareCards >= 2, String(bareCards))
 
+// ── 링크 ────────────────────────────────────────────────────────────────
+// 요청: "링크도 들어갈 수 있게" + "버튼 없이 그냥 붙여넣으면 되도록".
+// 저장할 때 Quill 링크로 넣어 두면 그 날짜 페이지를 편집기로 열어도 진짜
+// 링크로 보이고, 검색·내보내기도 그대로 걸린다.
+await ln.evaluate(() => window.lightnote.journalAppend('도면 공유함 https://example.com/a?v=1 확인 바람'))
+await ln.evaluate(() => window.lightnote.journalAppend('사내 위키 www.example.org/wiki 참고'))
+await ln.evaluate(() => window.lightnote.journalAppend('자재표 https://example.com/b. 그리고 3.5 버전으로 맞출 것'))
+
+const linked = await ln.evaluate(async () => (await window.lightnote.journalDays(1, true))[0].records.slice(-3))
+const seg = (r) => (r.segs || []).filter(s => s.link)
+ok('붙여넣은 주소가 링크 조각으로 들어감',
+  seg(linked[0]).length === 1 && seg(linked[0])[0].link === 'https://example.com/a?v=1',
+  JSON.stringify(linked[0].segs))
+ok('글은 그대로 남음 (주소만 떼어가지 않음)',
+  linked[0].text === '도면 공유함 https://example.com/a?v=1 확인 바람', linked[0].text)
+ok('www. 로 시작하면 https:// 를 붙여 연다',
+  seg(linked[1])[0]?.link === 'https://www.example.org/wiki', JSON.stringify(seg(linked[1])))
+ok('문장 끝 마침표는 주소에서 떼어냄',
+  seg(linked[2])[0]?.link === 'https://example.com/b', JSON.stringify(seg(linked[2])))
+ok('"3.5 버전" 같은 말은 링크로 만들지 않음',
+  seg(linked[2]).length === 1 && !linked[2].segs.some(s => s.link && s.link.includes('3.5')),
+  JSON.stringify(linked[2].segs.map(s => [s.text, s.link])))
+
+const deltaHasLink = await ln.evaluate(async () => {
+  const loc = await window.lightnote.journalTodayPage()
+  const page = await window.lightnote.loadPage(loc.notebookId, loc.sectionId, loc.pageId)
+  return (page.delta.ops || []).some(o => o.attributes && o.attributes.link === 'https://example.com/a?v=1')
+})
+ok('날짜 페이지에도 진짜 링크로 저장됨 (편집기로 열어도 링크)', deltaHasLink)
+
+await ln.locator('.jn-search').fill('도면 공유함')
+await ln.waitForTimeout(800)
+const anchor = await ln.evaluate(() => {
+  const a = document.querySelector('.jn-card .jn-link')
+  return a ? { href: a.getAttribute('href'), text: a.textContent } : null
+})
+ok('기록장 화면에서 눌러 열 수 있는 링크로 보임',
+  anchor?.href === 'https://example.com/a?v=1', JSON.stringify(anchor))
+ok('링크가 걸린 기록도 검색에 그대로 걸림', await ln.locator('.jn-card').count() === 1)
+
+// 눌렀을 때 앱 안에서 그 주소로 이동해 버리면(화면이 통째로 바뀐다) 큰일이다.
+// 기본 브라우저로 넘겨야 한다 — 메인에서 shell.openExternal 을 가로채 확인.
+await app.evaluate(({ shell }) => {
+  globalThis.__opened = []
+  shell.openExternal = (url) => { globalThis.__opened.push(url); return Promise.resolve() }
+})
+await ln.locator('.jn-card .jn-link').first().click()
+await ln.waitForTimeout(600)
+const opened = await app.evaluate(() => globalThis.__opened)
+ok('링크를 누르면 기본 브라우저로 연다 (앱 화면이 그 주소로 바뀌지 않음)',
+  opened.length === 1 && opened[0] === 'https://example.com/a?v=1', JSON.stringify(opened))
+ok('누른 뒤에도 기록장 화면 그대로', await ln.locator('.jn-view').count() === 1)
+
+await ln.locator('.jn-search').fill('')
+await ln.waitForTimeout(800)
+
 // ── 채팅창: 띄워놓고 쓰는 창 ─────────────────────────────────────────────
 // 단축키로 불러내는 팝업이 아니라, 열어두고 채팅하듯 쓰는 창이다.
 await main.evaluate(() => window.electronAPI.lightnoteOpen())
@@ -209,11 +265,19 @@ const journalOpen = JSON.parse(readFileSync(settingsPath, 'utf-8')).journalOpen
 // 채팅창 말풍선에도 사진이 보인다
 ok('채팅창 말풍선에 사진이 보임', await jc.locator('.jc-img').count() >= 1,
   String(await jc.locator('.jc-img').count()))
-ok('사진 넣기 버튼이 있음', await jc.locator('.jc-attach').count() === 1)
+ok('채팅창 말풍선에서도 링크를 눌러 열 수 있음',
+  await jc.evaluate(() => !![...document.querySelectorAll('.jc-bubble .jn-link')]
+    .find(a => a.getAttribute('href') === 'https://example.com/a?v=1')))
+
+// 요청: "링크 입력 버튼이나 사진 넣는 버튼이 필요 없고, 그냥 붙여넣으면 되도록"
+ok('사진 넣기·링크 걸기 버튼을 두지 않음 (붙여넣기로만)',
+  await jc.locator('.jc-attach').count() === 0 && await jc.locator('.jc-link-btn').count() === 0)
 ok('보내기 버튼이 입력칸과 한 덩어리로 묶여 있음',
-  await jc.locator('.jc-field > .jc-attach').count() === 1 && await jc.locator('.jc-field > .jc-send').count() === 1)
+  await jc.locator('.jc-field > .jc-input').count() === 1 && await jc.locator('.jc-field > .jc-send').count() === 1)
 ok('아이콘을 그림문자가 아니라 선 아이콘으로 그림(윈도우에서 제각각 칠해지지 않게)',
-  await jc.locator('.jc-attach svg').count() === 1 && await jc.locator('.jc-send svg').count() === 1)
+  await jc.locator('.jc-send svg').count() === 1 && await jc.locator('.jc-brand svg').count() === 1)
+ok('붙여넣으면 된다고 입력칸에 적어 둠',
+  ((await jc.locator('.jc-input').getAttribute('placeholder')) || '').includes('붙여넣기'))
 
 // ── 쌓인 기록을 위로 거슬러 읽을 수 있어야 한다 ─────────────────────────
 // 아래 붙이기를 바깥 상자의 justify-content로 하면 넘친 윗부분이 잘려

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { JournalDay, JournalRecord } from './types'
+import JournalLine from './JournalLine'
+import type { JournalDay, JournalRecord, JournalSeg } from './types'
 
 // 기록장 — 채팅방에 적듯 한 줄씩 적어두고, 날짜별로 자동 정리해 다시 찾는 화면.
 // 저장은 "기록장" 노트북의 날짜별 페이지라, 적어둔 기록이 결국 보통 노트다.
@@ -14,26 +15,17 @@ interface Props {
 }
 
 function RecordBody({ r, q }: { r: JournalRecord; q: string }) {
-  const mark = (text: string) => {
-    if (!q.trim()) return text
-    const i = text.toLowerCase().indexOf(q.trim().toLowerCase())
-    if (i < 0) return text
-    return (<>
-      {text.slice(0, i)}
-      <mark className="jn-hit">{text.slice(i, i + q.trim().length)}</mark>
-      {text.slice(i + q.trim().length)}
-    </>)
-  }
-  const line = (text: string, list: string | null, key: string) => {
+  const line = (text: string, segs: JournalSeg[] | undefined, list: string | null, key: string) => {
     if (!text.trim()) return null
+    const body = <JournalLine text={text} segs={segs} q={q} />
     if (list) {
       return (
         <div key={key} className={`jr-check${list === 'checked' ? ' done' : ''}`}>
-          <span className="jr-box">{list === 'checked' ? '☑' : '☐'}</span>{mark(text)}
+          <span className="jr-box">{list === 'checked' ? '☑' : '☐'}</span>{body}
         </div>
       )
     }
-    return <div key={key} className="jr-line">{mark(text)}</div>
+    return <div key={key} className="jr-line">{body}</div>
   }
   const images = [...r.images, ...r.extra.flatMap(e => e.images)]
   // 사진만 올린 기록에는 빈 글 칸을 그리지 않는다 — 자리만 차지해 사진이
@@ -43,8 +35,8 @@ function RecordBody({ r, q }: { r: JournalRecord; q: string }) {
     <div className="jr-body">
       {hasText && (
         <div className="jr-text">
-          {line(r.text, r.list, 'main')}
-          {r.extra.map((e, i) => line(e.text, e.list, `x${i}`))}
+          {line(r.text, r.segs, r.list, 'main')}
+          {r.extra.map((e, i) => line(e.text, e.segs, e.list, `x${i}`))}
         </div>
       )}
       {images.length > 0 && (

@@ -125,12 +125,16 @@ export interface PageReference {
 
 // 기록장: 한 줄 기록 하나. 시각이 붙은 문단이 기록이고, 그 아래 시각 없는
 // 줄들은 그 기록에 딸린 내용(extra)으로 묶인다.
+// 기록 한 줄을 "보통 글 / 링크" 조각으로 쪼갠 것. 붙여넣은 주소는 저장할 때
+// 링크로 들어가므로, 화면에서도 눌러서 바로 열 수 있다.
+export interface JournalSeg { text: string; link: string | null }
 export interface JournalRecord {
   time: string
   text: string
+  segs?: JournalSeg[]
   images: string[]
   list: string | null
-  extra: { text: string; images: string[]; list: string | null }[]
+  extra: { text: string; segs?: JournalSeg[]; images: string[]; list: string | null }[]
 }
 export interface JournalPageLoc { notebookId: string; sectionId: string; pageId: string; title: string }
 export interface JournalDay { date: string; label: string; count: number; page: JournalPageLoc | null; records?: JournalRecord[] }

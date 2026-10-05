@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import './lightnote.css'
+import JournalLine from './JournalLine'
 import type { JournalRecord } from './types'
 
 // 전역 단축키로 뜨는 기록장 창. 지금 쓰시는 채팅방을 그대로 대체하는 게
@@ -20,15 +21,6 @@ function JournalIcon() {
     </svg>
   )
 }
-function ImageIcon() {
-  return (
-    <svg {...ICON} aria-hidden>
-      <rect x="3" y="4.5" width="18" height="15" rx="2.5" />
-      <circle cx="8.5" cy="9.5" r="1.6" />
-      <path d="M21 15.5l-4.6-4.3a1.5 1.5 0 0 0-2 0L3.4 19" />
-    </svg>
-  )
-}
 function SendIcon() {
   return (
     <svg {...ICON} width={14} height={14} strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -41,12 +33,13 @@ function SendIcon() {
 /** 한 기록을 말풍선으로. 사진만 올린 기록은 말풍선 치장을 걷어내고 사진만
  *  남긴다 — 글용 여백과 테두리를 그대로 두면 사진이 액자에 갇혀 보인다. */
 function Bubble({ r }: { r: JournalRecord }) {
-  const texts = [r.text, ...r.extra.map((e) => e.text)].filter((t) => t.trim())
+  const lines = [{ text: r.text, segs: r.segs }, ...r.extra.map((e) => ({ text: e.text, segs: e.segs }))]
+    .filter((l) => l.text.trim())
   const images = [...r.images, ...r.extra.flatMap((e) => e.images)]
   return (
     <div className="jc-msg">
-      <div className={`jc-bubble${texts.length === 0 && images.length > 0 ? ' img-only' : ''}`}>
-        {texts.map((t, i) => <div className="jc-line" key={i}>{t}</div>)}
+      <div className={`jc-bubble${lines.length === 0 && images.length > 0 ? ' img-only' : ''}`}>
+        {lines.map((l, i) => <div className="jc-line" key={i}><JournalLine text={l.text} segs={l.segs} /></div>)}
         {images.map((src, i) => <img className="jc-img" key={i} src={src} alt="" />)}
       </div>
       <span className="jc-time">{r.time}</span>
@@ -60,7 +53,6 @@ export default function JournalCaptureApp() {
   const [dateLabel, setDateLabel] = useState('')
   const [dropping, setDropping] = useState(false)
   const ref = useRef<HTMLTextAreaElement>(null)
-  const fileRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
   const stackRef = useRef<HTMLDivElement>(null)
   // 위로 올려 예전 기록을 읽는 중이면 끌어내리지 않는다.
@@ -173,18 +165,15 @@ export default function JournalCaptureApp() {
       </div>
 
       <div className="jc-compose">
-        {/* 사진·입력칸·보내기를 한 덩어리로 묶는다 — 따로 떨어져 있으면
-            보내기 버튼이 어디에 딸린 건지 눈으로 안 잡힌다. */}
+        {/* 입력칸과 보내기를 한 덩어리로 묶는다 — 따로 떨어져 있으면 보내기
+            버튼이 어디에 딸린 건지 눈으로 안 잡힌다. 사진 넣기·링크 걸기
+            버튼은 두지 않는다. 붙여넣으면 그대로 들어간다. */}
         <div className="jc-field">
-          <button className="jc-attach" title="사진 넣기 (붙여넣기·끌어다 놓기도 됩니다)"
-            onClick={() => fileRef.current?.click()}><ImageIcon /></button>
-          <input ref={fileRef} type="file" accept="image/*" multiple hidden
-            onChange={e => { sendImages(Array.from(e.target.files || [])); e.target.value = '' }} />
           <textarea
             ref={ref}
             className="jc-input"
             rows={1}
-            placeholder="오늘 기록 남기기"
+            placeholder="오늘 기록 남기기 — 사진·링크는 그냥 붙여넣기"
             value={text}
             onChange={e => setText(e.target.value)}
             onPaste={onPaste}

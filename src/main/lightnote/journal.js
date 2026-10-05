@@ -42,22 +42,65 @@ function timeLabel(ts) {
 // 기록에 딸려 들어갔다(사진 세 장이 한 말풍선에 뭉친 원인).
 const TIME_RE = /^(오전|오후)\s\d{1,2}:\d{2}(?:\s{1,2}|$)/;
 
+// 붙여넣은 주소는 링크로 저장한다 — 버튼을 따로 두지 않고 "그냥 붙여넣으면
+// 된다"가 목표라서. 눈대중으로 도메인을 찍지 않고 http(s):// 나 www. 로
+// 시작하는 것만 잡는다("3.5 버전" 같은 말을 링크로 만들지 않으려고).
+const URL_RE = /(?:https?:\/\/|www\.)[^\s<>()[\]{}"'‘’“”]+/gi;
+/** 글 한 토막을 "보통 글 / 링크" 조각으로 쪼갠다. */
+function linkSegments(text) {
+  const segs = [];
+  let last = 0;
+  URL_RE.lastIndex = 0;
+  let m;
+  while ((m = URL_RE.exec(text))) {
+    // 문장 끝 따라붙은 구두점은 주소에서 떼어낸다 ("...naver.com." 같은 경우).
+    const url = m[0].replace(/[),.;:!?\]}'"»]+$/, '');
+    if (!url) { URL_RE.lastIndex = m.index + m[0].length; continue; }
+    if (m.index > last) segs.push({ text: text.slice(last, m.index), link: null });
+    segs.push({ text: url, link: /^www\./i.test(url) ? `https://${url}` : url });
+    last = m.index + url.length;
+    URL_RE.lastIndex = last;
+  }
+  if (last < text.length) segs.push({ text: text.slice(last), link: null });
+  return segs;
+}
+/** 링크 조각을 Quill 델타 op으로. 편집기에서도 진짜 링크로 보이게 하려는 것. */
+function textOps(text) {
+  return linkSegments(text).map((s) => (s.link ? { insert: s.text, attributes: { link: s.link } } : { insert: s.text }));
+}
+/** 앞에서 n글자를 덜어낸 조각 목록 (시각 머리말을 떼어낼 때 쓴다). */
+function dropChars(segs, n) {
+  const out = [];
+  let left = n;
+  for (const s of segs) {
+    if (left >= s.text.length) { left -= s.text.length; continue; }
+    out.push(left > 0 ? { text: s.text.slice(left), link: s.link } : s);
+    left = 0;
+  }
+  return out;
+}
+
 /** 델타를 줄 단위로 쪼갠다. 줄 끝 newline op의 속성(목록·헤더)과 그 줄에 들어
- *  있는 이미지도 함께 들고 나온다 — 카드로 그릴 때 쓴다. */
+ *  있는 이미지, 링크 조각도 함께 들고 나온다 — 카드로 그릴 때 쓴다. */
 function deltaToLines(delta) {
   const ops = (delta && delta.ops) || [];
   const lines = [];
-  let cur = { text: '', images: [], attrs: null };
+  const blank = () => ({ text: '', images: [], segs: [], attrs: null });
+  let cur = blank();
   for (const op of ops) {
     const ins = op.insert;
     if (typeof ins === 'string') {
+      const link = (op.attributes && op.attributes.link) || null;
       const parts = ins.split('\n');
       for (let i = 0; i < parts.length; i++) {
-        cur.text += parts[i];
+        if (parts[i]) {
+          cur.text += parts[i];
+          cur.segs.push({ text: parts[i], link });
+        }
         if (i < parts.length - 1) {
           cur.attrs = op.attributes || null;
           lines.push(cur);
-          cur = { text: '', images: [], attrs: null };
+          cur = blank();
         }
       }
     } else if (ins && typeof ins === 'object' && ins.image) {
@@ -78,6 +121,7 @@ function linesToRecords(lines) {
       records.push({
         time: m[0].trim(),
         text: ln.text.slice(m[0].length),
+        segs: dropChars(ln.segs, m[0].length),
         images: ln.images.slice(),
         list: (ln.attrs && ln.attrs.list) || null,
         extra: [],
@@ -85,11 +129,11 @@ function linesToRecords(lines) {
     } else if (records.length) {
       const last = records[records.length - 1];
       if (ln.text.trim() || ln.images.length) {
-        last.extra.push({ text: ln.text, images: ln.images, list: (ln.attrs && ln.attrs.list) || null });
+        last.extra.push({ text: ln.text, segs: ln.segs, images: ln.images, list: (ln.attrs && ln.attrs.list) || null });
       }
     } else if (ln.text.trim() || ln.images.length) {
       // 시각 없는 첫 줄들(직접 쓴 메모) — 시각 없는 기록으로 둔다.
-      records.push({ time: '', text: ln.text, images: ln.images.slice(), list: (ln.attrs && ln.attrs.list) || null, extra: [] });
+      records.push({ time: '', text: ln.text, segs: ln.segs, images: ln.images.slice(), list: (ln.attrs && ln.attrs.list) || null, extra: [] });
     }
   }
   return records;
@@ -132,9 +176,9 @@ async function append(text, at = Date.now()) {
   const loc = await ensureDayPage(at);
   const content = await noteStorage.loadPage(loc.notebookId, loc.sectionId, loc.pageId);
   const delta = (content && content.delta) || { ops: [] };
-  const line = `${timeLabel(at)}  ${body}\n`;
   const plain = deltaToLines(delta).map((l) => l.text).join('').trim();
-  const ops = plain ? [...(delta.ops || []), { insert: line }] : [{ insert: line }];
+  const line = [{ insert: `${timeLabel(at)}  ` }, ...textOps(body), { insert: '\n' }];
+  const ops = plain ? [...(delta.ops || []), ...line] : line;
   await noteStorage.savePage(loc.notebookId, loc.sectionId, loc.pageId, { ops }, loc.title);
   return { success: true, ...loc, at };
 }
@@ -148,8 +192,13 @@ async function appendImage(dataUrl, text = '', at = Date.now()) {
   const content = await noteStorage.loadPage(loc.notebookId, loc.sectionId, loc.pageId);
   const delta = (content && content.delta) || { ops: [] };
   const plain = deltaToLines(delta).map((l) => l.text).join('').trim();
-  const head = `${timeLabel(at)}  ${String(text || '').trim()}`.replace(/\s+$/, '');
-  const add = [{ insert: head }, { insert: { image: dataUrl } }, { insert: '\n' }];
+  const caption = String(text || '').trim();
+  const add = [
+    { insert: caption ? `${timeLabel(at)}  ` : timeLabel(at) },
+    ...textOps(caption),
+    { insert: { image: dataUrl } },
+    { insert: '\n' },
+  ];
   const ops = plain ? [...(delta.ops || []), ...add] : add;
   await noteStorage.savePage(loc.notebookId, loc.sectionId, loc.pageId, { ops }, loc.title);
   return { success: true, ...loc, at };
@@ -213,5 +262,5 @@ async function listDays({ days = 30, withRecords = false } = {}) {
 
 module.exports = {
   NOTEBOOK_NAME, append, appendImage, readDay, listDays, ensureDayPage,
-  dateKey, dayTitle, timeLabel, deltaToLines, linesToRecords,
+  dateKey, dayTitle, timeLabel, deltaToLines, linesToRecords, linkSegments,
 };

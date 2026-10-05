@@ -1634,6 +1634,10 @@ button.ql-text-to-table, button.ql-table-to-text { width: 30px !important; }
 .jr-check { font-size: 12.5px; color: var(--text); line-height: 1.6; display: flex; gap: 6px; }
 .jr-check.done { color: var(--text-dim); text-decoration: line-through; }
 .jr-box { flex-shrink: 0; }
+/* 붙여넣은 주소. 버튼 없이 그냥 붙여넣으면 저장될 때 링크가 되고, 눌러서
+   기본 브라우저로 연다. 긴 주소가 카드를 밀고 나가지 않게 끊어 준다. */
+.jn-link { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; cursor: pointer; overflow-wrap: anywhere; }
+.jn-link:hover { text-decoration-thickness: 2px; }
 /* 사진은 한 묶음으로 모아 접히게 둔다 — 한 줄에 늘어놓으면 세 장째부터 카드를
    밀고 나간다. 설명이 없는 기록이면 글 칸을 아예 그리지 않아 왼쪽부터 찬다. */
 .jr-imgs { display: flex; flex-wrap: wrap; gap: 6px; align-items: flex-start; min-width: 0; }
@@ -1735,15 +1739,9 @@ button.ql-text-to-table, button.ql-table-to-text { width: 30px !important; }
 .jc-field {
   display: flex; align-items: flex-end; gap: 2px;
   background: var(--bg); border: 1px solid var(--border); border-radius: 13px;
-  padding: 4px; transition: border-color 0.12s ease;
+  padding: 4px 4px 4px 10px; transition: border-color 0.12s ease;
 }
 .jc-field:focus-within { border-color: var(--accent); }
-.jc-attach {
-  flex-shrink: 0; width: 28px; height: 28px; border-radius: 8px;
-  display: flex; align-items: center; justify-content: center;
-  border: none; background: transparent; color: var(--text-dim); cursor: pointer;
-}
-.jc-attach:hover { background: var(--bg3); color: var(--text); }
 .jc-input {
   flex: 1; min-width: 0; resize: none; overflow-y: auto; max-height: 140px;
   background: transparent; border: none; border-radius: 0;
