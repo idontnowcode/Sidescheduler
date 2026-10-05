@@ -357,6 +357,33 @@ const NotebookTree = forwardRef<TreeHandle, Props>(({ selected, onPageSelect, on
 
   const handleImport = useCallback(async () => {
     const res = await window.lightnote.importBundle()
+
+    // 같은 페이지(같은 id)가 이미 있으면 복사본을 또 만들지 말지 물어본다.
+    // 다른 PC에서 고쳐 온 같은 문서를 가져오는 게 주된 경우라, 기본값은 갱신.
+    if (res?.needsChoice) {
+      const n = res.conflicts?.length ?? 0
+      const fmt = (t: number | null) => (t ? new Date(t).toLocaleString('ko-KR', { dateStyle: 'short', timeStyle: 'short' }) : '시각 모름')
+      const sample = (res.conflicts || []).slice(0, 5).map(c =>
+        `· ${c.existingTitle} (${c.notebookName} › ${c.sectionName})\n   내 것 ${fmt(c.existingUpdatedAt)} → 가져올 것 ${fmt(c.incomingUpdatedAt)}`).join('\n')
+      const more = n > 5 ? `\n… 외 ${n - 5}개` : ''
+      const update = await confirmDialog(
+        `이미 가지고 있는 페이지 ${n}개가 이 파일에 들어 있습니다.\n\n${sample}${more}\n\n` +
+        `확인을 누르면 그 페이지들을 제자리에서 업데이트합니다(덮어쓰기 전 버전이 기록되어 되돌릴 수 있습니다).\n` +
+        `취소를 누르면 예전처럼 전부 새 복사본으로 가져옵니다.`,
+      )
+      const applied = await window.lightnote.importBundleApply(update ? 'update' : 'copy')
+      if (applied?.success) {
+        const parts: string[] = []
+        if (applied.updated) parts.push(`${applied.updated}개 업데이트`)
+        if (applied.pageCount) parts.push(`${applied.pageCount}개 새로 가져옴`)
+        showToast(`📥 ${parts.join(', ') || '변경 없음'}`)
+        await reload()
+      } else {
+        showToast('가져오기에 실패했습니다.')
+      }
+      return
+    }
+
     if (res?.success) {
       showToast(`📥 "${res.notebookName}" 가져옴 — 페이지 ${res.pageCount}개`)
       await reload()

@@ -38,6 +38,7 @@ contextBridge.exposeInMainWorld('lightnote', {
   // 내보내기/가져오기 (페이지 · 섹션 · 노트북 → 단일 .json 번들)
   exportNode: (payload) => ipcRenderer.invoke('lightnote:export-node', payload),
   importBundle: () => ipcRenderer.invoke('lightnote:import-bundle'),
+  importBundleApply: (mode) => ipcRenderer.invoke('lightnote:import-bundle-apply', { mode }),
 
   // 업무 진행 현황 보고서 내보내기 (선택한 업무들 → 개조식 평문 .md)
   exportReport: (pageIds) => ipcRenderer.invoke('lightnote:export-report', { pageIds }),

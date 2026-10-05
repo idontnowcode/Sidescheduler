@@ -53,8 +53,12 @@ const ids = await ln.evaluate(async () => {
 const exportRes = await ln.evaluate((id) => window.lightnote.exportNode({ type: 'notebook', notebookId: id }), ids.nbId)
 ok('notebook export succeeds', exportRes?.success === true, JSON.stringify(exportRes))
 
-// 2) Import it back (creates a NEW notebook, never touches the original).
-const importRes = await ln.evaluate(() => window.lightnote.importBundle())
+// 2) Import it back. 같은 라이브러리로 되가져오는 것이라 페이지 id가 전부
+// 겹치므로, 이제는 바로 넣지 않고 먼저 물어본다(업데이트할지/새 복사본으로
+// 둘지). 여기서는 예전 동작인 '새 복사본'을 골라 그대로 검증한다.
+const askedBack = await ln.evaluate(() => window.lightnote.importBundle())
+ok('되가져오기는 겹침을 먼저 알린다(같은 id라서)', askedBack?.needsChoice === true, JSON.stringify(askedBack).slice(0, 90))
+const importRes = await ln.evaluate(() => window.lightnote.importBundleApply('copy'))
 ok('import succeeds and reports counts', importRes?.success === true && importRes.pageCount === 2 && importRes.sectionCount === 2, JSON.stringify(importRes))
 ok('import created a differently-named notebook ("회사업무", not "가져옴: …")', importRes?.notebookName === '회사업무', importRes?.notebookName)
 
@@ -101,7 +105,10 @@ ok('external URL doc-link kept, page doc-link dropped', wo?.docLinks?.length ===
 // 7) Single-page export/import (auto-creates a holder section, prefixed name).
 const pageExportRes = await ln.evaluate((id) => window.lightnote.exportNode({ type: 'page', notebookId: id.nbId, sectionId: id.secReport, pageId: id.p2 }), ids)
 ok('single-page export succeeds', pageExportRes?.success === true)
-const pageImportRes = await ln.evaluate(() => window.lightnote.importBundle())
+const pageAsk = await ln.evaluate(() => window.lightnote.importBundle())
+const pageImportRes = pageAsk?.needsChoice
+  ? await ln.evaluate(() => window.lightnote.importBundleApply('copy'))
+  : pageAsk
 ok('single-page import creates 1 page in an auto holder section, prefixed name',
   pageImportRes?.success === true && pageImportRes.pageCount === 1 && pageImportRes.notebookName === '가져옴: 9월 리포트',
   JSON.stringify(pageImportRes))

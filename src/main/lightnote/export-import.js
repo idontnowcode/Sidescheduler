@@ -4,13 +4,21 @@
 // data URLs inside each page's delta (see Editor.tsx insertImageFile), so
 // bundles are fully self-contained; no separate asset files to carry along.
 //
-// Import always creates a BRAND-NEW notebook with fresh ids for everything —
-// never merges into or overwrites existing content, so re-importing the same
-// file twice just yields two independent copies (spec: "항상 새 복사본으로 추가").
+// 가져오기는 두 가지 방식이 있다:
+//  • 'copy'  — 예전부터의 기본 동작. 전부 새 id로 새 노트북을 만든다. 같은
+//              파일을 두 번 가져오면 독립된 복사본이 둘 생긴다.
+//  • 'update' — 번들에 실린 pageId가 이미 내 라이브러리에 있으면 그 페이지를
+//              제자리에서 갱신한다(원래 노트북/섹션 위치를 그대로 둔다).
+// 페이지 id는 만들 때부터 UUID로 붙고 이동·이름변경에도 안 바뀌므로, 집↔회사
+// 처럼 백엔드를 공유하지 않는 설치본 사이에서도 "같은 문서"를 식별할 수 있다.
+// 덮어쓰기 전에는 항상 버전 스냅샷을 남겨 되돌릴 수 있게 한다.
 const noteStorage = require('./note-storage');
 const workObjectStorage = require('./work-object-storage');
+const pageVersions = require('./page-versions');
 
-const FORMAT_VERSION = 1;
+// v2에서 페이지마다 updatedAt을 싣기 시작했다(어느 쪽이 최신인지 보여주려고).
+// v1 번들에는 그 값이 없을 뿐, 그대로 읽을 수 있다.
+const FORMAT_VERSION = 2;
 const COLORS = ['#4dabf7', '#69db7c', '#ffa94d', '#da77f2', '#f783ac', '#a9e34b', '#66d9e8', '#ffd43b'];
 
 /** Collect a section id + all its descendant section ids (local helper —
@@ -49,7 +57,11 @@ function sanitizeWorkObject(wo) {
 async function pagePayload(notebookId, sectionId, pageId) {
   const content = await noteStorage.loadPage(notebookId, sectionId, pageId);
   const wo = await workObjectStorage.get(pageId);
-  return { id: pageId, title: content.title, delta: content.delta, workObject: sanitizeWorkObject(wo) };
+  return {
+    id: pageId, title: content.title, delta: content.delta,
+    updatedAt: content.updatedAt || null,
+    workObject: sanitizeWorkObject(wo),
+  };
 }
 
 async function exportPage(notebookId, sectionId, pageId) {
@@ -94,16 +106,72 @@ async function exportNotebook(notebookId) {
   };
 }
 
-/**
- * Import a bundle: always creates a brand-new top-level notebook (fresh ids
- * throughout), recreates its section tree (parent-first), then its pages +
- * work objects. A pure page-scope bundle (no sections) gets one auto-created
- * holder section.
- */
-async function importBundle(bundle) {
+function assertBundle(bundle) {
   if (!bundle || bundle.kind !== 'lightnote-export' || !Array.isArray(bundle.pages)) {
     throw new Error('INVALID_FORMAT');
   }
+}
+
+/** 번들에 실린 페이지 중 이미 내 라이브러리에 있는 것(= 같은 pageId)을 찾아
+ *  둔다. 가져오기 전에 "업데이트할지 새 복사본으로 둘지"를 물어보기 위한 것. */
+async function inspectBundle(bundle) {
+  assertBundle(bundle);
+  const conflicts = [];
+  for (const p of bundle.pages) {
+    if (!p.id) continue;
+    const loc = await noteStorage.findPageLocation(p.id);
+    if (!loc) continue;
+    const content = await noteStorage.loadPage(loc.notebookId, loc.sectionId, loc.pageId).catch(() => null);
+    conflicts.push({
+      pageId: p.id,
+      incomingTitle: p.title || '제목 없음',
+      incomingUpdatedAt: p.updatedAt || null,
+      existingTitle: loc.title,
+      existingUpdatedAt: (content && content.updatedAt) || null,
+      notebookName: loc.notebookName,
+      sectionName: loc.sectionName,
+    });
+  }
+  return { total: bundle.pages.length, conflicts };
+}
+
+/** 겹치는 페이지를 제자리에서 갱신한다. 덮어쓰기 전에 스냅샷을 남겨
+ *  페이지 기록에서 되돌릴 수 있게 한다. */
+async function updateExistingPage(loc, p) {
+  const prev = await noteStorage.loadPage(loc.notebookId, loc.sectionId, loc.pageId).catch(() => null);
+  if (prev) {
+    try { await pageVersions.snapshot(loc.pageId, prev, true); } catch { /* 스냅샷 실패가 갱신을 막진 않는다 */ }
+  }
+  const title = p.title || loc.title || '제목 없음';
+  const delta = p.delta || { ops: [{ insert: '\n' }] };
+  await noteStorage.savePage(loc.notebookId, loc.sectionId, loc.pageId, delta, title);
+  if (p.workObject) await workObjectStorage.set(loc.pageId, p.workObject);
+}
+
+/**
+ * Import a bundle.
+ *  mode 'copy'   — 전부 새 id로 새 노트북을 만든다(예전 기본 동작).
+ *  mode 'update' — 이미 있는 pageId는 제자리 갱신하고, 처음 보는 페이지만
+ *                  새 노트북에 모아 넣는다. 겹치는 게 하나도 없으면 'copy'와
+ *                  같은 결과가 된다.
+ */
+async function importBundle(bundle, mode = 'copy') {
+  assertBundle(bundle);
+
+  if (mode === 'update') {
+    const fresh = [];
+    let updated = 0;
+    for (const p of bundle.pages) {
+      const loc = p.id ? await noteStorage.findPageLocation(p.id) : null;
+      if (loc) { await updateExistingPage(loc, p); updated++; }
+      else fresh.push(p);
+    }
+    if (fresh.length === 0) return { mode, updated, pageCount: 0, notebookId: null, notebookName: null };
+    // 처음 보는 페이지만 따로 담아 평소대로 새 노트북을 만든다.
+    const rest = await importBundle({ ...bundle, pages: fresh }, 'copy');
+    return { ...rest, mode, updated };
+  }
+
   const existing = await noteStorage.getNotebooks();
   const color = bundle.color || COLORS[existing.length % COLORS.length];
   const notebookName = bundle.scope === 'notebook' ? (bundle.name || 'Imported') : `가져옴: ${bundle.name || 'Untitled'}`;
@@ -143,7 +211,7 @@ async function importBundle(bundle) {
     pageCount++;
   }
 
-  return { notebookId: nb.id, notebookName, pageCount, sectionCount: idMap.size || 1 };
+  return { mode: 'copy', updated: 0, notebookId: nb.id, notebookName, pageCount, sectionCount: idMap.size || 1 };
 }
 
-module.exports = { exportPage, exportSection, exportNotebook, importBundle };
+module.exports = { exportPage, exportSection, exportNotebook, inspectBundle, importBundle };

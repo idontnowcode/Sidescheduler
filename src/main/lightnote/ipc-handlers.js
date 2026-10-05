@@ -295,6 +295,9 @@ function registerIpcHandlers(ipcMain, getWindow, safeStorage, dialog, app, sched
     }
   });
 
+  // 겹치는 페이지가 있어 사용자에게 물어보는 동안 번들을 잠시 들고 있는 자리.
+  let pendingImportBundle = null;
+
   ipcMain.handle('lightnote:import-bundle', async () => {
     if (!dialog) return { error: 'NO_DIALOG' };
     try {
@@ -308,7 +311,28 @@ function registerIpcHandlers(ipcMain, getWindow, safeStorage, dialog, app, sched
       const raw = await fs.readFile(res.filePaths[0], 'utf-8');
       let bundle;
       try { bundle = JSON.parse(raw); } catch { return { error: 'INVALID_JSON' }; }
-      const result = await exportImport.importBundle(bundle);
+      // 같은 pageId가 이미 있으면 바로 가져오지 않고 먼저 물어본다 — 다른 PC에서
+      // 고쳐 온 같은 문서일 때 복사본을 또 만드는 대신 갱신할 수 있게.
+      const { conflicts } = await exportImport.inspectBundle(bundle);
+      if (conflicts.length) {
+        pendingImportBundle = bundle;
+        return { needsChoice: true, conflicts, total: bundle.pages.length };
+      }
+      const result = await exportImport.importBundle(bundle, 'copy');
+      noteIndexer.clearCache();
+      return { success: true, ...result };
+    } catch (err) {
+      return { error: err.message || 'IMPORT_FAILED' };
+    }
+  });
+
+  // 위에서 물어본 뒤 사용자가 고른 방식으로 실제 가져오기를 수행한다.
+  ipcMain.handle('lightnote:import-bundle-apply', async (_, { mode }) => {
+    const bundle = pendingImportBundle;
+    pendingImportBundle = null;
+    if (!bundle) return { error: 'NO_PENDING_IMPORT' };
+    try {
+      const result = await exportImport.importBundle(bundle, mode === 'update' ? 'update' : 'copy');
       noteIndexer.clearCache();
       return { success: true, ...result };
     } catch (err) {

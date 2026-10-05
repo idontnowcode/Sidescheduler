@@ -193,7 +193,11 @@ declare global {
       dedupPages: () => Promise<{ removed: number; separated: number }>
       exportNode: (payload: { type: 'page' | 'section' | 'notebook'; notebookId: string; sectionId?: string; pageId?: string; suggestedName?: string }) =>
         Promise<{ success?: boolean; canceled?: boolean; filePath?: string; error?: string }>
-      importBundle: () => Promise<{ success?: boolean; canceled?: boolean; notebookId?: string; notebookName?: string; pageCount?: number; sectionCount?: number; error?: string }>
+      importBundle: () => Promise<{ success?: boolean; canceled?: boolean; notebookId?: string; notebookName?: string; pageCount?: number; sectionCount?: number; error?: string
+        // 같은 pageId가 이미 있을 때: 바로 가져오지 않고 선택을 먼저 묻는다.
+        needsChoice?: boolean; total?: number
+        conflicts?: { pageId: string; incomingTitle: string; incomingUpdatedAt: number | null; existingTitle: string; existingUpdatedAt: number | null; notebookName: string; sectionName: string }[] }>
+      importBundleApply: (mode: 'copy' | 'update') => Promise<{ success?: boolean; error?: string; mode?: string; updated?: number; pageCount?: number; notebookName?: string | null }>
       exportReport: (pageIds: string[]) => Promise<{ success?: boolean; canceled?: boolean; filePath?: string; error?: string }>
       templateStoreLocation: () => Promise<{ notebookId: string; sectionId: string }>
       listTemplates: () => Promise<PageTemplate[]>
