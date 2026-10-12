@@ -33,6 +33,10 @@ if (hash === '#dashboard') {
   import('./lightnote/JournalCaptureApp').then(({ default: JournalCaptureApp }) => {
     ReactDOM.createRoot(root).render(<React.StrictMode><JournalCaptureApp /></React.StrictMode>)
   })
+} else if (hash === '#sticky') {
+  import('./lightnote/StickyApp').then(({ default: StickyApp }) => {
+    ReactDOM.createRoot(root).render(<React.StrictMode><StickyApp /></React.StrictMode>)
+  })
 } else if (hash === '#actionitems') {
   import('./lightnote/ActionItemsApp').then(({ default: ActionItemsApp }) => {
     ReactDOM.createRoot(root).render(<React.StrictMode><ActionItemsApp /></React.StrictMode>)

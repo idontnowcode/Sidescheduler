@@ -127,6 +127,9 @@ export interface PageReference {
 // 줄들은 그 기록에 딸린 내용(extra)으로 묶인다.
 // 기록 한 줄을 "보통 글 / 링크" 조각으로 쪼갠 것. 붙여넣은 주소는 저장할 때
 // 링크로 들어가므로, 화면에서도 눌러서 바로 열 수 있다.
+// 스티커 메모가 보고 있는 노트. 창 하나가 노트 하나다.
+export interface StickyTarget { pageId: string; notebookId: string; sectionId: string; title?: string }
+
 export interface JournalSeg { text: string; link: string | null }
 export interface JournalRecord {
   time: string
@@ -234,6 +237,13 @@ declare global {
       refsImage: (pageId: string, file: string) => Promise<string | null>
       journalAppend: (text: string, at?: number) => Promise<{ success?: boolean; error?: string } & Partial<JournalPageLoc>>
       journalAppendImage: (dataUrl: string, text?: string, at?: number) => Promise<{ success?: boolean; error?: string }>
+      stickyNew: () => Promise<StickyTarget | null>
+      stickyOpen: (target: StickyTarget) => Promise<boolean>
+      stickyWhich: () => Promise<StickyTarget | null>
+      stickyPinned: () => Promise<boolean>
+      stickySetPinned: (on: boolean) => void
+      stickyClose: () => void
+      openPageInMain: (notebookId: string, sectionId: string, pageId: string) => void
       journalEdit: (date: string, index: number, text: string) => Promise<{ success?: boolean; error?: string }>
       journalDelete: (date: string, index: number) => Promise<{ success?: boolean; error?: string }>
       journalDays: (days?: number, withRecords?: boolean) => Promise<JournalDay[]>

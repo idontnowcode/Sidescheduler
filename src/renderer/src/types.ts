@@ -248,7 +248,9 @@ declare global {
       openCapture: () => void
       closeCapture: () => void
       openActionItems: () => void
-  openJournal: () => void
+      openJournal: () => void
+      /** 새 스티커 메모 — 새 노트 한 장을 만들어 바탕화면에 붙인다. */
+      newSticky: () => Promise<{ pageId: string; notebookId: string; sectionId: string } | null>
       setSidebarHeight: (height: number) => void
       openEditor: (payload: EditorPayload) => void
       closeEditor: () => void

@@ -357,6 +357,15 @@ const NotebookTree = forwardRef<TreeHandle, Props>(({ selected, onPageSelect, on
   }, [ctxMenu, hideCtx, reload])
 
   const [copiedFor, setCopiedFor] = useState<string | null>(null)
+  // 이 노트를 바탕화면에 붙여둔다. 이미 떠 있으면 그 창이 앞으로 나온다.
+  const handleStickTo = useCallback(() => {
+    if (!ctxMenu || ctxMenu.target.type !== 'page' || !ctxMenu.target.pageId) return
+    const { pageId, notebookId, sectionId } = ctxMenu.target
+    hideCtx()
+    if (!notebookId || !sectionId) return
+    window.lightnote.stickyOpen({ pageId, notebookId, sectionId })
+  }, [ctxMenu])
+
   const handleCopyLink = useCallback(async () => {
     if (!ctxMenu || ctxMenu.target.type !== 'page' || !ctxMenu.target.pageId) return
     const pageId = ctxMenu.target.pageId
@@ -894,6 +903,7 @@ const NotebookTree = forwardRef<TreeHandle, Props>(({ selected, onPageSelect, on
               <div className="ctx-item" onClick={handleAddSubpage}>📑 하위 페이지 추가</div>
               <div className="ctx-item" onClick={handleSaveAsTemplate}>💾 템플릿으로 저장</div>
               <div className="ctx-item" onClick={handleDuplicate}>📋 Duplicate</div>
+              <div className="ctx-item" onClick={handleStickTo}>🟨 스티커 메모로 띄우기</div>
               <div className="ctx-item" onClick={handleCopyLink}>🔗 Copy link</div>
             </>
           )}

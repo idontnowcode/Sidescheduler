@@ -15,6 +15,9 @@ const linkStorage = require('./lightnote/link-storage')
 // a page's notebook/section from just its id when opening a deep link.
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const noteStorage = require('./lightnote/note-storage')
+// 스티커 메모의 "메모" 노트북·새 메모 만들기. 같은 저장소를 쓴다.
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const stickyStore = require('./lightnote/sticky')
 import {
   initDb,
   listEvents, createEvent, updateEvent, updateEventMove, updateEventInstance, deleteEvent, deleteEventInstance,
@@ -272,6 +275,7 @@ function buildTrayMenu() {
     { label: `📝 Open LightNote${hotkeyLabel(lightNoteHotkey)}`, click: () => openLightNoteWindow() },
     { label: `🗒 Action Items${hotkeyLabel(actionItemsHotkey)}`, click: () => toggleActionItemsWindow() },
     { label: `📓 기록장 열기${hotkeyLabel(journalHotkey)}`, click: () => openJournalCapture() },
+    { label: `🟨 새 스티커 메모${hotkeyLabel(stickyHotkey)}`, click: () => { newSticky() } },
     { type: 'separator' },
     {
       label: 'Show Sidebar', type: 'checkbox', checked: !sidebarHidden,
@@ -296,6 +300,7 @@ function buildTrayMenu() {
 let lightNoteHotkey: string | null = null
 let actionItemsHotkey: string | null = null
 let journalHotkey: string | null = null
+let stickyHotkey: string | null = null
 
 // globalShortcut.register는 다른 앱이 이미 쓰고 있으면 예외를 던지는 게
 // 아니라 false를 돌려준다 — try/catch로만 감싸두면 조용히 실패한다.
@@ -990,6 +995,134 @@ function openJournalCapture(): void {
   }
 }
 
+// ── 스티커 메모 ───────────────────────────────────────────────────────────
+// 바탕화면에 붙여두는 작은 창. 창 하나가 노트 하나다 — 같은 노트를 다시
+// 띄우면 새 창을 만들지 않고 이미 떠 있는 창을 앞으로 가져온다. 내용은
+// "메모" 노트북의 보통 페이지라, LightNote에서도 그대로 열어 쓸 수 있다.
+type StickyTarget = { pageId: string; notebookId: string; sectionId: string }
+
+const stickyWindows = new Map<string, BrowserWindow>()      // pageId → 창
+const stickyTargetByWc = new Map<number, StickyTarget>()    // webContents.id → 어느 노트인지
+// 종료 중인지 — 그때 닫히는 건 "뗀 것"이 아니라서 목록에서 빼지 않는다.
+let quitting = false
+
+function stickyEntry(pageId: string) {
+  return (loadSettings().stickies || []).find((s) => s.pageId === pageId)
+}
+
+/** 열려 있는 스티커 목록을 통째로 다시 쓴다(닫힌 건 빠진다). */
+function writeStickies(next: import('./settings').StickyNote[]): void {
+  saveSettings({ stickies: next })
+}
+
+function rememberSticky(pageId: string, patch: Partial<import('./settings').StickyNote>): void {
+  const list = (loadSettings().stickies || []).slice()
+  const i = list.findIndex((s) => s.pageId === pageId)
+  if (i < 0) return
+  list[i] = { ...list[i], ...patch }
+  writeStickies(list)
+}
+
+/** 새 창을 겹쳐 쌓지 않도록 조금씩 어긋나게 둔다. */
+function stickySpawnPoint(): { x: number; y: number } {
+  const { workArea } = screen.getPrimaryDisplay()
+  const step = 26 * (stickyWindows.size % 6)
+  return { x: Math.round(workArea.x + workArea.width - 320 - 56 - step), y: Math.round(workArea.y + 120 + step) }
+}
+
+function openSticky(target: StickyTarget): void {
+  const existing = stickyWindows.get(target.pageId)
+  if (existing && !existing.isDestroyed()) {
+    existing.show()
+    existing.focus()
+    return
+  }
+  const saved = stickyEntry(target.pageId)
+  const spawn = stickySpawnPoint()
+  const width = saved?.width ?? 300
+  const height = saved?.height ?? 340
+  // 스티커는 "위에 붙여두는" 물건이라 항상 위 고정이 기본이다.
+  const pinned = saved?.pinned ?? true
+
+  const win = new BrowserWindow({
+    x: saved?.x ?? spawn.x,
+    y: saved?.y ?? spawn.y,
+    width, height, minWidth: 200, minHeight: 160,
+    frame: false, transparent: true, resizable: true, hasShadow: true, show: false,
+    alwaysOnTop: pinned, skipTaskbar: false, title: '스티커 메모',
+    webPreferences: {
+      preload: join(__dirname, '../preload/lightnote.js'),
+      contextIsolation: true, nodeIntegration: false, sandbox: false
+    }
+  })
+  stickyWindows.set(target.pageId, win)
+  stickyTargetByWc.set(win.webContents.id, target)
+
+  const list = (loadSettings().stickies || []).filter((s) => s.pageId !== target.pageId)
+  writeStickies([...list, { ...target, x: saved?.x ?? spawn.x, y: saved?.y ?? spawn.y, width, height, pinned }])
+
+  win.once('ready-to-show', () => win.show())
+  const remember = (): void => {
+    if (win.isDestroyed()) return
+    const b = win.getBounds()
+    rememberSticky(target.pageId, { x: b.x, y: b.y, width: b.width, height: b.height })
+  }
+  win.on('moved', remember)
+  win.on('resized', remember)
+  // webContents는 'closed' 시점엔 이미 정리돼 있을 수 있어 지금 붙잡아 둔다.
+  const wcId = win.webContents.id
+  win.on('closed', () => {
+    stickyWindows.delete(target.pageId)
+    stickyTargetByWc.delete(wcId)
+    if (!quitting) writeStickies((loadSettings().stickies || []).filter((s) => s.pageId !== target.pageId))
+  })
+
+  if (process.env.NODE_ENV === 'development' && process.env['ELECTRON_RENDERER_URL']) {
+    win.loadURL(process.env['ELECTRON_RENDERER_URL'] + '#sticky')
+  } else {
+    win.loadFile(join(__dirname, '../renderer/index.html'), { hash: 'sticky' })
+  }
+}
+
+/** 빈 메모 한 장을 만들어 바로 띄운다 — 트레이·단축키·사이드바의 "새 메모". */
+async function newSticky(): Promise<StickyTarget | null> {
+  try {
+    const made = await stickyStore.newNote()
+    openSticky(made)
+    return made
+  } catch {
+    return null
+  }
+}
+
+ipcMain.handle('sticky:new', () => newSticky())
+ipcMain.handle('sticky:open', (_e, target: StickyTarget) => { openSticky(target); return true })
+// 창이 뜬 뒤 renderer가 "나는 어느 노트냐"를 직접 물어 간다 — 한 번 쏘는
+// 방식은 renderer가 아직 듣기 전에 지나가 버릴 수 있다.
+ipcMain.handle('sticky:which', (e) => stickyTargetByWc.get(e.sender.id) || null)
+ipcMain.handle('sticky:pinned', (e) => {
+  const t = stickyTargetByWc.get(e.sender.id)
+  return t ? stickyEntry(t.pageId)?.pinned ?? true : true
+})
+ipcMain.on('sticky:set-pinned', (e, on: boolean) => {
+  const win = BrowserWindow.fromWebContents(e.sender)
+  const t = stickyTargetByWc.get(e.sender.id)
+  if (!win || win.isDestroyed() || !t) return
+  win.setAlwaysOnTop(!!on)
+  rememberSticky(t.pageId, { pinned: !!on })
+})
+ipcMain.on('sticky:close', (e) => {
+  const win = BrowserWindow.fromWebContents(e.sender)
+  if (win && !win.isDestroyed()) win.close()
+})
+
+/** 앱을 다시 켜면 붙여뒀던 스티커를 그대로 다시 띄운다. */
+function restoreStickies(): void {
+  for (const s of loadSettings().stickies || []) {
+    openSticky({ pageId: s.pageId, notebookId: s.notebookId, sectionId: s.sectionId })
+  }
+}
+
 /** 단축키는 켜고 끄는 토글로 둔다 — 띄워놓고 쓰는 창이라 "부르는" 키가 아니다. */
 function toggleJournalCapture(): void {
   if (journalCaptureWindow && !journalCaptureWindow.isDestroyed()) journalCaptureWindow.close()
@@ -1252,6 +1385,13 @@ app.whenReady().then(() => {
   // 지난번에 띄워둔 채로 껐으면 이번에도 그대로 띄운다 — "그냥 띄워놓고
   // 채팅하듯 쓴다"가 이 창의 사용 방식이라, 매번 다시 부르게 하지 않는다.
   if (loadSettings().journalOpen) openJournalCapture()
+  // 붙여뒀던 스티커도 그대로 — 바탕화면에 붙여두는 물건이라 매번 다시
+  // 찾아 띄우게 하면 쓰지 않게 된다.
+  restoreStickies()
+  stickyHotkey = registerFirstAvailable(
+    ['CommandOrControl+Shift+Q', 'CommandOrControl+Alt+Q', 'CommandOrControl+Shift+M'],
+    () => { newSticky() },
+  )
   tray?.setContextMenu(buildTrayMenu())   // 라벨에 실제로 잡힌 키를 반영
 
   // If the app was cold-launched via a lightnote:// deep link, the URL is in argv.
@@ -1266,6 +1406,9 @@ app.on('second-instance', (_e, argv) => {
 // macOS delivers the deep link via this event.
 app.on('open-url', (e, url) => { e.preventDefault(); handleDeepLink(url) })
 app.on('before-quit',       () => {
+  // 앱을 끄면 스티커 창들도 닫히는데, 그걸 "사용자가 뗐다"로 보면 붙여둔
+  // 목록이 종료할 때마다 비워져 다음 실행에 아무것도 안 뜬다.
+  quitting = true
   if (reminderTimer) { clearTimeout(reminderTimer); reminderTimer = null }
   clearEventReminders()
   tray?.destroy(); tray = null

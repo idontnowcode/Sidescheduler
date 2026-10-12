@@ -20,6 +20,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   openActionItems: () => ipcRenderer.send('action-items:open'),
   // 기록장 창 — 사이드바 버튼/트레이/단축키가 같은 진입점을 쓴다.
   openJournal: () => ipcRenderer.send('journal:capture-open'),
+  // 새 스티커 메모 — 새 노트 한 장을 만들어 바탕화면에 붙인다.
+  newSticky: () => ipcRenderer.invoke('sticky:new'),
   closeCapture:   () => ipcRenderer.send('capture:close'),
   setSidebarHeight: (height: number) => ipcRenderer.send('sidebar:set-height', height),
   openEditor:     (payload: unknown) => ipcRenderer.send('editor:open', payload),

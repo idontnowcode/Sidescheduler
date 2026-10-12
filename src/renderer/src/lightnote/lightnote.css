@@ -2082,3 +2082,101 @@ button.wo-kind:hover { color: var(--text); background: var(--bg3); }
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   margin-top: 1px;
 }
+
+/* ── 스티커 메모 ─────────────────────────────────────────────────────────
+   바탕화면에 붙여두는 작은 창. 앱 안의 패널이 아니라 책상 위에 붙인 쪽지로
+   읽혀야 해서, 여기만 따뜻한 종이색을 쓴다 — 다른 창들 사이에서 눈에
+   띄어야 "붙여둔" 구실을 한다. 색은 테마 토큰에 섞어 만들어, 밝은 테마와
+   어두운 테마 양쪽에서 종이처럼 보이게 한다. */
+.sn-wrap {
+  /* 종이색은 테마 토큰에 따뜻한 색을 섞어 만든다 — 고정 색을 박아 두면
+     밝은 테마에서 글자가 안 읽히고, 사용자가 고른 테마와도 어긋난다. */
+  --sn-paper: color-mix(in srgb, #ffd43b 17%, var(--bg2));
+  --sn-ink: var(--text);
+  --sn-edge: color-mix(in srgb, #ffd43b 28%, var(--border));
+  --sn-dim: color-mix(in srgb, #ffd43b 18%, var(--text-dim));
+  height: 100vh; box-sizing: border-box;
+  display: flex; flex-direction: column; overflow: hidden;
+  background: var(--sn-paper); color: var(--sn-ink);
+  border: 1px solid var(--sn-edge); border-radius: 10px;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35);
+  font-size: 12.5px;
+}
+/* 테두리 없는 창이라 이 줄을 잡아 옮긴다 */
+.sn-head {
+  display: flex; align-items: center; gap: 6px; flex-shrink: 0;
+  padding: 6px 6px 6px 10px; border-bottom: 1px solid var(--sn-edge);
+  -webkit-app-region: drag;
+}
+.sn-title {
+  flex: 1; min-width: 0; font-size: 11.5px; font-weight: 700;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.sn-acts { display: flex; gap: 1px; flex-shrink: 0; -webkit-app-region: no-drag; }
+.sn-btn {
+  width: 22px; height: 22px; border-radius: 5px;
+  display: flex; align-items: center; justify-content: center;
+  border: none; background: transparent; color: var(--sn-dim);
+  font-size: 15px; line-height: 1; cursor: pointer;
+}
+.sn-btn:hover { background: color-mix(in srgb, var(--sn-ink) 12%, transparent); color: var(--sn-ink); }
+.sn-btn.on { color: var(--sn-ink); background: color-mix(in srgb, var(--sn-ink) 14%, transparent); }
+
+/* 줄 없는 종이 한 장 — 테두리도 배경도 주지 않아 창 자체가 메모지로 읽힌다 */
+.sn-body {
+  flex: 1; min-height: 0; resize: none;
+  background: transparent; border: none; outline: none;
+  color: var(--sn-ink); font-family: inherit; font-size: 12.5px; line-height: 1.65;
+  padding: 9px 11px 12px;
+}
+.sn-body::placeholder { color: var(--sn-dim); }
+.sn-body::-webkit-scrollbar { width: 9px; }
+.sn-body::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--sn-dim) 55%, transparent);
+  border-radius: 5px; border: 2px solid transparent; background-clip: padding-box;
+}
+
+/* 서식이 있는 노트 — 보기만 한다 */
+.sn-ro { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: auto; padding: 9px 11px 10px; }
+.sn-ro-text { flex: 1; white-space: pre-wrap; word-break: break-word; line-height: 1.65; }
+.sn-note { font-size: 10.5px; color: var(--sn-dim); line-height: 1.5; margin-top: 8px; padding: 2px; }
+.sn-link {
+  display: block; margin-top: 4px; padding: 0;
+  border: none; background: none; color: var(--sn-ink);
+  font-size: 10.5px; font-weight: 600; text-decoration: underline; cursor: pointer;
+}
+.sn-bar {
+  flex-shrink: 0; width: 100%; text-align: left;
+  border: none; border-bottom: 1px solid var(--sn-edge);
+  background: color-mix(in srgb, var(--sn-ink) 10%, transparent);
+  color: var(--sn-ink); font-size: 10.5px; padding: 5px 11px; cursor: pointer;
+}
+
+/* 노트 고르기 */
+.sn-pick { flex: 1; min-height: 0; display: flex; flex-direction: column; padding: 8px; gap: 6px; }
+.sn-search {
+  flex-shrink: 0; background: color-mix(in srgb, var(--sn-ink) 7%, transparent);
+  border: 1px solid var(--sn-edge); border-radius: 7px;
+  padding: 5px 8px; font-size: 11.5px; color: var(--sn-ink); outline: none; font-family: inherit;
+}
+.sn-search::placeholder { color: var(--sn-dim); }
+.sn-search:focus { border-color: color-mix(in srgb, var(--sn-ink) 40%, transparent); }
+.sn-list { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 1px; }
+.sn-list::-webkit-scrollbar { width: 9px; }
+.sn-list::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--sn-dim) 55%, transparent);
+  border-radius: 5px; border: 2px solid transparent; background-clip: padding-box;
+}
+.sn-item {
+  text-align: left; border: none; background: transparent; cursor: pointer;
+  border-radius: 6px; padding: 5px 7px; display: flex; flex-direction: column; gap: 1px;
+}
+.sn-item:hover { background: color-mix(in srgb, var(--sn-ink) 10%, transparent); }
+.sn-item-title {
+  font-size: 11.5px; color: var(--sn-ink);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.sn-item-where {
+  font-size: 10px; color: var(--sn-dim);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}

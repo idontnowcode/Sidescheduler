@@ -71,6 +71,17 @@ contextBridge.exposeInMainWorld('lightnote', {
   // 기록장
   journalAppend: (text, at) => ipcRenderer.invoke('lightnote:journal:append', { text, at }),
   journalAppendImage: (dataUrl, text, at) => ipcRenderer.invoke('lightnote:journal:append-image', { dataUrl, text, at }),
+  // 스티커 메모 — 창 하나가 노트 하나
+  stickyNew: () => ipcRenderer.invoke('sticky:new'),
+  stickyOpen: (target) => ipcRenderer.invoke('sticky:open', target),
+  stickyWhich: () => ipcRenderer.invoke('sticky:which'),
+  stickyPinned: () => ipcRenderer.invoke('sticky:pinned'),
+  stickySetPinned: (on) => ipcRenderer.send('sticky:set-pinned', on),
+  stickyClose: () => ipcRenderer.send('sticky:close'),
+  // 작은 창(스티커·액션 아이템)에서 본 페이지를 LightNote 본창으로 넘겨 연다.
+  openPageInMain: (notebookId, sectionId, pageId) =>
+    ipcRenderer.send('action-items:open-page', { notebookId, sectionId, pageId }),
+
   journalEdit: (date, index, text) => ipcRenderer.invoke('lightnote:journal:edit', { date, index, text }),
   journalDelete: (date, index) => ipcRenderer.invoke('lightnote:journal:delete', { date, index }),
   journalDays: (days, withRecords) => ipcRenderer.invoke('lightnote:journal:days', { days, withRecords }),

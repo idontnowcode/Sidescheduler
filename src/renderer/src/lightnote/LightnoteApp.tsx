@@ -463,6 +463,10 @@ export default function LightnoteApp() {
             onClick={() => setShowJournal(v => !v)}>
             📓 기록장
           </button>
+          <button className="icon-btn" title="스티커 메모 — 바탕화면에 붙여두는 작은 창 (새 노트로 만들어집니다)"
+            onClick={() => window.lightnote.stickyNew()}>
+            🟨 스티커
+          </button>
           <button className="icon-btn" title="AI Assistant (Ctrl+F)" onClick={() => setIsAiOpen(v => !v)}>
             🤖 AI
           </button>

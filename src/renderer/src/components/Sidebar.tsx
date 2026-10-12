@@ -112,6 +112,12 @@ export default function Sidebar({ onHover, anchor = 'top', dimmed = false }: Pro
         <JournalIcon size={iconSize} />
       </IconBtn>
 
+      {/* 스티커 메모 — 바탕화면에 붙여두는 작은 창 */}
+      <IconBtn title="새 스티커 메모" size={btnSize}
+        onClick={(e) => { e.stopPropagation(); window.electronAPI.newSticky() }}>
+        <StickyIcon size={iconSize} />
+      </IconBtn>
+
       {/* Help & guide */}
       <IconBtn title="Help & guide" size={btnSize}
         onClick={(e) => { e.stopPropagation(); window.electronAPI.openDashboardView('help') }}>
@@ -217,6 +223,16 @@ function UnlockIcon({ size }: { size: number }) {
   )
 }
 // 말풍선 + 줄 — "적어서 쌓는 기록"을 뜻한다. 옆 아이콘들과 같은 선 굵기(1.8).
+/** 모서리를 접은 쪽지 — 붙여두는 메모라는 걸 한눈에. */
+function StickyIcon({ size }: { size: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <path d="M4 4.5h15.5v9.5L14 19.5H4z" />
+      <path d="M19.5 14H14v5.5" />
+    </svg>
+  )
+}
+
 function JournalIcon({ size }: { size: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">

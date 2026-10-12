@@ -27,6 +27,20 @@ export interface WindowSettings {
   // 기억했다가 앱을 다시 켤 때 그대로 띄운다.
   journalOpen?: boolean
   journalBounds?: { x: number; y: number; width: number; height: number }
+  // 바탕화면에 붙여둔 스티커 메모들. 창 하나가 노트 하나라서 목록으로 둔다 —
+  // 닫으면 목록에서 빠지므로 저절로 정리된다. 앱을 다시 켜면 그대로 뜬다.
+  stickies?: StickyNote[]
+}
+
+export interface StickyNote {
+  pageId: string
+  notebookId: string
+  sectionId: string
+  x?: number
+  y?: number
+  width?: number
+  height?: number
+  pinned?: boolean
 }
 
 const DEFAULT: WindowSettings = {
@@ -42,7 +56,8 @@ const DEFAULT: WindowSettings = {
   // 타이머 등)는 트레이의 "Open Dashboard"로 계속 열 수 있다.
   sidebarHidden: true,
   actionItemsPinned: true,
-  journalOpen: false
+  journalOpen: false,
+  stickies: []
 }
 
 let cache: WindowSettings | null = null
