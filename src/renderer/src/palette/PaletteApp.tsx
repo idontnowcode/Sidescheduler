@@ -19,8 +19,26 @@ interface Command {
  *   - paletteAction(): forward an intent (open modal, jump to today, ...)
  *   - paletteRefresh(): tell both windows to reload after a direct create
  *   - closePalette(): main destroys this window
+ *
+ * LightNote 창 안에 끼워 넣을 수도 있다(embedded). 창이 아니라 덮개로 뜨는
+ * 만큼 "창을 닫는다 / 다른 창에 시킨다"가 전부 품고 있는 쪽 몫이 된다 —
+ * 그래서 그 다섯 가지만 콜백으로 받는다. 명령 목록·검색·자연어 해석은
+ * 창으로 띄웠을 때와 같은 코드를 그대로 쓴다.
  */
-export default function PaletteApp() {
+interface Props {
+  embedded?: boolean
+  onClose?: () => void
+  onToday?: () => void
+  onNewEvent?: () => void
+  onNewTask?: () => void
+  onOpenDashboard?: () => void
+  onNavigateToDate?: (ts: number) => void
+  onRefresh?: () => void
+}
+
+export default function PaletteApp({
+  embedded, onClose, onToday, onNewEvent, onNewTask, onOpenDashboard, onNavigateToDate, onRefresh,
+}: Props = {}) {
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<SearchResult>({ events: [], tasks: [] })
   const [active, setActive] = useState(0)
@@ -44,9 +62,25 @@ export default function PaletteApp() {
   const parsed = useMemo(() => query.trim() ? parseNaturalLanguage(query) : null, [query])
 
   // ── Action helpers ──────────────────────────────────────────────────────
-  const close = () => window.electronAPI.closePalette()
+  const close = () => { if (embedded) onClose?.(); else window.electronAPI.closePalette() }
   const send  = (kind: string, payload?: unknown) => {
+    if (embedded) {
+      // 끼워 넣었으면 다른 창에 시킬 일이 아니다 — 이 창 안에서 끝낸다.
+      // 닫을지 말지는 품고 있는 쪽이 정한다 — "새 일정"은 그 자리에서
+      // 입력 상자로 이어지지, 덮개가 사라지면 안 된다.
+      if (kind === 'today') onToday?.()
+      else if (kind === 'new-event') onNewEvent?.()
+      else if (kind === 'new-task') onNewTask?.()
+      return
+    }
     window.electronAPI.paletteAction({ kind, payload })
+  }
+  const refresh = () => { window.electronAPI.paletteRefresh(); onRefresh?.() }
+  const goToDate = (ts: number) => {
+    if (embedded) onNavigateToDate?.(ts); else window.electronAPI.navigateToDate(ts)
+  }
+  const openDashboard = () => {
+    if (embedded) onOpenDashboard?.(); else window.electronAPI.openDashboard()
   }
 
   // Build command list dynamically
@@ -64,7 +98,7 @@ export default function PaletteApp() {
             await window.electronAPI.createTask({
               title: parsed.title, due_at: parsed.dueAt ?? null, priority: 'normal'
             })
-            window.electronAPI.paletteRefresh()
+            refresh()
             close()
           }
         })
@@ -79,7 +113,7 @@ export default function PaletteApp() {
             await window.electronAPI.createEvent({
               title: parsed.title, start_at: parsed.startAt!, end_at: parsed.endAt!, color: '#6366F1'
             })
-            window.electronAPI.paletteRefresh()
+            refresh()
             close()
           }
         })
@@ -87,7 +121,7 @@ export default function PaletteApp() {
     }
     list.push(
       { id: 'open-dashboard', group: 'nav', icon: '📊', title: 'Open dashboard',
-        hint: 'D', run: () => { window.electronAPI.openDashboard(); close() } },
+        hint: 'D', run: () => { openDashboard(); close() } },
       { id: 'today',          group: 'nav', icon: '🏠', title: 'Go to today',
         hint: 'T', run: () => send('today') },
       { id: 'new-event',      group: 'create', icon: '+', title: 'New event (editor)',
@@ -120,11 +154,11 @@ export default function PaletteApp() {
         if (item.kind === 'cmd') (item.data as Command).run()
         else if (item.kind === 'event') {
           const ev = item.data as EventRow
-          window.electronAPI.navigateToDate(ev.start_at); close()
+          goToDate(ev.start_at); close()
         }
         else if (item.kind === 'task') {
           const tk = item.data as TaskRow
-          if (tk.due_at) window.electronAPI.navigateToDate(tk.due_at); close()
+          if (tk.due_at) goToDate(tk.due_at); close()
         }
       }
     }
@@ -133,7 +167,7 @@ export default function PaletteApp() {
   }, [items, active])
 
   return (
-    <div className="glass-panel w-screen h-screen border border-ink-200 dark:border-ink-800 overflow-hidden flex flex-col">
+    <div className={`glass-panel ${embedded ? 'w-full h-full rounded-2xl shadow-2xl' : 'w-screen h-screen'} border border-ink-200 dark:border-ink-800 overflow-hidden flex flex-col`}>
         {/* Search input */}
         <div className="flex items-center gap-3 px-4 py-3.5 border-b border-ink-100 dark:border-ink-800 flex-shrink-0">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
@@ -176,7 +210,7 @@ export default function PaletteApp() {
                 const d = new Date(ev.start_at)
                 return (
                   <button key={ev.id} onMouseEnter={() => setActive(i)}
-                    onClick={() => { window.electronAPI.navigateToDate(ev.start_at); close() }}
+                    onClick={() => { goToDate(ev.start_at); close() }}
                     className={`w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors ${
                       isActive ? 'bg-accent-50 dark:bg-accent-500/10' : 'hover:bg-ink-50 dark:hover:bg-ink-800'}`}>
                     <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: ev.color }} />
@@ -194,7 +228,7 @@ export default function PaletteApp() {
               const tk = item.data as TaskRow
               return (
                 <button key={tk.id} onMouseEnter={() => setActive(i)}
-                  onClick={() => { if (tk.due_at) window.electronAPI.navigateToDate(tk.due_at); close() }}
+                  onClick={() => { if (tk.due_at) goToDate(tk.due_at); close() }}
                   className={`w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors ${
                     isActive ? 'bg-accent-50 dark:bg-accent-500/10' : 'hover:bg-ink-50 dark:hover:bg-ink-800'}`}>
                   <span className={`w-3 h-3 rounded-full border-2 flex-shrink-0 ${tk.done ? 'bg-green-500 border-green-500' : 'border-ink-400'}`} />

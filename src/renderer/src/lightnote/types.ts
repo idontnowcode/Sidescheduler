@@ -138,8 +138,16 @@ export interface DataDirStatus {
 // 스티커 메모가 보고 있는 노트. 창 하나가 노트 하나다.
 export interface StickyTarget { pageId: string; notebookId: string; sectionId: string; title?: string }
 
-/** 최근 수정한 페이지 한 줄. */
+/** 목록에 한 줄로 서는 페이지 (본문은 싣지 않는다). */
 export interface RecentPage extends PageRefLoc { updatedAt: number }
+
+/** 가운데 칸에 서 있는 화면. 맨 왼쪽 버튼 바가 이것 하나를 고른다. */
+export type LnView = 'note' | 'work' | 'journal' | 'planner'
+
+/** 페이지 리스트 칸이 보여 주는 세 가지 목록. */
+export type PageListMode = 'fav' | 'recent' | 'inbox'
+/** 그 칸의 한 줄. 최근 목록과 같은 정보에 별 표시만 더한다. */
+export interface PageListRow extends RecentPage { createdAt: number; favorite: boolean }
 
 // 본문에 체크박스로 적어둔 줄. 원본은 본문이고 이건 그때그때 읽어온 것이다.
 export interface BodyTaskPage {
@@ -271,7 +279,10 @@ declare global {
         openDashboard: () => void
         openDashboardView: (view: string) => void
       } | null
-      recentPages: (limit?: number) => Promise<RecentPage[]>
+      pageList: (mode: PageListMode, limit?: number) => Promise<PageListRow[]>
+      favoriteIds: () => Promise<string[]>
+      favoriteToggle: (pageId: string) => Promise<{ favorite: boolean }>
+      inboxNew: (title?: string) => Promise<{ notebookId: string; sectionId: string; pageId: string; title: string }>
       bodyTasksList: () => Promise<BodyTaskPage[]>
       bodyTaskToggle: (notebookId: string, sectionId: string, pageId: string, line: number, text: string)
         => Promise<{ success?: boolean; done?: boolean; error?: string }>

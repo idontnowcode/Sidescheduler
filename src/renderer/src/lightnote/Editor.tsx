@@ -452,6 +452,9 @@ export interface EditorHandle {
 }
 
 interface Props {
+  /** 이 페이지에 별이 달려 있는가 (페이지 리스트 칸의 즐겨찾기) */
+  isFavorite?: boolean
+  onToggleFavorite?: () => void
   onOpenSettings: () => void
   onOpenPage?: (nbId: string, secId: string, pageId: string, crumb: string) => void
   onHeadingsChange?: (items: { level: number; text: string; index: number }[]) => void
@@ -544,7 +547,7 @@ const SWATCHES = [
   '#ffffff', '#ced4da', '#ff8787', '#ffc078', '#ffe066', '#8ce99a', '#74c0fc', '#b197fc', '#faa2c1',
 ]
 
-const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, onHeadingsChange, onTitleChange, onPromote, refLabels, onRefOrderChange, onRefMarkerClick, onPromoteToRef }, ref) => {
+const Editor = forwardRef<EditorHandle, Props>(({ isFavorite, onToggleFavorite, onOpenSettings, onOpenPage, onHeadingsChange, onTitleChange, onPromote, refLabels, onRefOrderChange, onRefMarkerClick, onPromoteToRef }, ref) => {
   const [currentPage, setCurrentPage] = useState<{ notebookId: string; sectionId: string; pageId: string } | null>(null)
   const [titleValue, setTitleValue] = useState('')
   const [saveState, setSaveState] = useState<SaveState>('saved')
@@ -2107,6 +2110,14 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
       {/* Always mounted — Quill must stay on the same DOM node */}
       <div style={{ display: currentPage ? 'flex' : 'none', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
         <div className="editor-header">
+          {/* 별은 제목 바로 옆에 둔다 — 즐겨찾기는 "이 페이지"에 다는 것이라,
+              목록 쪽에만 있으면 정작 읽는 중에 달 수가 없다. */}
+          <button
+            className={`page-fav${isFavorite ? ' on' : ''}`}
+            title={isFavorite ? '즐겨찾기 해제' : '즐겨찾기에 넣기'}
+            aria-pressed={!!isFavorite}
+            onClick={() => onToggleFavorite?.()}
+          >{isFavorite ? '★' : '☆'}</button>
           <div className="page-title-wrap">
             <input
               id="ln-page-title"

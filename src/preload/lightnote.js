@@ -1,4 +1,9 @@
 import { contextBridge, ipcRenderer } from 'electron'
+// 일정 쪽(빠른 추가·오늘·대시보드)을 LightNote 창 **안에서** 그리려면 그
+// 화면들이 쓰는 window.electronAPI 가 이 창에도 있어야 한다. 같은 앱·같은
+// 렌더러 묶음이라 한 줄 import 로 그대로 얹는다(여기서 다시 나열하면
+// 두 벌을 따로 고쳐야 하고, 한쪽만 고치는 날 조용히 어긋난다).
+import './index'
 
 contextBridge.exposeInMainWorld('lightnote', {
   // 테스트 격리(DSP_TEST_DATA_DIR)로 띄웠는지. 화면 기본값 중 테스트가
@@ -144,8 +149,6 @@ contextBridge.exposeInMainWorld('lightnote', {
     openDashboardView: (view) => ipcRenderer.send('window:open-dashboard-view', view),
   },
 
-  // 최근 수정한 페이지 (본문은 안 읽는다)
-  recentPages: (limit) => ipcRenderer.invoke('lightnote:recent-pages', { limit }),
   // 본문에 체크박스로 적어둔 줄도 할 일로 센다
   bodyTasksList: () => ipcRenderer.invoke('lightnote:body-tasks:list'),
   bodyTaskToggle: (notebookId, sectionId, pageId, line, text) =>
@@ -213,6 +216,12 @@ contextBridge.exposeInMainWorld('lightnote', {
   actionItemsOpenPage: (notebookId, sectionId, pageId) =>
     ipcRenderer.send('action-items:open-page', { notebookId, sectionId, pageId }),
   onActionItemsRefresh: (cb) => { const h = () => cb(); ipcRenderer.on('action-items:refresh', h); return () => ipcRenderer.removeListener('action-items:refresh', h) },
+
+  // 페이지 리스트 칸 — 즐겨찾기 · 최근 편집 · 인박스
+  pageList: (mode, limit) => ipcRenderer.invoke('lightnote:page-list', { mode, limit }),
+  favoriteIds: () => ipcRenderer.invoke('lightnote:favorite-ids'),
+  favoriteToggle: (pageId) => ipcRenderer.invoke('lightnote:favorite-toggle', { pageId }),
+  inboxNew: (title) => ipcRenderer.invoke('lightnote:inbox-new', { title }),
 
   // 다른 창에서 같은 페이지가 저장되면 알림 (자동 덮어쓰기 없음 — 배너로 새로고침 안내)
   onPageChangedElsewhere: (cb) => {

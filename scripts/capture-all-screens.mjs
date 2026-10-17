@@ -217,16 +217,41 @@ await snap(ln, 'lightnote-editor-toolbar-open', 'LightNote — 편집기 툴바�
 await ln.evaluate(() => document.querySelector('.ql-toolbar')?.classList.remove('ln-tb-open'))
 await ln.waitForTimeout(400)
 
-for (const [label, note, open] of [
-  ['업무 현황', 'LightNote — 업무 현황(표로 모아보기)', '업무 현황'],
-  ['기록장', 'LightNote — 기록장(날짜별 짧은 기록)', '기록장'],
+// 페이지 리스트 칸 — 세 가지 목록과 접은 모습
+for (const [tab, name, note] of [
+  ['즐겨찾기', 'pagelist-fav', 'LightNote — 페이지 목록 · 즐겨찾기'],
+  ['최근', 'pagelist-recent', 'LightNote — 페이지 목록 · 최근 편집'],
+  ['인박스', 'pagelist-inbox', 'LightNote — 페이지 목록 · 인박스(먼저 적고 나중에 분류)'],
 ]) {
-  await ln.locator('.icon-btn', { hasText: open }).click()
-  await ln.waitForTimeout(1600)
-  await snap(ln, `lightnote-${label === '업무 현황' ? 'worklist' : 'journal'}`, note)
-  await ln.locator('.icon-btn', { hasText: open }).click()
+  await ln.locator('.pl-tab', { hasText: tab }).click()
+  await ln.waitForTimeout(900)
+  await snap(ln, `lightnote-${name}`, note)
+}
+await ln.locator('.pl-collapse').click()
+await ln.waitForTimeout(700)
+await snap(ln, 'lightnote-pagelist-collapsed', 'LightNote — 페이지 목록을 접은 모습(얇은 띠만 남는다)')
+await ln.locator('.pl-reopen').click()
+await ln.waitForTimeout(600)
+
+// 화면 고르기 — 한 번에 하나만 켜진다. 돌아올 때는 노트 버튼을 쓴다.
+for (const [open, name, note] of [
+  ['업무 현황', 'worklist', 'LightNote — 업무 현황(표로 모아보기)'],
+  ['기록장', 'journal', 'LightNote — 기록장(날짜별 짧은 기록)'],
+  ['오늘', 'planner-today', 'LightNote — 오늘 일정(창을 따로 띄우지 않고 안에서)'],
+  ['대시보드', 'planner-dash', 'LightNote — 대시보드(창을 따로 띄우지 않고 안에서)'],
+]) {
+  await ln.locator('.rail .icon-btn', { hasText: open }).click()
+  await ln.waitForTimeout(2000)
+  await snap(ln, `lightnote-${name}`, note)
+  await ln.locator('.rail .icon-btn', { hasText: '노트' }).click()
   await ln.waitForTimeout(800)
 }
+
+await ln.locator('.rail .icon-btn', { hasText: '빠른 추가' }).click()
+await ln.waitForTimeout(1600)
+await snap(ln, 'lightnote-quickadd', 'LightNote — 빠른 추가(덮개로 뜬다)')
+await ln.keyboard.press('Escape')
+await ln.waitForTimeout(600)
 
 // 오른쪽 패널들 (목차 / 업무 속성 / 참조)
 for (const [sel, name, note] of [
@@ -242,7 +267,7 @@ for (const [sel, name, note] of [
   }
 }
 
-await ln.locator('.icon-btn[title="Settings"]').click()
+await ln.locator('.rail .icon-btn[title="Settings"]').click()
 await ln.waitForTimeout(1400)
 await snap(ln, 'lightnote-settings', 'LightNote — 설정(테마·글꼴·공유 폴더)')
 await ln.keyboard.press('Escape')

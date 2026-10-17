@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import 'quill/dist/quill.snow.css'
 import './lightnote.css'
-import type { Selected, TrashNode, SearchResult, TocItem, OpenTab, PageReference, DataDirStatus } from './types'
+import type { Selected, TrashNode, SearchResult, TocItem, OpenTab, PageReference, DataDirStatus, LnView } from './types'
 import DataDirBlocked from './DataDirBlocked'
 import NotebookTree, { type TreeHandle } from './NotebookTree'
 import Editor, { type EditorHandle } from './Editor'
@@ -12,8 +12,9 @@ import WorkObjectPanel from './WorkObjectPanel'
 import WorkListView from './WorkListView'
 import JournalView from './JournalView'
 import WorkQuickList from './WorkQuickList'
-import RecentPages from './RecentPages'
+import PageList from './PageList'
 import Rail from './Rail'
+import { PlannerPane, QuickAddOverlay } from './PlannerEmbed'
 import AIAssistant from './AIAssistant'
 import SettingsModal, { initAppearance } from './SettingsModal'
 import TabBar from './TabBar'
@@ -54,20 +55,48 @@ export default function LightnoteApp() {
     r.caption.trim() || (r.kind === 'image' ? '(이미지)' : r.text.slice(0, 60)) || '(제목 없음)',
   ])), [refs])
   const refNumberOf = useMemo(() => new Map(refOrder.map((id, i) => [id, i + 1])), [refOrder])
-  const [showWorkList, setShowWorkList] = useState(false)
-  const [showJournal, setShowJournal] = useState(false)
+  // 가운데 칸에 **하나만** 선다. 예전엔 업무 현황·기록장이 각자 켜고 끄는
+  // 스위치여서, 둘 다 켜면 나중 것이 앞 것을 덮었고 버튼은 둘 다 켜진 것처럼
+  // 보였다. 돌아올 자리(노트)도 버튼으로 있어야 "꺼서 돌아가는" 일이 없다.
+  const [view, setView] = useState<LnView>('note')
+  const [plannerTab, setPlannerTab] = useState('today')
+  const [plannerDate, setPlannerDate] = useState<number | null>(null)
+  const [quickAdd, setQuickAdd] = useState(false)
+  const goView = useCallback((v: LnView, tab?: string) => {
+    setView(v)
+    if (v === 'planner' && tab) { setPlannerTab(tab); setPlannerDate(null) }
+  }, [])
   // Resizable side panels (persisted).
   const [leftW, setLeftW] = useState(() => Number(localStorage.getItem('ln-left-w')) || 220)
   const [rightW, setRightW] = useState(() => Number(localStorage.getItem('ln-right-w')) || 280)
+  // 페이지 리스트 칸 — 다섯 칸째라 자리를 많이 먹는다. 접을 수 있고, 접은
+  // 상태와 너비는 기억한다.
+  const [listW, setListW] = useState(() => Number(localStorage.getItem('ln-pagelist-w')) || 210)
+  const [listHidden, setListHidden] = useState(() => localStorage.getItem('ln-pagelist-hidden') === '1')
+  // 별이 바뀔 때마다 올린다 — 목록과 에디터의 별이 같이 따라오게.
+  const [favTick, setFavTick] = useState(0)
+  const [favIds, setFavIds] = useState<Set<string>>(new Set())
+  useEffect(() => {
+    window.lightnote.favoriteIds().then((ids) => setFavIds(new Set(ids))).catch(() => {})
+  }, [favTick])
+  const toggleFavorite = useCallback(async () => {
+    const id = selectedRef.current.pageId
+    if (!id) return
+    await window.lightnote.favoriteToggle(id).catch(() => {})
+    setFavTick((n) => n + 1)
+  }, [])
   useEffect(() => { localStorage.setItem('ln-left-w', String(leftW)) }, [leftW])
   useEffect(() => { localStorage.setItem('ln-right-w', String(rightW)) }, [rightW])
+  useEffect(() => { localStorage.setItem('ln-pagelist-w', String(listW)) }, [listW])
+  useEffect(() => { localStorage.setItem('ln-pagelist-hidden', listHidden ? '1' : '0') }, [listHidden])
 
-  const startResize = useCallback((e: React.MouseEvent, kind: 'left' | 'toc') => {
+  const startResize = useCallback((e: React.MouseEvent, kind: 'left' | 'list' | 'toc') => {
     e.preventDefault()
     const startX = e.clientX
-    const startLeft = leftW, startRight = rightW
+    const startLeft = leftW, startRight = rightW, startList = listW
     const onMove = (ev: MouseEvent) => {
       if (kind === 'left') setLeftW(Math.max(160, Math.min(480, startLeft + (ev.clientX - startX))))
+      else if (kind === 'list') setListW(Math.max(150, Math.min(420, startList + (ev.clientX - startX))))
       else setRightW(Math.max(200, Math.min(520, startRight - (ev.clientX - startX))))
     }
     const onUp = () => {
@@ -78,7 +107,7 @@ export default function LightnoteApp() {
     document.body.style.cursor = 'col-resize'
     document.addEventListener('mousemove', onMove)
     document.addEventListener('mouseup', onUp)
-  }, [leftW, rightW])
+  }, [leftW, rightW, listW])
 
   const editorRef = useRef<EditorHandle>(null)
   const treeRef = useRef<TreeHandle>(null)
@@ -402,6 +431,7 @@ export default function LightnoteApp() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (!(e.ctrlKey || e.metaKey)) return
+      if (e.key === 'k' || e.key === 'K') { e.preventDefault(); setQuickAdd(true); return }
       const cur = tabsRef.current
       if (e.key === 'w' || e.key === 'W') {
         if (!selectedRef.current.pageId) return
@@ -496,34 +526,46 @@ export default function LightnoteApp() {
 
       <div className="main-layout" style={{ position: 'relative' }}>
         <Rail
-          showWorkList={showWorkList}
-          showJournal={showJournal}
+          view={view}
+          plannerTab={plannerTab}
           aiOpen={isAiOpen}
-          onWorkList={() => setShowWorkList(v => !v)}
-          onJournal={() => setShowJournal(v => !v)}
+          onView={goView}
           onSticky={() => window.lightnote.stickyNew()}
-          onAi={() => setIsAiOpen(v => !v)}
+          onQuickAdd={() => setQuickAdd(true)}
+          // AI는 본문 옆에 붙는 칸이다. 다른 화면이 덮고 있으면 열어도
+          // 보이지 않아 "눌러도 아무 일이 없는" 버튼이 된다 — 같이 돌아온다.
+          onAi={() => { setView('note'); setIsAiOpen(v => !v) }}
           onSettings={() => setIsSettingsOpen(true)}
           onSearch={() => (document.querySelector('.ln-search-input') as HTMLInputElement | null)?.focus()}
         />
-        {showJournal && (
+        {view === 'journal' && (
           <JournalView
-            onClose={() => setShowJournal(false)}
+            onClose={() => setView('note')}
             onOpenPage={handlePageSelect}
           />
         )}
-        {showWorkList && (
+        {view === 'work' && (
           <WorkListView
             onOpen={(item) => {
               handlePageSelect(item.notebookId, item.sectionId, item.pageId, `${item.notebookName} › ${item.sectionName} › ${item.title}`)
-              setShowWorkList(false)
+              setView('note')
             }}
-            onClose={() => setShowWorkList(false)}
+            onClose={() => setView('note')}
+          />
+        )}
+        {/* 안 볼 때는 띄워 두지 않고 내린다. 일정 화면은 제 단축키(t·m·w·n…)를
+            창 전체에 걸어 두는데, 숨긴 채 살려 두면 노트를 보며 누른 글자가
+            보이지 않는 곳에서 먹힌다. */}
+        {view === 'planner' && (
+          <PlannerPane
+            tab={plannerTab}
+            date={plannerDate}
+            onTabChange={setPlannerTab}
+            onQuickAdd={() => setQuickAdd(true)}
           />
         )}
         <div style={{ width: leftW, minWidth: 0, flexShrink: 0, display: 'flex', flexDirection: 'column' }}>
           <WorkQuickList onOpen={handlePageSelect} activePageId={selected.pageId} refreshKey={woRefresh} />
-          <RecentPages onOpen={handlePageSelect} activePageId={selected.pageId} refreshKey={woRefresh} />
           <div style={{ flex: 1, minHeight: 0, display: 'flex' }}>
             <NotebookTree
               ref={treeRef}
@@ -536,6 +578,27 @@ export default function LightnoteApp() {
           </div>
         </div>
         <div className="ln-resizer" onMouseDown={(e) => startResize(e, 'left')} title="너비 조절" />
+
+        {/* 카테고리와 본문 사이 — 즐겨찾기 · 최근 편집 · 인박스. 접으면
+            얇은 띠만 남아, 다시 펴는 길이 사라지지 않는다. */}
+        {listHidden ? (
+          <button className="pl-reopen" title="페이지 목록 펴기" onClick={() => setListHidden(false)}>
+            <span className="pl-reopen-mark">›</span>
+            <span className="pl-reopen-label">페이지 목록</span>
+          </button>
+        ) : (
+          <>
+            <PageList
+              width={listW}
+              activePageId={selected.pageId}
+              refreshKey={`${woRefresh}:${favTick}`}
+              onOpen={handlePageSelect}
+              onCollapse={() => setListHidden(true)}
+              onFavoritesChanged={() => setFavTick(n => n + 1)}
+            />
+            <div className="ln-resizer" onMouseDown={(e) => startResize(e, 'list')} title="너비 조절" />
+          </>
+        )}
 
         <div style={{ flex: 1, minWidth: 0, position: 'relative', display: 'flex', flexDirection: 'column' }}>
           {!trashNode && (
@@ -553,6 +616,8 @@ export default function LightnoteApp() {
           )}
           <Editor
             ref={editorRef}
+            isFavorite={!!selected.pageId && favIds.has(selected.pageId)}
+            onToggleFavorite={toggleFavorite}
             onOpenSettings={() => setIsSettingsOpen(true)}
             onOpenPage={handlePageSelect}
             onHeadingsChange={setToc}
@@ -647,6 +712,14 @@ export default function LightnoteApp() {
         <span>{breadcrumb}</span>
       </div>
 
+      {quickAdd && (
+        <QuickAddOverlay
+          onClose={() => setQuickAdd(false)}
+          onGoToday={() => goView('planner', 'today')}
+          onGoDashboard={() => goView('planner', 'week')}
+          onGoDate={(ts) => { setView('planner'); setPlannerTab('day'); setPlannerDate(ts) }}
+        />
+      )}
       {isSettingsOpen && <SettingsModal onClose={() => setIsSettingsOpen(false)} />}
       <DialogHost />
     </div>

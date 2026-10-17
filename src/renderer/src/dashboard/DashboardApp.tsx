@@ -30,8 +30,23 @@ function monthEnd(d: Date)   { return new Date(d.getFullYear(), d.getMonth() + 1
 function weekStart(d: Date)  { const s = sod(d); s.setDate(s.getDate() - s.getDay()); return s }
 function weekEnd(d: Date)    { const s = weekStart(d); return new Date(s.getFullYear(), s.getMonth(), s.getDate() + 6, 23, 59, 59, 999) }
 
-export default function DashboardApp() {
-  const [view, setView] = useState<ViewMode>('today')
+/* LightNote 창 안에 그대로 끼워 넣을 수 있다(embedded). 그때는
+   - 창 전체 높이(h-screen)가 아니라 끼워진 칸을 채우고,
+   - 대시보드 **창** 앞으로 보내 둔 탭 지정은 건드리지 않으며(그 창 몫이다),
+   - 빠른 추가는 별도 창 대신 품고 있는 쪽이 정한 방식으로 연다.
+   그 밖의 동작은 창으로 띄웠을 때와 똑같다 — 화면을 두 벌 두지 않는다. */
+interface Props {
+  embedded?: boolean
+  initialView?: ViewMode
+  /** 열면서 맞출 날짜(빠른 추가에서 일정 하나를 골랐을 때) */
+  initialDate?: number | null
+  onQuickAdd?: () => void
+  /** 안에서 탭을 바꾸면 알린다 — 바깥 버튼 바의 표시가 따라와야 한다 */
+  onViewChange?: (view: string) => void
+}
+
+export default function DashboardApp({ embedded, initialView, initialDate, onQuickAdd, onViewChange }: Props = {}) {
+  const [view, setView] = useState<ViewMode>(initialView ?? 'today')
   const [current, setCurrent] = useState(() => new Date())
   // Bumped at midnight to force `today`/range recomputation while open.
   const [, setDayTick] = useState(0)
@@ -52,11 +67,20 @@ export default function DashboardApp() {
   })
 
   // Open a specific tab when launched via a deep-link (e.g. sidebar Help button).
+  // 끼워 넣은 쪽은 이 줄을 타지 않는다 — 대시보드 창 앞으로 보내 둔 탭
+  // 지정을 여기서 먹어 버리면 정작 그 창이 엉뚱한 탭으로 열린다.
   useEffect(() => {
+    if (embedded) return
     window.electronAPI.consumePendingDashboardView().then((v) => { if (v) setView(v as ViewMode) }).catch(() => {})
     const unsub = window.electronAPI.onDashboardSetView((v) => setView(v as ViewMode))
     return unsub
-  }, [])
+  }, [embedded])
+
+  // 끼워 넣었을 때는 바깥 버튼(오늘·대시보드·도움말)이 탭을 고른다.
+  useEffect(() => { if (embedded && initialView) setView(initialView) }, [embedded, initialView])
+  useEffect(() => { if (embedded && initialDate) setCurrent(new Date(initialDate)) }, [embedded, initialDate])
+  // 반대로, 안에서 탭을 바꾼 것도 바깥에 알린다(버튼 표시가 어긋나지 않게).
+  useEffect(() => { onViewChange?.(view) }, [view, onViewChange])
 
   const [addEvent, setAddEvent] = useState<{ date: Date; startTime?: string; endTime?: string } | null>(null)
   const [addTask, setAddTask]   = useState<{ date?: Date } | null>(null)
@@ -86,7 +110,11 @@ export default function DashboardApp() {
     const onKey = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement).tagName
       const inField = tag === 'INPUT' || tag === 'TEXTAREA' || (e.target as HTMLElement).isContentEditable
-      if (e.key === 'k' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); window.electronAPI.openPalette(); return }
+      if (e.key === 'k' && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault()
+        if (onQuickAdd) onQuickAdd(); else window.electronAPI.openPalette()
+        return
+      }
       if (inField) return
       if (e.key === 't' && !e.metaKey && !e.ctrlKey) { setView('today'); setCurrent(new Date()) }
       else if (e.key === 'm' && !e.metaKey) setView('month')
@@ -99,7 +127,7 @@ export default function DashboardApp() {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [current])
+  }, [current, onQuickAdd])
 
   // Palette action / refresh listeners
   useEffect(() => {
@@ -146,7 +174,7 @@ export default function DashboardApp() {
   const showItemActions = view !== 'settings' && view !== 'focus' && view !== 'insights' && view !== 'habits' && view !== 'tasks' && view !== 'help'
 
   return (
-    <div className="h-screen flex flex-col surface select-none overflow-hidden">
+    <div className={`${embedded ? 'h-full' : 'h-screen'} flex flex-col surface select-none overflow-hidden`}>
       {/* ── Header: two fixed rows so the layout never wraps ─────────── */}
       <div className="border-b border-ink-100 dark:border-ink-800 flex-shrink-0">
 
@@ -175,7 +203,7 @@ export default function DashboardApp() {
           </span>
 
           {/* Quick add — label hidden on narrow windows, icon+kbd always visible */}
-          <button onClick={() => window.electronAPI.openPalette()}
+          <button onClick={() => (onQuickAdd ? onQuickAdd() : window.electronAPI.openPalette())}
             className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-ink-100 dark:bg-ink-800 hover:bg-ink-200 dark:hover:bg-ink-700 text-sm text-ink-500 transition-colors flex-shrink-0">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" />

@@ -13,6 +13,7 @@ const attachments = require('./attachments');
 const referenceStorage = require('./reference-storage');
 const bodyTasks = require('./body-tasks');
 const journal = require('./journal');
+const pageList = require('./page-list');
 const path = require('path');
 const fs = require('fs').promises;
 const { shell, BrowserWindow } = require('electron');
@@ -48,6 +49,7 @@ function registerIpcHandlers(ipcMain, getWindow, safeStorage, dialog, app, sched
   pageVersions.init(LOCAL_ROOT);
   attachments.init(DATA_ROOT);
   referenceStorage.init(DATA_ROOT);
+  pageList.init(DATA_ROOT);
   storage.init(safeStorage);
   // PARA(Projects/Areas/Resources/Archives) 기본 노트북은 더 이상 만들지
   // 않는다 — 안내 페이지만 든 채 트리 맨 위를 차지했고, 실제 정리는 각자
@@ -65,6 +67,7 @@ function registerIpcHandlers(ipcMain, getWindow, safeStorage, dialog, app, sched
       const r = await noteStorage.purgeExpired(days);
       for (const pid of r.pageIds) { linkStorage.removePageLinks(pid); noteIndexer.invalidateCache(pid); }
       await workObjectStorage.removeMany(r.pageIds);
+      await pageList.removeMany(r.pageIds);
       if (r.count > 0) noteIndexer.clearCache();
     } catch (e) { console.error('purgeExpired:', e); }
   })();
@@ -179,26 +182,11 @@ function registerIpcHandlers(ipcMain, getWindow, safeStorage, dialog, app, sched
   // === 최근 수정한 페이지 ===
   // 섹션 목록(pages.json)의 updatedAt만 본다 — 본문을 읽지 않아 가볍다.
   // 저장·이름변경이 그 값을 본문 파일과 같이 맞춰 두므로 믿을 수 있다.
-  ipcMain.handle('lightnote:recent-pages', async (_, { limit } = {}) => {
-    const out = [];
-    for (const nb of await noteStorage.getVisibleNotebooks()) {
-      // 기록장은 뺀다. 날짜 페이지는 매일 쓰이기 때문에, 넣어두면 최근 목록이
-      // 날짜로만 채워져 정작 찾으려던 노트가 밀려난다. 기록장은 제 화면이
-      // 따로 있고 거기 날짜 목록이 늘 최신이다.
-      if (nb.name === journal.NOTEBOOK_NAME) continue;
-      for (const sec of await noteStorage.getVisibleSections(nb.id)) {
-        for (const pg of await noteStorage.getVisiblePages(nb.id, sec.id)) {
-          out.push({
-            pageId: pg.id, notebookId: nb.id, sectionId: sec.id,
-            title: pg.title, notebookName: nb.name, sectionName: sec.name,
-            updatedAt: pg.updatedAt || pg.createdAt || 0,
-          });
-        }
-      }
-    }
-    out.sort((a, b) => b.updatedAt - a.updatedAt);
-    return out.slice(0, Math.max(1, Math.min(50, limit || 12)));
-  });
+  // === 페이지 리스트 칸 (즐겨찾기 · 최근 편집 · 인박스) ===
+  ipcMain.handle('lightnote:page-list', async (_, { mode, limit } = {}) => pageList.list(mode, limit));
+  ipcMain.handle('lightnote:favorite-ids', async () => pageList.favoriteIds());
+  ipcMain.handle('lightnote:favorite-toggle', async (_, { pageId }) => pageList.toggleFavorite(pageId));
+  ipcMain.handle('lightnote:inbox-new', async (_, { title } = {}) => pageList.inboxNew(title));
 
   // === 본문 체크박스를 할 일로 ===
   // 업무 속성의 "다음 Action"만 세면 노트에 체크박스로 적어둔 것들이 어디에도
@@ -281,6 +269,7 @@ function registerIpcHandlers(ipcMain, getWindow, safeStorage, dialog, app, sched
     await referenceStorage.removeMany(pageIds).catch((e) => console.error('reference cleanup:', e));
     await pageVersions.removeAll(pageIds).catch((e) => console.error('version cleanup:', e));
     await attachments.removeAll(pageIds).catch((e) => console.error('attachment cleanup:', e));
+    await pageList.removeMany(pageIds).catch((e) => console.error('favorite cleanup:', e));
   };
 
   ipcMain.handle('lightnote:trash:purge', async (_, node) => {
