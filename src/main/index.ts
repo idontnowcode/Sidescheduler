@@ -887,6 +887,23 @@ function scheduleNextReminder(): void {
 // Renderer = React app via out/renderer/index.html#lightnote; preload = out/preload/lightnote.js.
 // (The legacy vanilla-JS UI under resources/lightnote/ is unused.)
 
+// 제목 표시줄을 앱 헤더와 합친 창 설정. 높이는 헤더(--header-h)와 같아야
+// 창 조작 단추가 헤더 줄에 정확히 얹힌다 — 어긋나면 단추만 따로 떠 보인다.
+const LIGHTNOTE_HEADER_H = 44
+const LIGHTNOTE_TITLEBAR = {
+  titleBarStyle: 'hidden' as const,
+  titleBarOverlay: { color: '#252526', symbolColor: '#cccccc', height: LIGHTNOTE_HEADER_H },
+}
+
+// 테마를 바꾸면 단추 색도 따라가야 한다(밝은 테마에 흰 단추는 안 보인다).
+ipcMain.on('lightnote:titlebar-colors', (e, { color, symbolColor }: { color: string; symbolColor: string }) => {
+  const win = BrowserWindow.fromWebContents(e.sender)
+  if (!win || win.isDestroyed()) return
+  try {
+    win.setTitleBarOverlay({ color, symbolColor, height: LIGHTNOTE_HEADER_H })
+  } catch { /* 이 플랫폼에 오버레이가 없으면 그냥 둔다 */ }
+})
+
 function openLightNoteWindow(): void {
   if (lightNoteWindow && !lightNoteWindow.isDestroyed()) {
     lightNoteWindow.show()
@@ -902,6 +919,10 @@ function openLightNoteWindow(): void {
     title: 'LightNote',
     icon: join(__dirname, '../../resources/icon.ico'),
     show: false,
+    // 창 제목 표시줄을 앱 헤더와 합친다. 제목만 적힌 줄이 하나 더 있을
+    // 이유가 없다 — 그 줄에 검색칸이 들어간다. 창 조작 단추는 운영체제가
+    // 그려 주는 것을 그대로 쓴다(직접 만들면 호버·스냅 동작이 어긋난다).
+    ...LIGHTNOTE_TITLEBAR,
     webPreferences: {
       preload: join(__dirname, '../preload/lightnote.js'),
       contextIsolation: true,
@@ -949,6 +970,7 @@ function openLightNoteInNewWindow(target?: { pageId: string; notebookId: string;
     width: 1280, height: 800, minWidth: 960, minHeight: 600,
     title: 'LightNote', icon: join(__dirname, '../../resources/icon.ico'),
     show: false,
+    ...LIGHTNOTE_TITLEBAR,
     webPreferences: {
       preload: join(__dirname, '../preload/lightnote.js'),
       contextIsolation: true, nodeIntegration: false, sandbox: false

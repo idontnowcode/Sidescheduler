@@ -13,6 +13,7 @@ import WorkListView from './WorkListView'
 import JournalView from './JournalView'
 import WorkQuickList from './WorkQuickList'
 import RecentPages from './RecentPages'
+import Rail from './Rail'
 import AIAssistant from './AIAssistant'
 import SettingsModal, { initAppearance } from './SettingsModal'
 import TabBar from './TabBar'
@@ -485,32 +486,26 @@ export default function LightnoteApp() {
           <button className="cc-btn" title="닫기" onClick={() => setConflictsHidden(true)}>✕</button>
         </div>
       )}
+      {/* 제목 표시줄과 합친 헤더. 창 조작 단추는 운영체제가 이 줄 오른쪽에
+          그린다(그래서 오른쪽을 비워 둔다). 로고와 이름은 **한 번만** 둔다. */}
       <header className="app-header">
         <span className="app-name">LightNote</span>
         <SearchBar onOpen={openSearchResult} />
-        <div className="header-actions">
-          <button className={`icon-btn${showWorkList ? ' active' : ''}`} title="업무 현황"
-            onClick={() => setShowWorkList(v => !v)}>
-            📋 업무 현황
-          </button>
-          <button className={`icon-btn${showJournal ? ' active' : ''}`} title="기록장 — 날짜별로 자동 정리되는 짧은 기록"
-            onClick={() => setShowJournal(v => !v)}>
-            📓 기록장
-          </button>
-          <button className="icon-btn" title="스티커 메모 — 바탕화면에 붙여두는 작은 창 (새 노트로 만들어집니다)"
-            onClick={() => window.lightnote.stickyNew()}>
-            🟨 스티커
-          </button>
-          <button className="icon-btn" title="AI Assistant (Ctrl+F)" onClick={() => setIsAiOpen(v => !v)}>
-            🤖 AI
-          </button>
-          <button className="icon-btn" title="Settings" onClick={() => setIsSettingsOpen(true)}>
-            ⚙
-          </button>
-        </div>
+        <div className="header-winpad" />
       </header>
 
       <div className="main-layout" style={{ position: 'relative' }}>
+        <Rail
+          showWorkList={showWorkList}
+          showJournal={showJournal}
+          aiOpen={isAiOpen}
+          onWorkList={() => setShowWorkList(v => !v)}
+          onJournal={() => setShowJournal(v => !v)}
+          onSticky={() => window.lightnote.stickyNew()}
+          onAi={() => setIsAiOpen(v => !v)}
+          onSettings={() => setIsSettingsOpen(true)}
+          onSearch={() => (document.querySelector('.ln-search-input') as HTMLInputElement | null)?.focus()}
+        />
         {showJournal && (
           <JournalView
             onClose={() => setShowJournal(false)}

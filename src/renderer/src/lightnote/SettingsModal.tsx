@@ -18,12 +18,25 @@ const ACCENTS = {
   pink:   { label: 'Pink',   color: '#e91e63', hover: '#f72b73' },
 }
 
+/** 창 조작 단추(최소화·최대화·닫기)를 헤더 색에 맞춘다.
+ *
+ *  제목 표시줄을 헤더와 합쳐 놓아서, 단추는 운영체제가 헤더 위에 그린다.
+ *  테마를 바꿔도 단추 색이 그대로면 밝은 테마에서 흰 단추가 안 보인다. */
+export function syncTitleBar() {
+  if (!window.lightnote?.setTitleBarColors) return
+  const cs = getComputedStyle(document.documentElement)
+  const bg = cs.getPropertyValue('--bg2').trim() || '#252526'
+  const fg = cs.getPropertyValue('--text').trim() || '#cccccc'
+  try { window.lightnote.setTitleBarColors(bg, fg) } catch { /* 지원 안 하면 그만 */ }
+}
+
 export function applyTheme(key: string) {
   const theme = THEMES[key as keyof typeof THEMES]
   if (!theme) return
   const root = document.documentElement
   Object.entries(theme.vars).forEach(([k, v]) => root.style.setProperty(k, v))
   localStorage.setItem('lightnote-theme', key)
+  syncTitleBar()
 }
 
 export function applyAccent(key: string) {
@@ -107,6 +120,7 @@ export async function initAppearance() {
   await loadCustomFonts()
   applyFont(f || 'sans')
   applyRuled(localStorage.getItem('lightnote-ruled') === '1')
+  syncTitleBar()   // 테마를 안 바꿨어도 창 단추는 한 번 맞춰 둬야 한다
 }
 
 interface Props { onClose: () => void }

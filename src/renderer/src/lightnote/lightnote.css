@@ -13,7 +13,10 @@
   --danger: #f44747;
   --sidebar-w: 220px;
   --search-w: 320px;
-  --header-h: 40px;
+  --header-h: 44px;
+  /* 맨 왼쪽 버튼 바 폭. 기록장·업무 현황이 그 위를 덮지 않게 같이 쓴다 —
+     레일은 전역 이동 수단이라 어떤 화면에서도 닿아야 한다. */
+  --rail-w: 48px;
   --status-h: 24px;
 }
 
@@ -1289,7 +1292,7 @@ sup.citation:hover { background: var(--accent-hover); }
 .wo-page-hit-path { font-size: 10px; color: var(--text-dim); }
 
 /* ── 업무 현황 dashboard (overlay over the main layout) ─────────────────── */
-.wl-view { position: absolute; inset: 0; z-index: 50; background: var(--bg); display: flex; flex-direction: column; overflow: hidden; }
+.wl-view { position: absolute; inset: 0 0 0 var(--rail-w); z-index: 50; background: var(--bg); display: flex; flex-direction: column; overflow: hidden; }
 .wl-head { display: flex; align-items: center; gap: 8px; padding: 10px 18px; border-bottom: 1px solid var(--border); }
 .wl-title { font-size: 15px; font-weight: 700; color: var(--text); }
 .wl-refresh { border: none; background: none; color: var(--text-dim); cursor: pointer; font-size: 15px; }
@@ -1564,7 +1567,7 @@ button.ql-text-to-table, button.ql-table-to-text { width: 30px !important; }
 .ln-ruled .ql-ver-box :is(p, h1, h2, h3) { border-bottom: none; }
 
 /* ── 기록장 ───────────────────────────────────────────────────────────── */
-.jn-view { position: absolute; inset: 0; z-index: 50; background: var(--bg); display: flex; flex-direction: column; overflow: hidden; }
+.jn-view { position: absolute; inset: 0 0 0 var(--rail-w); z-index: 50; background: var(--bg); display: flex; flex-direction: column; overflow: hidden; }
 .jn-head { display: flex; align-items: center; gap: 10px; padding: 12px 18px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
 .jn-title { font-size: 15px; font-weight: 700; color: var(--text); }
 .jn-sub { font-size: 11.5px; color: var(--text-dim); }
@@ -2367,3 +2370,41 @@ button.wo-kind:hover { color: var(--text); background: var(--bg3); }
 .rc-row.active { background: rgba(14, 124, 255, 0.18); }
 .rc-row-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rc-when { font-size: 10.5px; color: var(--text-dim); flex-shrink: 0; }
+
+/* ── 맨 왼쪽 세로 버튼 바 ───────────────────────────────────────────────
+   헤더가 제목 표시줄과 합쳐지며 좁아져서, 오른쪽에 줄줄이 붙어 있던 글자
+   버튼을 여기로 옮겼다. 옆 앱(빠른 추가·오늘·대시보드)도 같이 둔다. */
+.rail {
+  width: var(--rail-w); flex-shrink: 0;
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  padding: 8px 0 10px;
+  background: var(--bg2); border-right: 1px solid var(--border);
+}
+.rail-btn {
+  width: 34px; height: 34px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  border: none; background: none; border-radius: 9px;
+  color: var(--text-dim); cursor: pointer; position: relative;
+}
+.rail-btn:hover { background: var(--bg3); color: var(--text); }
+.rail-btn.active { background: color-mix(in srgb, var(--accent) 22%, transparent); color: var(--accent); }
+/* 켜져 있는 것을 왼쪽 막대로도 알린다 — 색만으로는 훑을 때 안 잡힌다. */
+.rail-btn.active::before {
+  content: ''; position: absolute; left: -7px; top: 7px; bottom: 7px;
+  width: 3px; border-radius: 0 2px 2px 0; background: var(--accent);
+}
+/* 눈에는 안 보이지만 읽히게 남긴다 — 돋보기 읽기와, 버튼을 글자로 찾는
+   기존 검증들을 위해. display:none 으로 지우면 둘 다 깨진다. */
+.rail-label {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+}
+.rail-sep { width: 22px; height: 1px; background: var(--border); margin: 6px 0; flex-shrink: 0; }
+.rail-spacer { flex: 1; min-height: 8px; }
+
+/* 창 조작 단추(최소화·최대화·닫기)가 헤더 오른쪽에 얹히므로 그만큼 비운다.
+   폭은 운영체제가 알려 준다 — 숫자를 박아 두면 창 배율이 바뀔 때 어긋난다. */
+.header-winpad {
+  flex-shrink: 0;
+  width: calc(100vw - env(titlebar-area-width, 100vw) - env(titlebar-area-x, 0px));
+}
