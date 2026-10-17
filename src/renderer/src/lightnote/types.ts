@@ -132,7 +132,7 @@ export interface DataDirStatus {
   configured: string | null
   active: string
   shared: boolean
-  problem: { path: string; reason: 'MISSING' | 'EMPTY' } | null
+  problem: { path: string; reason: 'MISSING' | 'EMPTY' | 'BROKEN' } | null
 }
 
 // 스티커 메모가 보고 있는 노트. 창 하나가 노트 하나다.
@@ -275,7 +275,7 @@ declare global {
       listVersions: (pageId: string) => Promise<PageVersion[]>
       getVersion: (pageId: string, versionId: string) => Promise<{ at: number; title: string; delta: unknown } | null>
       restoreVersion: (notebookId: string, sectionId: string, pageId: string, versionId: string) =>
-        Promise<{ success?: boolean; title?: string; delta?: unknown; error?: string }>
+        Promise<{ success?: boolean; title?: string; delta?: unknown; error?: string; updatedAt?: number }>
       listCustomFonts: () => Promise<CustomFont[]>
       openFontsFolder: () => Promise<{ success?: boolean; error?: string }>
       getPageRefs: (pageId: string) => Promise<PageRefLoc[]>

@@ -122,9 +122,6 @@ export default function LightnoteApp() {
     //  2) pending pull on mount — for a freshly-spawned window (avoids the
     //     send-before-listener-registered race)
     window.lightnote.onOpenPageById?.(({ pageId }) => navigateToPageId(pageId))
-    window.lightnote.consumePendingOpen?.()
-      .then((p) => { if (p?.pageId) navigateToPageId(p.pageId) })
-      .catch(() => {})
 
     // 저장된 탭들을 먼저 되살린다. 페이지가 지워졌을 수 있으니 실제로
     // 존재하는 것만 남긴다 (없어진 탭이 계속 살아남지 않게).
@@ -141,23 +138,31 @@ export default function LightnoteApp() {
       if (alive.length) setTabs(alive)
     }).catch(() => {})
 
-    // Restore last opened page
-    window.lightnote.getLastOpened().then(async (last) => {
-      if (last?.notebookId && last?.sectionId && last?.pageId) {
-        try {
-          const nbs = await window.lightnote.getNotebooks()
-          const nb = nbs.find(n => n.id === last.notebookId)
-          if (!nb) return
-          const secs = await window.lightnote.getSections(last.notebookId)
-          const sec = secs.find(s => s.id === last.sectionId)
-          if (!sec) return
-          const pages = await window.lightnote.getPages(last.notebookId, last.sectionId)
-          const pg = pages.find(p => p.id === last.pageId)
-          if (!pg) return
-          handlePageSelect(last.notebookId, last.sectionId, last.pageId, `${nb.name} › ${sec.name} › ${pg.title}`)
-        } catch { /* no last opened */ }
-      }
-    }).catch(() => {})
+    // 열 페이지는 **하나로 정한다** — 넘겨받은 목표(새 창에서 열기·딥링크)가
+    // 있으면 그것, 없으면 마지막에 보던 것.
+    //
+    // 예전엔 둘을 나란히 띄워 놓고 먼저 끝나는 쪽이 이기게 두었다. 그래서
+    // "새 창에서 열기"로 연 창이 엉뚱한(마지막에 보던) 노트를 여는 일이
+    // 생겼다 — 어느 쪽이 먼저 끝나느냐는 그때그때 달라진다.
+    ;(async () => {
+      const pending = await window.lightnote.consumePendingOpen?.().catch(() => null)
+      if (pending?.pageId) { navigateToPageId(pending.pageId); return }
+
+      const last = await window.lightnote.getLastOpened().catch(() => null)
+      if (!last?.notebookId || !last?.sectionId || !last?.pageId) return
+      try {
+        const nbs = await window.lightnote.getNotebooks()
+        const nb = nbs.find(n => n.id === last.notebookId)
+        if (!nb) return
+        const secs = await window.lightnote.getSections(last.notebookId)
+        const sec = secs.find(s => s.id === last.sectionId)
+        if (!sec) return
+        const pages = await window.lightnote.getPages(last.notebookId, last.sectionId)
+        const pg = pages.find(p => p.id === last.pageId)
+        if (!pg) return
+        handlePageSelect(last.notebookId, last.sectionId, last.pageId, `${nb.name} › ${sec.name} › ${pg.title}`)
+      } catch { /* no last opened */ }
+    })()
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handlePageSelect = useCallback(async (nbId: string, secId: string, pageId: string, crumb: string) => {

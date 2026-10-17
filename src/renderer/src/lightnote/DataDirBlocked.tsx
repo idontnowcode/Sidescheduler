@@ -6,17 +6,17 @@ import type { DataDirStatus } from './types'
 // 적으면 저쪽 PC의 노트와 갈라진다. 그래서 길을 막고 경로를 보여 준다.
 // 되돌릴 수 없는 일은 아무것도 하지 않는다 — 다시 시도하거나 로컬로 돌아가거나.
 export default function DataDirBlocked({ problem }: { problem: NonNullable<DataDirStatus['problem']> }) {
-  const missing = problem.reason === 'MISSING'
+  const why = {
+    MISSING: '폴더가 보이지 않습니다. OneDrive가 아직 로그인 전이거나, 폴더 이름이 바뀌었거나, 다른 PC의 경로일 수 있습니다.',
+    EMPTY: '폴더는 있는데 노트 목록(notebooks.json)이 없습니다. OneDrive가 아직 내려받는 중이거나, 노트 폴더가 아닌 다른 폴더일 수 있습니다.',
+    BROKEN: '노트 목록(notebooks.json)이 읽히지 않습니다. OneDrive가 아직 반쯤 내려받은 상태일 수 있습니다. 동기화가 끝난 뒤 다시 시도하세요.',
+  }[problem.reason]
   return (
     <div className="ddb-wrap">
       <div className="ddb-box">
         <div className="ddb-title">공유 노트 폴더를 읽지 못했습니다</div>
         <div className="ddb-path">{problem.path}</div>
-        <p className="ddb-body">
-          {missing
-            ? '폴더가 보이지 않습니다. OneDrive가 아직 로그인 전이거나, 폴더 이름이 바뀌었거나, 다른 PC의 경로일 수 있습니다.'
-            : '폴더는 있는데 노트 목록(notebooks.json)이 없습니다. OneDrive가 아직 내려받는 중이거나, 노트 폴더가 아닌 다른 폴더일 수 있습니다.'}
-        </p>
+        <p className="ddb-body">{why}</p>
         <p className="ddb-note">
           안전을 위해 노트를 열지 않았습니다. 여기서 적으면 다른 PC의 노트와
           갈라지기 때문입니다. 기존 노트는 그대로 있습니다.

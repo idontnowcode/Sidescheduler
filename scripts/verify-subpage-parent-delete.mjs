@@ -33,10 +33,17 @@ const openTree = async () => {
   await ln.reload()
   await ln.waitForFunction(() => !!window.lightnote, null, { timeout: 8000 })
   await ln.waitForSelector('.nb-header', { timeout: 8000 })
-  await ln.locator('.nb-header', { hasText: 'NB' }).click()
-  await ln.waitForTimeout(200)
-  await ln.locator('.sec-header', { hasText: 'S' }).click()
-  await ln.waitForTimeout(500)
+  // 노트북·섹션 클릭은 펼치기/접기 **토글**이고, 접힘 상태는 기억된다.
+  // 그래서 무턱대고 한 번씩 누르면 이미 펼쳐져 있던 걸 되레 접는다.
+  // 보일 때까지만 누른다.
+  for (let i = 0; i < 4 && !(await ln.locator('.sec-header', { hasText: 'S' }).count()); i++) {
+    await ln.locator('.nb-header', { hasText: 'NB' }).click()
+    await ln.waitForTimeout(400)
+  }
+  for (let i = 0; i < 4 && !(await ln.locator('.page-item').count()); i++) {
+    await ln.locator('.sec-header', { hasText: 'S' }).click()
+    await ln.waitForTimeout(450)
+  }
 }
 const tree = () => ln.evaluate(() =>
   Array.from(document.querySelectorAll('.page-item')).map(el => ({

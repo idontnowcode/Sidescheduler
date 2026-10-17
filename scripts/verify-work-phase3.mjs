@@ -122,6 +122,18 @@ ok('checking a linked action\'s task can still complete via IPC', (await taskSta
 // Complete the work: doneAt auto + calendar task completed (B). Archives dismissed.
 await ln.locator('.wo-panel select').first().selectOption('완료')
 await ln.waitForTimeout(500)
+// 완료로 바꾸면 연달아 두 가지를 묻는다 — "연결된 캘린더 태스크도 완료
+// 처리할까요?"(승낙해야 B가 동기화된다)와 "Archives로 옮길까요?"(여기선 거절).
+// 네이티브 confirm이 아니라 앱 자체 모달이라(2026-09-23에 바뀜), 안 닫으면
+// 그대로 떠서 뒤따르는 클릭을 전부 가로챈다.
+for (let i = 0; i < 4; i++) {
+  if (!(await ln.locator('.modal-box').count())) break
+  const msg = (await ln.locator('.modal-message').textContent()) || ''
+  const yes = msg.includes('캘린더')
+  await ln.locator(yes ? '.modal-actions .btn-primary, .modal-actions .btn-danger' : '.modal-actions .btn-secondary')
+    .first().click()
+  await ln.waitForTimeout(450)
+}
 w = await wo(ids.a)
 ok('marking 완료 records doneAt automatically', w.status === '완료' && w.doneAt != null, JSON.stringify({ s: w.status, d: w.doneAt }))
 ok('completion syncs the linked calendar task (B)', (await taskStatus(w.calendarLink))?.done === true)
@@ -140,6 +152,10 @@ ok('manual clear removes doneAt', (await wo(ids.a)).doneAt === null)
 ln.removeAllListeners('dialog')
 ln.on('dialog', d => d.accept())
 await loadPage(ids.b)
+// "완료하면 Archives로 옮길까?"는 PARA 기본 노트북이 있던 시절에 만든 기능이다.
+// PARA를 없앤 뒤로는 그런 이름의 노트북이 있을 때만 동작한다(없으면 조용히
+// 넘어간다). 그 길을 검증하려면 테스트가 직접 만들어 둬야 한다.
+await ln.evaluate(() => window.lightnote.createNotebook('Archives', '#868e96'))
 await ln.reload()
 await ln.waitForFunction(() => !!window.lightnote, null, { timeout: 8000 })
 await ln.waitForSelector('.ql-editor', { state: 'visible', timeout: 8000 })
@@ -148,6 +164,12 @@ await ln.locator('.wo-add-btn').click()
 await ln.waitForSelector('.wo-panel', { timeout: 3000 })
 await ln.locator('.wo-panel select').first().selectOption('완료')
 await ln.waitForTimeout(700)
+// 이번엔 Archives 이동을 승낙한다(캘린더는 연결돼 있지 않다).
+for (let i = 0; i < 4; i++) {
+  if (!(await ln.locator('.modal-box').count())) break
+  await ln.locator('.modal-actions .btn-primary, .modal-actions .btn-danger').first().click()
+  await ln.waitForTimeout(500)
+}
 const moved = await ln.evaluate(async ({ b }) => {
   const nbs = await window.lightnote.getNotebooks()
   const arch = nbs.find(n => n.name === 'Archives')

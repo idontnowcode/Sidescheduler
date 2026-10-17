@@ -70,7 +70,17 @@ const clearedAfterMove = await ln.evaluate(() => document.querySelectorAll('.mul
 ok('multi-selection clears after a batch move', clearedAfterMove)
 
 // Batch delete: Ctrl-select P1 and P2 (now in Box), delete via API path
-await ln.locator('.sec-name', { hasText: 'Box' }).first().click(); await ln.waitForTimeout(300)
+// 섹션 클릭은 펼치기/접기 토글이다(접힘 상태를 기억하도록 바뀐 뒤로). 그냥
+// 한 번 누르면 이미 펼쳐져 있던 경우 오히려 접혀 페이지가 사라진다.
+// (다른 섹션의 페이지가 떠 있을 수 있으니 찾는 페이지로 확인한다)
+const openUntilVisible = async (sec, pageName) => {
+  for (let i = 0; i < 4; i++) {
+    if (await ln.locator('.page-item', { hasText: pageName }).count()) return
+    await ln.locator('.sec-name', { hasText: sec }).first().click()
+    await ln.waitForTimeout(450)
+  }
+}
+await openUntilVisible('Box', 'P1')
 await ctrlClick('P1'); await ln.waitForTimeout(80)
 await ctrlClick('P2'); await ln.waitForTimeout(150)
 // open context menu + click batch delete

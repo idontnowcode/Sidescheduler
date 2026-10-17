@@ -1005,7 +1005,7 @@ function openJournalCapture(): void {
 /** 실제로 쓰는 노트 폴더. 공유 폴더가 성하지 않으면 undefined(=로컬). */
 let activeDataDir: string | undefined
 /** 공유 폴더를 지정했는데 못 쓰는 상태일 때의 사유. 화면이 이걸 보고 막는다. */
-let dataDirProblem: { path: string; reason: 'MISSING' | 'EMPTY' } | null = null
+let dataDirProblem: { path: string; reason: 'MISSING' | 'EMPTY' | 'BROKEN' } | null = null
 
 function localDataDir(): string {
   return join(app.getPath('appData'), 'lightnote', 'lightnote-data')
@@ -1019,7 +1019,17 @@ function resolveDataDir(): void {
   if (!existsSync(want)) { dataDirProblem = { path: want, reason: 'MISSING' }; return }
   // notebooks.json이 없으면 아직 동기화 중이거나 엉뚱한 폴더다. 둘 다 위험해서
   // 그대로 열지 않는다 — 여기에 적으면 저쪽 노트와 갈라진다.
-  if (!existsSync(join(want, 'notebooks.json'))) { dataDirProblem = { path: want, reason: 'EMPTY' }; return }
+  const list = join(want, 'notebooks.json')
+  if (!existsSync(list)) { dataDirProblem = { path: want, reason: 'EMPTY' }; return }
+  // 있다고 끝이 아니다. 동기화가 반쯤 내려오면 파일이 깨진 채로 놓여 있는데,
+  // 읽는 쪽이 조용히 []를 돌려줘 **노트가 전부 사라진 것처럼** 보인다.
+  // 그 상태로 적으면 저쪽 노트와 갈라지므로, 읽히는지까지 보고 연다.
+  try {
+    if (!Array.isArray(JSON.parse(readFileSync(list, 'utf-8')))) throw new Error('not an array')
+  } catch {
+    dataDirProblem = { path: want, reason: 'BROKEN' }
+    return
+  }
   activeDataDir = want
 }
 

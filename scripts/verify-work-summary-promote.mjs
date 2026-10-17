@@ -106,9 +106,12 @@ await ln.waitForTimeout(200)
 await rightClickSelection()
 ok('본문에서 문장을 고르고 우클릭하면 승격 메뉴가 뜸',
   await ln.locator('.ln-promote-menu').count() === 1)
-ok('메뉴에 네 가지 보낼 곳이 있음',
-  await ln.locator('.ln-promote-menu .ctx-item').count() === 4,
-  String(await ln.locator('.ln-promote-menu .ctx-item').count()))
+// 개수만 세면 항목이 하나 늘 때마다 깨진다(참조 탭이 생기며 4→5가 됐다).
+// 어떤 곳들이 있는지로 확인한다.
+const promoteItems = await ln.locator('.ln-promote-menu .ctx-item').allTextContents()
+ok('메뉴에 보낼 곳들이 다 있음 (할일·진행·결정·의사결정·참조)',
+  ['할일', '진행', '결정', '의사결정', '참조'].every(k => promoteItems.some(t => t.includes(k))),
+  JSON.stringify(promoteItems))
 
 await ln.locator('.ctx-item', { hasText: '할일로 보내기' }).click()
 await ln.waitForTimeout(1000)

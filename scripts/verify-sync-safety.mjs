@@ -217,6 +217,34 @@ ok('그 뒤 자동저장이 다시 정상으로 돈다',
   JSON.stringify(readJson(page2Path).delta).includes('이어서'),
   JSON.stringify(readJson(page2Path).delta))
 
+// ── 6c. 본문 저장이 아닌 쓰기는 헛경보를 내지 않아야 한다 ───────────────
+// 이름 바꾸기·되돌리기도 페이지 파일을 건드린다. 감시기에 "내가 쓴 것"이라고
+// 알리지 않으면, 내가 방금 한 일에 "다른 곳에서 저장되었습니다"가 뜬다.
+if (await ln.locator('.ln-remote-dismiss').count()) await ln.locator('.ln-remote-dismiss').click()
+await ln.waitForTimeout(300)
+await ln.evaluate((p) => window.lightnote.renamePage(p.notebookId, p.sectionId, p.pageId, '이름만 바꿈'), page2)
+await ln.waitForTimeout(2500)
+ok('트리에서 이름만 바꿔도 헛경보가 안 뜬다',
+  await ln.locator('.ln-remote-banner').count() === 0,
+  (await ln.locator('.ln-remote-banner').textContent().catch(() => '')) || '')
+
+const vers = await ln.evaluate((id) => window.lightnote.listVersions(id), page2.pageId)
+if (vers.length) {
+  await ln.evaluate(async (a) => {
+    // 되돌리기 확인 모달은 자동으로 승낙한다
+    const p = window.lightnote.restoreVersion(a.p.notebookId, a.p.sectionId, a.p.pageId, a.v)
+    return p
+  }, { p: page2, v: vers[0].id })
+  await ln.waitForTimeout(2500)
+  ok('버전 되돌리기도 헛경보를 내지 않는다', await ln.locator('.ln-remote-banner').count() === 0)
+  const after = await ln.evaluate((a) => window.lightnote.savePage({
+    notebookId: a.notebookId, sectionId: a.sectionId, pageId: a.pageId,
+    delta: { ops: [{ insert: '되돌린 뒤 이어 쓴 내용\n' }] }, title: '이름만 바꿈',
+    baseUpdatedAt: undefined,
+  }), page2)
+  ok('되돌린 뒤에도 그대로 저장된다', after?.success === true, JSON.stringify(after))
+}
+
 // ── 7. 공유 폴더로 옮기기 ───────────────────────────────────────────────
 const SHARED = join(tempRoot, 'OneDrive', '노트공유')
 await app.evaluate(({ dialog }, dir) => {
@@ -296,6 +324,26 @@ ok('어느 폴더가 문제인지 보여준다',
   ((await ln.locator('.ddb-path').textContent()) || '').includes('노트공유'),
   await ln.locator('.ddb-path').textContent())
 ok('되돌릴 길을 준다', await ln.locator('.ddb-btn').count() === 2)
+
+// ── 9. 목록 파일이 깨졌을 때도 막는다 ───────────────────────────────────
+// 있기만 하면 통과시키면, 동기화가 반쯤 내려온 깨진 파일에 "노트가 전부
+// 사라진" 빈 트리로 열린다. 거기에 적으면 저쪽 노트와 갈라진다.
+await app.close()
+await new Promise(r => setTimeout(r, 1200))
+writeFileSync(join(SHARED, 'notebooks.json'), '{"깨진 JSON" ::: ')
+
+app = await launch()
+main = await app.firstWindow()
+await main.waitForFunction(() => !!window.electronAPI, null, { timeout: 10000 })
+await main.evaluate(() => window.electronAPI.lightnoteOpen())
+ln = await app.waitForEvent('window', { predicate: (w) => w.url().includes('#lightnote'), timeout: 12000 })
+await ln.waitForFunction(() => !!window.lightnote, null, { timeout: 8000 })
+await ln.waitForTimeout(1300)
+ok('노트 목록이 깨졌으면 빈 트리로 열지 않는다',
+  await ln.locator('.ddb-wrap').count() === 1 && await ln.locator('.notebook-tree').count() === 0)
+ok('읽히지 않는다고 알려준다',
+  ((await ln.locator('.ddb-body').textContent()) || '').includes('읽히지 않습니다'),
+  await ln.locator('.ddb-body').textContent())
 
 await app.close()
 const passed = results.filter(Boolean).length

@@ -187,13 +187,25 @@ function registerIpcHandlers(ipcMain, getWindow, safeStorage, dialog, app, sched
       const prev = await noteStorage.loadPage(notebookId, sectionId, pageId);
       await pageVersions.snapshot(pageId, prev, true);
     } catch (e) { console.error('pre-restore snapshot:', e); }
-    await noteStorage.savePage(notebookId, sectionId, pageId, v.delta, v.title || 'Untitled');
+    // 되돌리기도 이 창이 한 쓰기다 — 알려야 제 변경에 헛경보가 안 뜬다.
+    const w = await noteStorage.savePage(notebookId, sectionId, pageId, v.delta, v.title || 'Untitled');
+    try {
+      if (scheduler && scheduler.onPageSaved) scheduler.onPageSaved(pageId, w && w.updatedAt);
+    } catch { /* ignore */ }
     noteIndexer.invalidateCache(pageId);
-    return { success: true, title: v.title, delta: v.delta };
+    return { success: true, title: v.title, delta: v.delta, updatedAt: w && w.updatedAt };
   });
 
-  ipcMain.handle('lightnote:rename-page', async (_, { notebookId, sectionId, id, title }) =>
-    noteStorage.renamePage(notebookId, sectionId, id, title));
+  // 본문 저장만 "내가 쓴 것"으로 등록하면 모자란다. 이름 바꾸기도 페이지
+  // 파일을 건드리므로, 안 알리면 그 노트를 열어 둔 창에 "다른 곳에서
+  // 저장되었습니다" 헛경보가 뜬다.
+  ipcMain.handle('lightnote:rename-page', async (_, { notebookId, sectionId, id, title }) => {
+    const r = await noteStorage.renamePage(notebookId, sectionId, id, title);
+    try {
+      if (r && scheduler && scheduler.onPageSaved) scheduler.onPageSaved(id, r.updatedAt);
+    } catch { /* ignore */ }
+    return r;
+  });
 
   ipcMain.handle('lightnote:delete-page', async (_, { notebookId, sectionId, id }) => {
     const r = await noteStorage.softDeletePage(notebookId, sectionId, id); // → Trash

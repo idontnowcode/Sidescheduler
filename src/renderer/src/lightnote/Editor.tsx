@@ -2008,8 +2008,12 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
       quillRef.current.setContents(r.delta as Parameters<typeof quillRef.current.setContents>[0], 'silent')
     }
     if (r.title) setTitleValue(r.title)
+    // 되돌리기도 저장이다 — 기준 판을 갱신하지 않으면 다음 저장이 제 자신과
+    // 부딪혔다고 보고 거부된다.
+    if (typeof r.updatedAt === 'number') baseUpdatedAtRef.current = r.updatedAt
     isDirtyRef.current = false
     setIsDirty(false)
+    setRemotelyChanged(false)
     setShowVersions(false)
   }, [])
 
