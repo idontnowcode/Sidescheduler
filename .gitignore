@@ -29,3 +29,6 @@ scripts/e2e-*.png
 
 # Local verification screenshots
 scripts/*.png
+
+# UI 검토용 화면 캡처 — scripts/capture-all-screens.mjs 로 언제든 다시 만든다
+screenshots/
