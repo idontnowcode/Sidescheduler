@@ -171,6 +171,13 @@ ok('스크립트가 리소스로 함께 실려 나간다',
   existsSync('resources/outlook-calendar.ps1')
   && readFileSync('electron-builder.yml', 'utf-8').includes('outlook-calendar.ps1'))
 
+// Windows PowerShell 5.1은 BOM 없는 UTF-8 파일을 ANSI로 읽는다. 한글 주석이
+// 깨지면서 따옴표·중괄호가 어긋나 **구문 오류로 죽는다.** BOM을 떼는 편집기로
+// 한 번 저장하면 그대로 고장나므로 여기서 지킨다.
+const head = readFileSync('resources/outlook-calendar.ps1').subarray(0, 3)
+ok('스크립트에 UTF-8 BOM이 있다 (없으면 한글 주석 때문에 구문 오류로 죽는다)',
+  head[0] === 0xef && head[1] === 0xbb && head[2] === 0xbf, [...head].join(','))
+
 // ── 진짜 스크립트도 한글이 안 깨지는지 ──────────────────────────────────
 // 회의 제목은 대부분 한글이다. PowerShell은 기본적으로 콘솔 코드페이지(949)로
 // 내보내서, 인코딩을 안 맞추면 제목이 통째로 깨져 들어온다. 실제 Outlook
