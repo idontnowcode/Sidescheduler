@@ -176,6 +176,30 @@ function registerIpcHandlers(ipcMain, getWindow, safeStorage, dialog, app, sched
     return result;
   });
 
+  // === 최근 수정한 페이지 ===
+  // 섹션 목록(pages.json)의 updatedAt만 본다 — 본문을 읽지 않아 가볍다.
+  // 저장·이름변경이 그 값을 본문 파일과 같이 맞춰 두므로 믿을 수 있다.
+  ipcMain.handle('lightnote:recent-pages', async (_, { limit } = {}) => {
+    const out = [];
+    for (const nb of await noteStorage.getVisibleNotebooks()) {
+      // 기록장은 뺀다. 날짜 페이지는 매일 쓰이기 때문에, 넣어두면 최근 목록이
+      // 날짜로만 채워져 정작 찾으려던 노트가 밀려난다. 기록장은 제 화면이
+      // 따로 있고 거기 날짜 목록이 늘 최신이다.
+      if (nb.name === journal.NOTEBOOK_NAME) continue;
+      for (const sec of await noteStorage.getVisibleSections(nb.id)) {
+        for (const pg of await noteStorage.getVisiblePages(nb.id, sec.id)) {
+          out.push({
+            pageId: pg.id, notebookId: nb.id, sectionId: sec.id,
+            title: pg.title, notebookName: nb.name, sectionName: sec.name,
+            updatedAt: pg.updatedAt || pg.createdAt || 0,
+          });
+        }
+      }
+    }
+    out.sort((a, b) => b.updatedAt - a.updatedAt);
+    return out.slice(0, Math.max(1, Math.min(50, limit || 12)));
+  });
+
   // === 본문 체크박스를 할 일로 ===
   // 업무 속성의 "다음 Action"만 세면 노트에 체크박스로 적어둔 것들이 어디에도
   // 안 잡힌다. 적는 사람에겐 둘 다 할 일이다.

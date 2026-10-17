@@ -12,6 +12,7 @@ import WorkObjectPanel from './WorkObjectPanel'
 import WorkListView from './WorkListView'
 import JournalView from './JournalView'
 import WorkQuickList from './WorkQuickList'
+import RecentPages from './RecentPages'
 import AIAssistant from './AIAssistant'
 import SettingsModal, { initAppearance } from './SettingsModal'
 import TabBar from './TabBar'
@@ -527,6 +528,7 @@ export default function LightnoteApp() {
         )}
         <div style={{ width: leftW, minWidth: 0, flexShrink: 0, display: 'flex', flexDirection: 'column' }}>
           <WorkQuickList onOpen={handlePageSelect} activePageId={selected.pageId} refreshKey={woRefresh} />
+          <RecentPages onOpen={handlePageSelect} activePageId={selected.pageId} refreshKey={woRefresh} />
           <div style={{ flex: 1, minHeight: 0, display: 'flex' }}>
             <NotebookTree
               ref={treeRef}

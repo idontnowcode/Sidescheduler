@@ -131,6 +131,8 @@ contextBridge.exposeInMainWorld('lightnote', {
   workObjectSet: (pageId, patch) => ipcRenderer.invoke('lightnote:work-object:set', { pageId, patch }),
   workObjectRemove: (pageId) => ipcRenderer.invoke('lightnote:work-object:remove', { pageId }),
   workObjectList: () => ipcRenderer.invoke('lightnote:work-object:list'),
+  // 최근 수정한 페이지 (본문은 안 읽는다)
+  recentPages: (limit) => ipcRenderer.invoke('lightnote:recent-pages', { limit }),
   // 본문에 체크박스로 적어둔 줄도 할 일로 센다
   bodyTasksList: () => ipcRenderer.invoke('lightnote:body-tasks:list'),
   bodyTaskToggle: (notebookId, sectionId, pageId, line, text) =>

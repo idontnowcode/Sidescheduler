@@ -138,6 +138,9 @@ export interface DataDirStatus {
 // 스티커 메모가 보고 있는 노트. 창 하나가 노트 하나다.
 export interface StickyTarget { pageId: string; notebookId: string; sectionId: string; title?: string }
 
+/** 최근 수정한 페이지 한 줄. */
+export interface RecentPage extends PageRefLoc { updatedAt: number }
+
 // 본문에 체크박스로 적어둔 줄. 원본은 본문이고 이건 그때그때 읽어온 것이다.
 export interface BodyTaskPage {
   notebookId: string; sectionId: string; pageId: string
@@ -260,6 +263,7 @@ declare global {
       journalAppendImage: (dataUrl: string, text?: string, at?: number) => Promise<{ success?: boolean; error?: string }>
       /** 테스트 격리로 띄웠는지 (화면 기본값을 펴 두는 데만 쓴다) */
       isTestRun?: boolean
+      recentPages: (limit?: number) => Promise<RecentPage[]>
       bodyTasksList: () => Promise<BodyTaskPage[]>
       bodyTaskToggle: (notebookId: string, sectionId: string, pageId: string, line: number, text: string)
         => Promise<{ success?: boolean; done?: boolean; error?: string }>
