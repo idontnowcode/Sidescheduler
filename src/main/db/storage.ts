@@ -32,6 +32,9 @@ export interface EventRow {
   description: string | null
   source: string
   google_id: string | null
+  /** 바깥 달력(Outlook 등)에서 가져온 일정의 그쪽 식별자. 다시 가져올 때
+   *  같은 일정을 알아보는 열쇠라, 중복이 쌓이지 않는다. */
+  external_id?: string | null
   recurrence?: string
   reminder_minutes?: number   // notify this many minutes before start (undefined = off)
   /** @deprecated Use `projects` (kept for older rows; readers should merge into projects). */
@@ -268,6 +271,76 @@ export function createEvent(data: {
     created_at: now, updated_at: now
   }
   const db = load(); db.events.push(row); persist(db); return row
+}
+
+/**
+ * 바깥 달력(Outlook 등)에서 읽어온 일정으로 그 구간을 맞춘다.
+ *
+ * 한 번 가져오고 마는 게 아니라 **되풀이해서 맞추는** 자리라, 그냥 넣으면
+ * 볼 때마다 같은 일정이 쌓인다. 그래서 external_id로 짝을 지어 바뀐 것만
+ * 고치고, 저쪽에서 없어진 것은 이쪽에서도 뺀다.
+ *
+ * 지우는 범위는 **이번에 읽은 구간 안, 그 출처의 일정**으로만 좁힌다 —
+ * 구간 밖(예: 더 먼 미래)이나 직접 적은 일정은 건드리지 않는다.
+ */
+export function syncExternalEvents(
+  source: string,
+  windowStart: number,
+  windowEnd: number,
+  rows: {
+    external_id: string; title: string; start_at: number; end_at: number
+    location?: string | null; description?: string | null; color?: string
+  }[]
+): { added: number; updated: number; removed: number } {
+  const db = load()
+  const now = Date.now()
+  const seen = new Set(rows.map(r => r.external_id))
+  const byExt = new Map(
+    db.events.filter(e => e.source === source && e.external_id).map(e => [e.external_id as string, e])
+  )
+
+  let added = 0
+  let updated = 0
+  for (const r of rows) {
+    const cur = byExt.get(r.external_id)
+    if (!cur) {
+      db.events.push({
+        id: randomUUID(), title: r.title,
+        start_at: r.start_at, end_at: r.end_at,
+        color: r.color ?? '#0F6CBD',          // Outlook 파랑 — 가져온 일정이라고 한눈에
+        location: r.location ?? null, description: r.description ?? null,
+        source, google_id: null, external_id: r.external_id,
+        projects: [], project: null, focus_area_id: null,
+        created_at: now, updated_at: now,
+      })
+      added++
+      continue
+    }
+    // 바뀐 게 없으면 손대지 않는다 — updated_at만 흔들어 놓으면 "뭐가 바뀌었나"를
+    // 볼 수 없게 된다.
+    const same = cur.title === r.title && cur.start_at === r.start_at && cur.end_at === r.end_at
+      && (cur.location ?? null) === (r.location ?? null)
+      && (cur.description ?? null) === (r.description ?? null)
+    if (same) continue
+    Object.assign(cur, {
+      title: r.title, start_at: r.start_at, end_at: r.end_at,
+      location: r.location ?? null, description: r.description ?? null,
+      updated_at: now,
+    })
+    updated++
+  }
+
+  const before = db.events.length
+  db.events = db.events.filter(e => {
+    if (e.source !== source || !e.external_id) return true
+    if (seen.has(e.external_id)) return true
+    // 이번에 읽은 구간 밖이면 이번 결과로 판단할 수 없다 — 남겨 둔다.
+    return !(e.start_at >= windowStart && e.start_at < windowEnd)
+  })
+  const removed = before - db.events.length
+
+  if (added || updated || removed) persist(db)
+  return { added, updated, removed }
 }
 
 export function updateEvent(

@@ -89,6 +89,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   icsImportString: (text: string) => ipcRenderer.invoke('ics:import-string', { text }),
   icsExportFile:   () => ipcRenderer.invoke('ics:export-file'),
   icsImportFile:   () => ipcRenderer.invoke('ics:import-file'),
+  // 켜 둔 Outlook에서 일정 읽어오기 (읽기 전용)
+  outlookSync:   () => ipcRenderer.invoke('outlook:sync'),
+  outlookStatus: () => ipcRenderer.invoke('outlook:status'),
 
   // Search
   search: (query: string) => ipcRenderer.invoke('db:search', { query }),

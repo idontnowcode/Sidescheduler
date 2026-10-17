@@ -11,6 +11,11 @@ export interface WindowSettings {
   reminderEnabled: boolean
   /** 사이드바에서 숨긴 버튼 id들 (없으면 전부 보임) */
   hiddenSidebarButtons?: string[]
+  /** 켜 둔 Outlook에서 일정을 읽어올지 (읽기 전용) */
+  outlookEnabled?: boolean
+  outlookDaysBack?: number
+  outlookDaysAhead?: number
+  outlookLastSync?: number
 }
 
 export interface Workload {
@@ -317,6 +322,12 @@ declare global {
       icsImportString: (text: string) => Promise<number>
       icsExportFile: () => Promise<{ saved: boolean; count: number; path?: string }>
       icsImportFile: () => Promise<{ imported: number }>
+      /** 켜 둔 Outlook에서 일정을 읽어 그 구간을 맞춘다 (읽기 전용) */
+      outlookSync: () => Promise<{
+        ok: boolean; error?: string; message?: string
+        count?: number; added?: number; updated?: number; removed?: number
+      }>
+      outlookStatus: () => Promise<{ enabled: boolean; daysBack: number; daysAhead: number; lastSync: number | null }>
 
       search: (query: string) => Promise<SearchResult>
 

@@ -39,6 +39,11 @@ export interface WindowSettings {
   // 보이는 것을 적지 않고 숨긴 것만 적는다 — 그래야 나중에 버튼이 늘어도
   // 기본으로 보이고, 이 항목이 없던 예전 설정도 그대로 유효하다.
   hiddenSidebarButtons?: string[]
+  // 켜 둔 Outlook에서 일정을 읽어올지. 읽기만 하고 Outlook에는 쓰지 않는다.
+  outlookEnabled?: boolean
+  outlookDaysBack?: number
+  outlookDaysAhead?: number
+  outlookLastSync?: number
 }
 
 export interface StickyNote {

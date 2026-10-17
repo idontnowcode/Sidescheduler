@@ -10,6 +10,7 @@ export default function SettingsView() {
   const [autoStart, setAutoStart] = useState(false)
   const [saving, setSaving] = useState(false)
   const [icsMsg, setIcsMsg] = useState('')
+  const [outlookMsg, setOutlookMsg] = useState('')
   const themeMode = useThemeStore((s) => s.mode)
   const setThemeMode = useThemeStore((s) => s.setMode)
   const t = useT()
@@ -47,6 +48,47 @@ export default function SettingsView() {
   return (
     <div className="h-full overflow-y-auto px-8 py-6 max-w-3xl mx-auto space-y-8">
       <h1 className="text-2xl font-bold">{t('settings.title')}</h1>
+
+      <Section title="Outlook 일정 가져오기"
+        desc="켜 둔 Outlook에서 일정을 읽어옵니다. 읽기만 하므로 여기서 고쳐도 Outlook에는 가지 않습니다. 내보내기 같은 수동 작업은 필요 없고, Outlook이 열려 있어야 합니다.">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm font-medium">자동으로 가져오기</p>
+            <p className="text-xs text-ink-400 mt-0.5">
+              앱을 켤 때와 15분마다 조용히 맞춥니다. Outlook이 꺼져 있으면 그냥 넘어갑니다.
+            </p>
+          </div>
+          <Toggle checked={!!settings?.outlookEnabled}
+            onChange={() => update({ outlookEnabled: !settings?.outlookEnabled })} />
+        </div>
+        <div className="mt-3 flex items-center gap-2 flex-wrap">
+          <button
+            onClick={async () => {
+              setOutlookMsg('가져오는 중…')
+              const r = await window.electronAPI.outlookSync()
+              if (!r.ok) {
+                setOutlookMsg(r.error === 'OUTLOOK_NOT_RUNNING'
+                  ? 'Outlook이 실행 중이 아닙니다. 열어 두고 다시 눌러 주세요.'
+                  : `가져오지 못했습니다 (${r.error}) ${r.message || ''}`)
+                return
+              }
+              setOutlookMsg(`읽은 일정 ${r.count}건 — 새로 ${r.added}, 바뀜 ${r.updated}, 사라짐 ${r.removed}`)
+            }}
+            className="btn btn-ghost text-sm border border-ink-200 dark:border-ink-700">
+            지금 가져오기
+          </button>
+          {settings?.outlookLastSync && (
+            <span className="text-xs text-ink-500">
+              마지막: {new Date(settings.outlookLastSync).toLocaleString()}
+            </span>
+          )}
+        </div>
+        {outlookMsg && <p className="text-xs text-ink-500 mt-2">{outlookMsg}</p>}
+        <p className="text-xs text-ink-400 mt-2">
+          반복 일정은 Outlook이 펼쳐 준 회차 그대로 들어옵니다(한 회만 옮기거나 취소한 것도 그대로).
+          다시 눌러도 쌓이지 않고, Outlook에서 없어진 일정은 여기서도 빠집니다.
+        </p>
+      </Section>
 
       <Section title="Calendar (.ics)" desc="Import events from or export your events to a standard iCalendar file.">
         <div className="flex items-center gap-2">

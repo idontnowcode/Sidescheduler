@@ -3,6 +3,7 @@ import { join, resolve } from 'path'
 import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, statSync, copyFileSync, watch } from 'fs'
 import { computeWorkload, buildReminderBody } from './workload'
 import { eventsToIcs, icsToEvents } from './ics'
+import { readOutlookCalendar } from './outlook'
 
 // LightNote IPC handlers — CJS module, copied to out/main/lightnote/ by the copyLightnoteCjs plugin
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -20,7 +21,7 @@ const noteStorage = require('./lightnote/note-storage')
 const stickyStore = require('./lightnote/sticky')
 import {
   initDb,
-  listEvents, createEvent, updateEvent, updateEventMove, updateEventInstance, deleteEvent, deleteEventInstance,
+  listEvents, createEvent, syncExternalEvents, updateEvent, updateEventMove, updateEventInstance, deleteEvent, deleteEventInstance,
   listTasks, listAllIncompleteTasks, listAllTasks, createTask, updateTask, toggleTask, snoozeTask, deleteTask,
   rolloverOverdueTasks, addActualMinutes, getInsights,
   listHabits, createHabit, deleteHabit, toggleHabitCheckin,
@@ -668,6 +669,8 @@ ipcMain.handle('settings:set', (_e, patch: Partial<WindowSettings>) => {
   if ('reminderEnabled' in patch || 'workStartHour' in patch || 'workEndHour' in patch) {
     scheduleNextReminder()
   }
+  // Outlook 가져오기를 켜거나 끄면 주기 작업도 같이 맞춘다.
+  if ('outlookEnabled' in patch) scheduleOutlookSync()
   return next
 })
 ipcMain.handle('displays:list', () => {
@@ -731,6 +734,58 @@ ipcMain.handle('ics:import-file', async () => {
   if (parsed.length) broadcastRefresh()
   return { imported: parsed.length }
 })
+
+// ── IPC: Outlook 일정 가져오기 ────────────────────────────────────────────
+// 켜 둔 Outlook에서 읽어 와 그 구간을 맞춘다. 되풀이해서 눌러도 쌓이지 않고,
+// 저쪽에서 없어진 일정은 여기서도 빠진다(syncExternalEvents).
+const OUTLOOK_SOURCE = 'outlook'
+
+async function syncOutlook(): Promise<{
+  ok: boolean; error?: string; message?: string
+  added?: number; updated?: number; removed?: number; count?: number
+}> {
+  const s = loadSettings()
+  const back = s.outlookDaysBack ?? 7
+  const ahead = s.outlookDaysAhead ?? 60
+  const r = await readOutlookCalendar(back, ahead)
+  if (!r.ok) return { ok: false, error: r.error, message: r.message }
+
+  const dayStart = new Date(); dayStart.setHours(0, 0, 0, 0)
+  const from = dayStart.getTime() - back * 86400000
+  const to = dayStart.getTime() + ahead * 86400000
+  const res = syncExternalEvents(OUTLOOK_SOURCE, from, to, r.events.map((e) => ({
+    external_id: e.uid,
+    title: e.subject || '(제목 없음)',
+    start_at: e.start,
+    end_at: e.end > e.start ? e.end : e.start + 1800000,
+    location: e.location || null,
+    description: e.body || null,
+  })))
+  saveSettings({ outlookLastSync: Date.now() })
+  if (res.added || res.updated || res.removed) broadcastRefresh()
+  return { ok: true, count: r.count, ...res }
+}
+
+ipcMain.handle('outlook:sync', () => syncOutlook())
+ipcMain.handle('outlook:status', () => {
+  const s = loadSettings()
+  return {
+    enabled: !!s.outlookEnabled,
+    daysBack: s.outlookDaysBack ?? 7,
+    daysAhead: s.outlookDaysAhead ?? 60,
+    lastSync: s.outlookLastSync ?? null,
+  }
+})
+
+// 켜 두면 주기적으로 맞춘다. Outlook이 꺼져 있으면 조용히 넘어간다 —
+// 그때마다 알리면 성가시기만 하다.
+let outlookTimer: ReturnType<typeof setInterval> | null = null
+function scheduleOutlookSync(): void {
+  if (outlookTimer) { clearInterval(outlookTimer); outlookTimer = null }
+  if (!loadSettings().outlookEnabled) return
+  syncOutlook().catch(() => { /* 꺼져 있으면 그만 */ })
+  outlookTimer = setInterval(() => { syncOutlook().catch(() => {}) }, 15 * 60 * 1000)
+}
 
 // ── IPC: Search ───────────────────────────────────────────────────────────
 ipcMain.handle('db:search', (_e, { query }: { query: string }) => searchAll(query))
@@ -1573,6 +1628,7 @@ app.whenReady().then(() => {
   createTray()
   scheduleNextReminder()
   scheduleEventReminders()
+  scheduleOutlookSync()
   // Re-scan event reminders every 15 min so instances beyond the 24h horizon
   // (and the next day's recurring ones) get picked up.
   setInterval(scheduleEventReminders, 15 * 60 * 1000)
