@@ -1,12 +1,12 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import type { PageListMode, PageListRow } from './types'
+import type { ListSource, PageListRow } from './types'
 
 // 카테고리(노트북 트리)와 본문 사이에 서는 **페이지 리스트 칸**.
 //
-// 트리는 "어디에 뒀는지 알 때" 쓰는 것이다. 이 칸은 모를 때 쓴다:
-//   즐겨찾기 — 늘 돌아오는 페이지
-//   최근     — 방금까지 보던 페이지
-//   인박스   — 일단 적어두고 나중에 분류할 페이지
+// 무엇을 줄 세울지는 왼쪽이 정한다(ListSource).
+//   폴더 — 지금 보고 있는 페이지가 든 폴더. 원노트처럼 "옆에 뭐가 있는지"가
+//          늘 보인다. 트리를 펴 두지 않아도 같은 폴더 안을 오갈 수 있다.
+//   즐겨찾기 · 최근 편집 · 인박스 — 둔 자리와 상관없이 찾을 때.
 //
 // 자리를 많이 먹는 칸이라 버튼 하나로 접힌다. 접은 상태는 기억한다. AI-free.
 
@@ -26,42 +26,49 @@ function ago(ts: number): string {
   return `${t.getMonth() + 1}월 ${t.getDate()}일`
 }
 
-const TABS: { id: PageListMode; label: string; title: string }[] = [
-  { id: 'fav', label: '즐겨찾기', title: '즐겨찾기 — 별을 단 페이지만' },
-  { id: 'recent', label: '최근', title: '최근 편집 — 고친 순서대로' },
-  { id: 'inbox', label: '인박스', title: '인박스 — 먼저 적어두고 나중에 분류' },
-]
+const HEAD: Record<string, { icon: string; name: string }> = {
+  fav: { icon: '★', name: '즐겨찾기' },
+  recent: { icon: '🕘', name: '최근 편집' },
+  inbox: { icon: '📥', name: '인박스' },
+}
 
-const EMPTY: Record<PageListMode, string> = {
+const EMPTY: Record<string, string> = {
   fav: '아직 별을 단 페이지가 없습니다.\n제목 왼쪽의 ☆ 를 누르면 여기 모입니다.',
   recent: '아직 고친 페이지가 없습니다.',
   inbox: '비어 있습니다.\n위 칸에 한 줄 적고 Enter — 분류는 나중에.',
+  folder: '이 폴더에는 아직 페이지가 없습니다.',
 }
 
 interface Props {
   width: number
+  source: ListSource
   activePageId: string | null
   /** 바뀔 때마다 다시 읽는다 (별을 달거나, 페이지를 옮겨 다닐 때) */
   refreshKey?: number | string | null
-  onOpen: (notebookId: string, sectionId: string, pageId: string, crumb: string) => void
+  /** 목록에서 연 것임을 알린다 — 그래야 보던 목록이 발밑에서 바뀌지 않는다 */
+  onOpen: (notebookId: string, sectionId: string, pageId: string, crumb: string, fromList: boolean) => void
   onCollapse: () => void
-  /** 별 상태가 바뀌었음을 바깥(에디터의 별)에도 알린다 */
+  /** 별 상태가 바뀌었음을 바깥(에디터의 별·왼쪽 숫자)에도 알린다 */
   onFavoritesChanged?: () => void
 }
 
-export default function PageList({ width, activePageId, refreshKey, onOpen, onCollapse, onFavoritesChanged }: Props) {
-  const [mode, setMode] = useState<PageListMode>(
-    () => (localStorage.getItem('ln-pagelist-mode') as PageListMode) || 'recent')
+export default function PageList({
+  width, source, activePageId, refreshKey, onOpen, onCollapse, onFavoritesChanged,
+}: Props) {
   const [rows, setRows] = useState<PageListRow[]>([])
   const [draft, setDraft] = useState('')
   const [busy, setBusy] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
-  useEffect(() => { localStorage.setItem('ln-pagelist-mode', mode) }, [mode])
+  const scope = source.kind === 'folder'
+    ? { notebookId: source.notebookId, sectionId: source.sectionId }
+    : undefined
+  const scopeKey = scope ? `${scope.notebookId}/${scope.sectionId}` : ''
 
   const reload = useCallback(() => {
-    window.lightnote.pageList(mode, 60).then(setRows).catch(() => {})
-  }, [mode])
+    window.lightnote.pageList(source.kind, 200, scope).then(setRows).catch(() => {})
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [source.kind, scopeKey])
 
   useEffect(() => { reload() }, [reload, refreshKey, activePageId])
 
@@ -89,31 +96,29 @@ export default function PageList({ width, activePageId, refreshKey, onOpen, onCo
       const p = await window.lightnote.inboxNew(title)
       setDraft('')
       reload()
-      onOpen(p.notebookId, p.sectionId, p.pageId, `인박스 › 분류 전 › ${p.title}`)
+      onFavoritesChanged?.()   // 왼쪽 인박스 숫자도 같이 올라야 한다
+      onOpen(p.notebookId, p.sectionId, p.pageId, `인박스 › 분류 전 › ${p.title}`, true)
       inputRef.current?.focus()
     } catch { /* 저장소가 막혀 있으면 조용히 둔다 — 적던 글은 칸에 남는다 */ }
     finally { setBusy(false) }
-  }, [draft, busy, reload, onOpen])
+  }, [draft, busy, reload, onOpen, onFavoritesChanged])
+
+  // 폴더 이름은 목록이 돌려준 것을 먼저 쓴다 — 넘겨받은 이름은 빵 부스러기
+  // 에서 떼어 온 것이라, 이름을 바꾸면 이쪽이 먼저 맞는다.
+  const head = source.kind === 'folder'
+    ? { icon: '📂', name: rows[0]?.sectionName || source.name }
+    : HEAD[source.kind]
 
   return (
     <div className="pl-col" style={{ width }}>
       <div className="pl-head">
-        <div className="pl-tabs" role="tablist" aria-label="페이지 목록 종류">
-          {TABS.map((t) => (
-            <button
-              key={t.id}
-              role="tab"
-              aria-selected={mode === t.id}
-              className={`pl-tab${mode === t.id ? ' active' : ''}`}
-              title={t.title}
-              onClick={() => setMode(t.id)}
-            >{t.label}</button>
-          ))}
-        </div>
+        <span className="pl-head-icon">{head.icon}</span>
+        <span className="pl-head-name" title={head.name}>{head.name}</span>
+        <span className="pl-head-n">{rows.length}</span>
         <button className="pl-collapse" title="페이지 목록 접기" onClick={onCollapse}>‹</button>
       </div>
 
-      {mode === 'inbox' && (
+      {source.kind === 'inbox' && (
         <div className="pl-capture">
           <input
             ref={inputRef}
@@ -131,14 +136,14 @@ export default function PageList({ width, activePageId, refreshKey, onOpen, onCo
 
       <div className="pl-list">
         {rows.length === 0 ? (
-          <div className="pl-empty">{EMPTY[mode]}</div>
+          <div className="pl-empty">{EMPTY[source.kind]}</div>
         ) : rows.map((p) => (
           <div
             key={p.pageId}
             className={`pl-row${p.pageId === activePageId ? ' active' : ''}`}
             title={`${p.notebookName} › ${p.sectionName} › ${p.title || '(제목 없음)'}`}
             onClick={() => onOpen(p.notebookId, p.sectionId, p.pageId,
-              `${p.notebookName} › ${p.sectionName} › ${p.title}`)}
+              `${p.notebookName} › ${p.sectionName} › ${p.title}`, true)}
           >
             <button
               className={`pl-star${p.favorite ? ' on' : ''}`}
@@ -148,7 +153,10 @@ export default function PageList({ width, activePageId, refreshKey, onOpen, onCo
             <div className="pl-row-main">
               <div className="pl-row-title">{p.title || '(제목 없음)'}</div>
               <div className="pl-row-sub">
-                <span className="pl-row-where">{p.notebookName} › {p.sectionName}</span>
+                {/* 폴더를 보고 있을 땐 어디 있는지가 이미 머리말에 적혀 있다 */}
+                {source.kind !== 'folder' && (
+                  <span className="pl-row-where">{p.notebookName} › {p.sectionName}</span>
+                )}
                 <span className="pl-row-when">{ago(p.updatedAt)}</span>
               </div>
             </div>

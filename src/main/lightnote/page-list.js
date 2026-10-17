@@ -109,11 +109,35 @@ async function inboxNotebookId() {
 }
 
 /**
- * @param {'fav'|'recent'|'inbox'} mode
+ * @param {'fav'|'recent'|'inbox'|'folder'} mode
+ * @param {number} [limit]
+ * @param {{notebookId: string, sectionId: string}} [scope]  mode==='folder'일 때
  * @returns {Promise<Array>} 화면에 그대로 그릴 수 있는 행들
  */
-async function list(mode, limit) {
-  const cap = Math.max(1, Math.min(200, limit || 60));
+async function list(mode, limit, scope) {
+  const cap = Math.max(1, Math.min(500, limit || 60));
+
+  // 지금 보고 있는 페이지가 든 폴더 — 원노트처럼 "옆에 뭐가 있는지"를 보여
+  // 준다. 줄 세우는 순서는 **트리와 같아야** 한다(직접 끌어 옮겨 둔 순서다).
+  // 같은 폴더가 두 군데서 다른 순서로 보이면 둘 다 못 믿게 된다.
+  if (mode === 'folder') {
+    if (!scope || !scope.notebookId || !scope.sectionId) return [];
+    const nbs = await noteStorage.getVisibleNotebooks();
+    const nb = nbs.find((n) => n.id === scope.notebookId);
+    if (!nb) return [];
+    const secs = await noteStorage.getVisibleSections(nb.id);
+    const sec = secs.find((x) => x.id === scope.sectionId);
+    if (!sec) return [];
+    const map = await readFavorites();
+    const pages = await noteStorage.getVisiblePages(nb.id, sec.id);
+    return pages.slice(0, cap).map((pg) => ({
+      pageId: pg.id, notebookId: nb.id, sectionId: sec.id,
+      title: pg.title, notebookName: nb.name, sectionName: sec.name,
+      updatedAt: pg.updatedAt || pg.createdAt || 0,
+      createdAt: pg.createdAt || 0,
+      favorite: pg.id in map,
+    }));
+  }
 
   if (mode === 'fav') {
     const map = await readFavorites();
@@ -150,6 +174,20 @@ async function list(mode, limit) {
   return rows.slice(0, cap).map((r) => ({ ...r, favorite: r.pageId in map }));
 }
 
+/** 왼쪽 맨 위 목록에 달아 둘 숫자. 인박스는 "쌓이면 치워야 한다"는 걸
+ *  숫자로 알려야 쌓인 줄 안다. */
+async function counts() {
+  const map = await readFavorites();
+  const nbId = await inboxNotebookId();
+  let all = 0, inbox = 0, fav = 0;
+  for (const r of await walkPages()) {
+    all += 1;
+    if (r.pageId in map) fav += 1;
+    if (nbId && r.notebookId === nbId) inbox += 1;
+  }
+  return { all, fav, inbox };
+}
+
 async function ensureInbox() {
   const nbs = await noteStorage.getNotebooks();
   const found = nbs.find((n) => n.name === INBOX_NOTEBOOK && !n.deletedAt);
@@ -172,5 +210,5 @@ async function inboxNew(title) {
 module.exports = {
   INBOX_NOTEBOOK, INBOX_SECTION, UNTITLED,
   init, favoriteIds, setFavorite, toggleFavorite, removeMany,
-  list, ensureInbox, inboxNew,
+  list, counts, ensureInbox, inboxNew,
 };

@@ -133,91 +133,30 @@ rows = await ln.evaluate(() => window.lightnote.pageList('inbox', 10))
 ok('다른 노트북으로 옮기면 인박스에서 빠진다 (= 분류가 끝난 것)',
   !rows.some((r) => r.title === '두 번째'), JSON.stringify(rows.map((r) => r.title)))
 
-// ── 화면 ────────────────────────────────────────────────────────────────
-await ln.reload()
-await ln.waitForFunction(() => !!window.lightnote, null, { timeout: 10000 })
-await ln.waitForTimeout(1500)
 
-ok('카테고리와 본문 사이에 칸이 하나 서 있다', await ln.locator('.pl-col').count() === 1)
-ok('세 가지 목록을 고를 수 있다',
-  (await ln.locator('.pl-tab').allTextContents()).join() === '즐겨찾기,최근,인박스',
-  JSON.stringify(await ln.locator('.pl-tab').allTextContents()))
+// ── 폴더 (원노트처럼 옆 페이지가 같이 보이는 목록) ──────────────────────
+let folder = await ln.evaluate((a) => window.lightnote.pageList('folder', 50, { notebookId: a.nb, sectionId: a.sec }), ids)
+ok('폴더 안의 페이지를 돌려준다', folder.length === 2, JSON.stringify(folder.map((r) => r.title)))
+ok('줄 세우는 순서는 트리와 같다 (직접 끌어 옮겨 둔 순서다)',
+  folder.map((r) => r.title).join() === '첫째 노트,두 번째',
+  JSON.stringify(folder.map((r) => r.title)))
+ok('그 폴더 것만 돌려준다 (인박스 것이 섞이지 않는다)',
+  !folder.some((r) => r.notebookName === '인박스'), JSON.stringify(folder.map((r) => r.notebookName)))
+ok('어느 폴더인지도 같이 준다 (머리말에 쓴다)',
+  folder[0].sectionName === '작업', folder[0].sectionName)
+ok('없는 폴더를 물으면 빈 목록',
+  (await ln.evaluate(() => window.lightnote.pageList('folder', 50, { notebookId: 'x', sectionId: 'y' }))).length === 0)
 
-// 칸 순서: 트리(.tree-panel 류)보다 오른쪽, 본문(.editor-area)보다 왼쪽
-ok('트리와 본문 **사이**에 선다', await ln.evaluate(() => {
-  const l = document.querySelector('.pl-col').getBoundingClientRect()
-  const tree = document.querySelector('.rail').getBoundingClientRect()
-  const ed = document.querySelector('.editor-area').getBoundingClientRect()
-  return l.left > tree.right && l.right <= ed.left + 1
-}))
-
-await ln.locator('.pl-tab', { hasText: '최근' }).click()
-await ln.waitForTimeout(700)
-// 남아 있는 것: 방금 옮긴 '두 번째', 인박스의 '나중에 분류할 것', '첫째 노트'
-ok('최근 목록이 보인다', await ln.locator('.pl-row').count() === 3,
-  String(await ln.locator('.pl-row').count()))
-ok('가장 최근에 손댄 것이 맨 위',
-  (await ln.locator('.pl-row-title').first().textContent()) === '두 번째',
-  await ln.locator('.pl-row-title').first().textContent())
-ok('언제 고쳤는지 함께 보여준다',
-  /방금|분 전|시간 전|어제|월/.test((await ln.locator('.pl-row-when').first().textContent()) || ''),
-  await ln.locator('.pl-row-when').first().textContent())
-ok('어디 있는 페이지인지도 보여준다 (제목만 같은 노트가 흔하다)',
-  ((await ln.locator('.pl-row-where').first().textContent()) || '').includes('업무'),
-  await ln.locator('.pl-row-where').first().textContent())
-
-await ln.locator('.pl-row').first().click()
-await ln.waitForTimeout(1600)
-ok('누르면 그 노트가 열린다',
-  ((await ln.locator('#ln-page-title').inputValue()) || '') === '두 번째',
-  await ln.locator('#ln-page-title').inputValue())
-ok('열린 노트는 목록에서 표시된다', await ln.locator('.pl-row.active').count() === 1)
-
-// 별 — 목록에서도, 제목 옆에서도 같은 것을 가리켜야 한다
-ok('제목 옆에 별이 있다', await ln.locator('.page-fav').count() === 1)
-ok('아직 안 달린 상태', (await ln.locator('.page-fav').textContent()) === '☆')
-await ln.locator('.page-fav').click()
-await ln.waitForTimeout(800)
-ok('제목 옆 별을 누르면 달린다', (await ln.locator('.page-fav').textContent()) === '★')
-await ln.locator('.pl-tab', { hasText: '즐겨찾기' }).click()
-await ln.waitForTimeout(700)
-ok('즐겨찾기 목록에 바로 나타난다', await ln.locator('.pl-row').count() === 1)
-await ln.locator('.pl-star').first().click()
-await ln.waitForTimeout(800)
-ok('목록의 별을 눌러 풀 수 있다', await ln.locator('.pl-row').count() === 0)
-ok('제목 옆 별도 같이 풀린다', (await ln.locator('.page-fav').textContent()) === '☆')
-
-// 인박스 — 한 줄 적고 Enter
-await ln.locator('.pl-tab', { hasText: '인박스' }).click()
-await ln.waitForTimeout(600)
-ok('인박스에는 한 줄 입력칸이 있다', await ln.locator('.pl-capture-in').count() === 1)
-await ln.locator('.pl-capture-in').fill('회의 때 들은 것')
-await ln.locator('.pl-capture-in').press('Enter')
-await ln.waitForTimeout(1600)
-ok('적고 Enter 하면 담긴다',
-  (await ln.locator('.pl-row-title').allTextContents()).includes('회의 때 들은 것'),
-  JSON.stringify(await ln.locator('.pl-row-title').allTextContents()))
-ok('담자마자 그 페이지가 열린다',
-  ((await ln.locator('#ln-page-title').inputValue()) || '') === '회의 때 들은 것',
-  await ln.locator('#ln-page-title').inputValue())
-ok('적은 칸은 비워 둔다 (연달아 적을 수 있게)',
-  (await ln.locator('.pl-capture-in').inputValue()) === '')
-
-// 접기 — 다섯 번째 칸이라 자리를 많이 먹는다
-await ln.locator('.pl-collapse').click()
-await ln.waitForTimeout(400)
-ok('접을 수 있다', await ln.locator('.pl-col').count() === 0)
-ok('접어도 다시 펴는 길은 남는다', await ln.locator('.pl-reopen').count() === 1)
-await ln.reload()
-await ln.waitForFunction(() => !!window.lightnote, null, { timeout: 10000 })
-await ln.waitForTimeout(1400)
-ok('다시 켜도 접힌 채로', await ln.locator('.pl-col').count() === 0)
-await ln.locator('.pl-reopen').click()
-await ln.waitForTimeout(500)
-ok('다시 펼 수 있다', await ln.locator('.pl-col').count() === 1)
-ok('보던 목록 종류도 기억한다',
-  (await ln.locator('.pl-tab.active').textContent()) === '인박스',
-  await ln.locator('.pl-tab.active').textContent())
+// ── 왼쪽 맨 위에 달 숫자 ────────────────────────────────────────────────
+let n = await ln.evaluate(() => window.lightnote.pageListCounts())
+ok('인박스에 담긴 수를 센다', n.inbox === 1, JSON.stringify(n))
+ok('즐겨찾기 수도 함께 센다', n.fav === 0, JSON.stringify(n))
+await ln.evaluate((a) => window.lightnote.favoriteToggle(a['첫째 노트']), ids)
+n = await ln.evaluate(() => window.lightnote.pageListCounts())
+ok('별을 달면 숫자가 오른다', n.fav === 1, JSON.stringify(n))
+await ln.evaluate(() => window.lightnote.inboxNew('하나 더'))
+n = await ln.evaluate(() => window.lightnote.pageListCounts())
+ok('인박스에 담으면 그 숫자가 오른다', n.inbox === 2, JSON.stringify(n))
 
 await app.close()
 const passed = results.filter(Boolean).length

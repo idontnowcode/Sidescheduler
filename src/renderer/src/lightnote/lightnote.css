@@ -2417,17 +2417,16 @@ button.wo-kind:hover { color: var(--text); background: var(--bg3); }
   background: var(--bg2); border-right: 1px solid var(--border);
 }
 .pl-head {
-  flex-shrink: 0; display: flex; align-items: center; gap: 4px;
-  padding: 6px 4px 6px 6px; border-bottom: 1px solid var(--border);
+  flex-shrink: 0; display: flex; align-items: center; gap: 5px;
+  padding: 7px 4px 7px 9px; border-bottom: 1px solid var(--border);
 }
-.pl-tabs { display: flex; gap: 2px; flex: 1; min-width: 0; }
-.pl-tab {
-  flex: 1; min-width: 0; padding: 4px 2px; border: none; background: none;
-  border-radius: 7px; cursor: pointer; font-size: 11.5px; color: var(--text-dim);
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+/* 머리말 — 지금 무엇을 줄 세우고 있는지. 폴더면 폴더 이름이 온다. */
+.pl-head-icon { flex-shrink: 0; font-size: 12px; line-height: 1; }
+.pl-head-name {
+  flex: 1; min-width: 0; font-size: 12.5px; font-weight: 600; color: var(--text);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.pl-tab:hover { background: var(--bg3); color: var(--text); }
-.pl-tab.active { background: color-mix(in srgb, var(--accent) 20%, transparent); color: var(--accent); font-weight: 600; }
+.pl-head-n { flex-shrink: 0; font-size: 10.5px; color: var(--text-dim); }
 .pl-collapse {
   flex-shrink: 0; width: 20px; height: 22px; border: none; background: none;
   color: var(--text-dim); cursor: pointer; border-radius: 6px; font-size: 14px; line-height: 1;
@@ -2513,3 +2512,28 @@ button.wo-kind:hover { color: var(--text); background: var(--bg3); }
 }
 .page-fav:hover { background: var(--bg3); color: var(--accent); }
 .page-fav.on { color: #f5a623; }
+
+/* ── 왼쪽 맨 위 모아 보기 (즐겨찾기 · 최근 편집 · 인박스) ────────────────
+   노트북 트리보다 **먼저** 온다. 트리는 "내가 어디에 뒀는지"로 찾는 길이고
+   이 셋은 그걸 모를 때 쓰는 길이라, 아래에 두면 노트북 몇 개에 밀려난다. */
+.sl-wrap {
+  flex-shrink: 0; display: flex; flex-direction: column;
+  padding: 5px 5px 6px; border-bottom: 1px solid var(--border); background: var(--bg2);
+}
+.sl-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 5px 8px; border: none; background: none; border-radius: 7px;
+  cursor: pointer; color: var(--text-dim); text-align: left;
+}
+.sl-row:hover { background: var(--bg3); color: var(--text); }
+.sl-row.active { background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent); }
+.sl-icon { flex-shrink: 0; display: flex; }
+.sl-label { flex: 1; min-width: 0; font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sl-count { flex-shrink: 0; font-size: 10.5px; color: var(--text-dim); }
+/* 인박스 숫자만 눈에 띄게 — 쌓이면 치워야 하는 곳이다. */
+.sl-count.hot {
+  color: var(--accent); font-weight: 600;
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  border-radius: 999px; padding: 0 6px; line-height: 16px;
+}
+.sl-row.active .sl-count { color: inherit; }

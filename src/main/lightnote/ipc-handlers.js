@@ -183,7 +183,8 @@ function registerIpcHandlers(ipcMain, getWindow, safeStorage, dialog, app, sched
   // 섹션 목록(pages.json)의 updatedAt만 본다 — 본문을 읽지 않아 가볍다.
   // 저장·이름변경이 그 값을 본문 파일과 같이 맞춰 두므로 믿을 수 있다.
   // === 페이지 리스트 칸 (즐겨찾기 · 최근 편집 · 인박스) ===
-  ipcMain.handle('lightnote:page-list', async (_, { mode, limit } = {}) => pageList.list(mode, limit));
+  ipcMain.handle('lightnote:page-list', async (_, { mode, limit, scope } = {}) => pageList.list(mode, limit, scope));
+  ipcMain.handle('lightnote:page-list-counts', async () => pageList.counts());
   ipcMain.handle('lightnote:favorite-ids', async () => pageList.favoriteIds());
   ipcMain.handle('lightnote:favorite-toggle', async (_, { pageId }) => pageList.toggleFavorite(pageId));
   ipcMain.handle('lightnote:inbox-new', async (_, { title } = {}) => pageList.inboxNew(title));

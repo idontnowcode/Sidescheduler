@@ -218,7 +218,8 @@ contextBridge.exposeInMainWorld('lightnote', {
   onActionItemsRefresh: (cb) => { const h = () => cb(); ipcRenderer.on('action-items:refresh', h); return () => ipcRenderer.removeListener('action-items:refresh', h) },
 
   // 페이지 리스트 칸 — 즐겨찾기 · 최근 편집 · 인박스
-  pageList: (mode, limit) => ipcRenderer.invoke('lightnote:page-list', { mode, limit }),
+  pageList: (mode, limit, scope) => ipcRenderer.invoke('lightnote:page-list', { mode, limit, scope }),
+  pageListCounts: () => ipcRenderer.invoke('lightnote:page-list-counts'),
   favoriteIds: () => ipcRenderer.invoke('lightnote:favorite-ids'),
   favoriteToggle: (pageId) => ipcRenderer.invoke('lightnote:favorite-toggle', { pageId }),
   inboxNew: (title) => ipcRenderer.invoke('lightnote:inbox-new', { title }),

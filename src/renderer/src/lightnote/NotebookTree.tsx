@@ -18,6 +18,8 @@ interface InputModalState {
 interface Props {
   selected: Selected
   onPageSelect: (nbId: string, secId: string, pageId: string, crumb: string) => void
+  /** 폴더를 누르면 가운데 페이지 리스트 칸이 그 폴더를 가리킨다 */
+  onSectionSelect?: (nbId: string, secId: string, name: string) => void
   onEditorClear: () => void
   onTrashOpen?: (node: TrashNode) => void
   width?: number
@@ -90,7 +92,7 @@ function findSection(sections: Section[], id: string): Section | undefined {
   return undefined
 }
 
-const NotebookTree = forwardRef<TreeHandle, Props>(({ selected, onPageSelect, onEditorClear, onTrashOpen, width }, ref) => {
+const NotebookTree = forwardRef<TreeHandle, Props>(({ selected, onPageSelect, onSectionSelect, onEditorClear, onTrashOpen, width }, ref) => {
   const trashRef = useRef<TrashPanelHandle>(null)
   const [notebooks, setNotebooks] = useState<Notebook[]>([])
   // 펼쳐둔 가지는 앱을 껐다 켜도 유지한다. 예전엔 매번 전부 접힌 채로 시작해서,
@@ -244,6 +246,9 @@ const NotebookTree = forwardRef<TreeHandle, Props>(({ selected, onPageSelect, on
   }, [expandedNbs, sectionsByNb, loadSections])
 
   const toggleSec = useCallback(async (nbId: string, sec: Section) => {
+    // 펴든 접든, 누른 폴더는 가운데 칸이 가리킨다 — 접으려고 누른 것이지
+    // "이 폴더 말고"라는 뜻은 아니다.
+    onSectionSelect?.(nbId, sec.id, sec.name)
     if (expandedSecs.has(sec.id)) {
       setExpandedSecs(prev => { const s = new Set(prev); s.delete(sec.id); return s })
     } else {
@@ -253,7 +258,7 @@ const NotebookTree = forwardRef<TreeHandle, Props>(({ selected, onPageSelect, on
         for (const child of sec.children) if (!pagesBySec[child.id]) await loadPages(nbId, child.id)
       }
     }
-  }, [expandedSecs, pagesBySec, loadPages])
+  }, [expandedSecs, pagesBySec, loadPages, onSectionSelect])
 
   const handlePageClick = useCallback((nbId: string, secId: string, page: Page, nbName: string, secName: string) => {
     onPageSelect(nbId, secId, page.id, `${nbName} › ${secName} › ${page.title}`)

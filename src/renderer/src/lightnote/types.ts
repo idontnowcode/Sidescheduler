@@ -144,8 +144,14 @@ export interface RecentPage extends PageRefLoc { updatedAt: number }
 /** 가운데 칸에 서 있는 화면. 맨 왼쪽 버튼 바가 이것 하나를 고른다. */
 export type LnView = 'note' | 'work' | 'journal' | 'planner'
 
-/** 페이지 리스트 칸이 보여 주는 세 가지 목록. */
-export type PageListMode = 'fav' | 'recent' | 'inbox'
+/** 페이지 리스트 칸이 무엇을 줄 세우고 있는가.
+ *  fav·recent·inbox 는 왼쪽 맨 위에서 고르는 목록이고, folder 는 지금 보고
+ *  있는 페이지가 든 폴더다(원노트처럼 옆 페이지가 같이 보인다). */
+export type PageListMode = 'fav' | 'recent' | 'inbox' | 'folder'
+/** 그 칸이 지금 가리키는 것. */
+export type ListSource =
+  | { kind: 'fav' | 'recent' | 'inbox' }
+  | { kind: 'folder'; notebookId: string; sectionId: string; name: string }
 /** 그 칸의 한 줄. 최근 목록과 같은 정보에 별 표시만 더한다. */
 export interface PageListRow extends RecentPage { createdAt: number; favorite: boolean }
 
@@ -279,7 +285,9 @@ declare global {
         openDashboard: () => void
         openDashboardView: (view: string) => void
       } | null
-      pageList: (mode: PageListMode, limit?: number) => Promise<PageListRow[]>
+      pageList: (mode: PageListMode, limit?: number,
+        scope?: { notebookId: string; sectionId: string }) => Promise<PageListRow[]>
+      pageListCounts: () => Promise<{ all: number; fav: number; inbox: number }>
       favoriteIds: () => Promise<string[]>
       favoriteToggle: (pageId: string) => Promise<{ favorite: boolean }>
       inboxNew: (title?: string) => Promise<{ notebookId: string; sectionId: string; pageId: string; title: string }>

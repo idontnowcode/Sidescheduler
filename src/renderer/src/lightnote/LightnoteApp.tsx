@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import 'quill/dist/quill.snow.css'
 import './lightnote.css'
-import type { Selected, TrashNode, SearchResult, TocItem, OpenTab, PageReference, DataDirStatus, LnView } from './types'
+import type { Selected, TrashNode, SearchResult, TocItem, OpenTab, PageReference, DataDirStatus, LnView, ListSource } from './types'
 import DataDirBlocked from './DataDirBlocked'
 import NotebookTree, { type TreeHandle } from './NotebookTree'
 import Editor, { type EditorHandle } from './Editor'
@@ -13,6 +13,7 @@ import WorkListView from './WorkListView'
 import JournalView from './JournalView'
 import WorkQuickList from './WorkQuickList'
 import PageList from './PageList'
+import SmartLists from './SmartLists'
 import Rail from './Rail'
 import { PlannerPane, QuickAddOverlay } from './PlannerEmbed'
 import AIAssistant from './AIAssistant'
@@ -73,6 +74,10 @@ export default function LightnoteApp() {
   // 상태와 너비는 기억한다.
   const [listW, setListW] = useState(() => Number(localStorage.getItem('ln-pagelist-w')) || 210)
   const [listHidden, setListHidden] = useState(() => localStorage.getItem('ln-pagelist-hidden') === '1')
+  // 그 칸이 무엇을 줄 세우고 있는가. 기본은 지금 보고 있는 페이지의 폴더이고
+  // (원노트처럼 옆 페이지가 같이 보인다), 왼쪽 맨 위에서 고르면 그 목록으로
+  // 바뀐다.
+  const [listSource, setListSource] = useState<ListSource>({ kind: 'recent' })
   // 별이 바뀔 때마다 올린다 — 목록과 에디터의 별이 같이 따라오게.
   const [favTick, setFavTick] = useState(0)
   const [favIds, setFavIds] = useState<Set<string>>(new Set())
@@ -196,10 +201,22 @@ export default function LightnoteApp() {
     })()
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const handlePageSelect = useCallback(async (nbId: string, secId: string, pageId: string, crumb: string) => {
+  const handlePageSelect = useCallback(async (
+    nbId: string, secId: string, pageId: string, crumb: string, fromList = false,
+  ) => {
     setTrashNode(null) // opening a live page leaves the trash view
     setSelected({ notebookId: nbId, sectionId: secId, pageId })
     setBreadcrumb(crumb)
+    // 트리·검색·탭에서 연 페이지는 가운데 칸이 그 **폴더**를 따라간다 —
+    // 원노트처럼 옆에 뭐가 있는지가 늘 보여야 한다. 다만 그 칸 안에서 고른
+    // 것이라면 두고 본다(보던 목록이 발밑에서 바뀌면 다음 줄을 못 누른다).
+    if (!fromList) {
+      const parts = crumb.split('›').map((x) => x.trim()).filter(Boolean)
+      setListSource({
+        kind: 'folder', notebookId: nbId, sectionId: secId,
+        name: parts.length >= 2 ? parts[parts.length - 2] : '폴더',
+      })
+    }
     // 이미 열린 탭이면 그 탭으로 가고, 아니면 끝에 새로 연다.
     setTabs((prev) => {
       const title = crumb.split('›').pop()?.trim() || 'Untitled'
@@ -565,6 +582,13 @@ export default function LightnoteApp() {
           />
         )}
         <div style={{ width: leftW, minWidth: 0, flexShrink: 0, display: 'flex', flexDirection: 'column' }}>
+          {/* 노트북보다 먼저 오는 세 가지 — 둔 자리를 모를 때 찾는 길이다.
+              아래에 두면 노트북이 몇 개만 늘어도 스크롤 밖으로 밀려난다. */}
+          <SmartLists
+            source={listSource}
+            refreshKey={`${woRefresh}:${favTick}`}
+            onPick={(kind) => { setListSource({ kind }); setListHidden(false); setView('note') }}
+          />
           <WorkQuickList onOpen={handlePageSelect} activePageId={selected.pageId} refreshKey={woRefresh} />
           <div style={{ flex: 1, minHeight: 0, display: 'flex' }}>
             <NotebookTree
@@ -572,6 +596,10 @@ export default function LightnoteApp() {
               width={leftW}
               selected={selected}
               onPageSelect={handlePageSelect}
+              onSectionSelect={(nbId, secId, name) => {
+                setListSource({ kind: 'folder', notebookId: nbId, sectionId: secId, name })
+                setListHidden(false)
+              }}
               onEditorClear={handleEditorClear}
               onTrashOpen={setTrashNode}
             />
@@ -590,6 +618,7 @@ export default function LightnoteApp() {
           <>
             <PageList
               width={listW}
+              source={listSource}
               activePageId={selected.pageId}
               refreshKey={`${woRefresh}:${favTick}`}
               onOpen={handlePageSelect}
