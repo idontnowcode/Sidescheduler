@@ -142,7 +142,7 @@ export interface StickyTarget { pageId: string; notebookId: string; sectionId: s
 export interface RecentPage extends PageRefLoc { updatedAt: number }
 
 /** 가운데 칸에 서 있는 화면. 맨 왼쪽 버튼 바가 이것 하나를 고른다. */
-export type LnView = 'note' | 'work' | 'journal' | 'planner'
+export type LnView = 'note' | 'work' | 'action' | 'journal' | 'planner'
 
 /** 페이지 리스트 칸이 무엇을 줄 세우고 있는가.
  *  fav·recent·inbox 는 왼쪽 맨 위에서 고르는 목록이고, folder 는 지금 보고
@@ -241,6 +241,7 @@ declare global {
       workObjectSet: (pageId: string, patch: Partial<WorkObject>) => Promise<WorkObject>
       workObjectRemove: (pageId: string) => Promise<{ success: boolean }>
       workObjectList: () => Promise<WorkObjectListItem[]>
+      workObjectDueCount: () => Promise<number>
       workObjectSchedulerAvailable: () => Promise<{ available: boolean }>
       workObjectCreateTask: (payload: { title: string; due: number | null; priority: string }) => Promise<{ taskId: string | null; error?: string }>
       workObjectCompleteTask: (taskId: string) => Promise<{ done: boolean; error?: string }>

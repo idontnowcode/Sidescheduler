@@ -36,18 +36,23 @@ interface ActionRow { a: WorkAction; item: WorkObjectListItem; date: number | nu
 type ActionSortKey = 'cat' | 'text' | 'date' | 'done'
 
 interface Props {
+  /** 업무(프로젝트)인지 액션인지 — 맨 왼쪽 버튼 바가 정한다 */
+  mode: 'work' | 'action'
   onOpen: (item: WorkObjectListItem) => void
   onClose: () => void
 }
 
-// "업무 현황" dashboard — a dedicated view (not a real note). Two modes:
-//  • 업무: one row per work note (summary/progress)
-//  • 액션: one row per action across all notes (분류·내용·목표 일정·완료·주차)
+// 업무 / 액션 화면 — 진짜 노트가 아니라 모아 보는 표다.
+//  • 업무: 업무 노트 한 줄씩 (요약·진행률)
+//  • 액션: 모든 노트의 액션 한 줄씩 (분류·내용·목표 일정·완료·주차)
+//
+// 예전엔 한 화면 안의 모드 두 개였다. 보는 때가 다른 둘이라 — 업무는
+// "무엇을 들고 있나"를 훑을 때, 액션은 "오늘 뭘 해야 하나"를 볼 때 —
+// 뒤엣것을 보려면 늘 한 번 더 눌러야 했다. 지금은 버튼 바에서 바로 간다.
 // AI-free.
-export default function WorkListView({ onOpen, onClose }: Props) {
+export default function WorkListView({ mode, onOpen, onClose }: Props) {
   const [items, setItems] = useState<WorkObjectListItem[]>([])
   const [loaded, setLoaded] = useState(false)
-  const [mode, setMode] = useState<'work' | 'action'>('work')
   const [filter, setFilter] = useState<typeof FILTERS[number]>('전체')
   const [aFilter, setAFilter] = useState<typeof ACTION_FILTERS[number]>('전체')
   const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>({ key: 'due', dir: 1 })
@@ -171,11 +176,10 @@ export default function WorkListView({ onOpen, onClose }: Props) {
   return (
     <div className="wl-view">
       <div className="wl-head">
-        <span className="wl-title">업무 현황</span>
-        <div className="wl-modes">
-          <button className={`wl-mode${mode === 'work' ? ' on' : ''}`} onClick={() => setMode('work')}>업무</button>
-          <button className={`wl-mode${mode === 'action' ? ' on' : ''}`} onClick={() => setMode('action')}>액션</button>
-        </div>
+        <span className="wl-title">{mode === 'work' ? '업무' : '액션'}</span>
+        <span className="wl-sub">
+          {mode === 'work' ? '들고 있는 일과 진행률' : '업무마다의 다음 할 일'}
+        </span>
         <button className="wl-refresh" title="새로고침" onClick={reload}>↻</button>
         <div className="wl-spacer" />
         {exportMsg && <span className="wl-export-msg">{exportMsg}</span>}

@@ -65,7 +65,7 @@ await ln.screenshot({ path: `${OUT}/work-page.png` })
 console.log('saved work-page.png')
 
 // Open the 업무 현황 dashboard.
-await ln.locator('.icon-btn', { hasText: '업무 현황' }).click()
+await ln.locator('.rail .icon-btn', { hasText: '업무' }).click()
 await ln.waitForSelector('.wl-view', { timeout: 5000 })
 await ln.waitForTimeout(600)
 await ln.screenshot({ path: `${OUT}/work-dashboard.png` })

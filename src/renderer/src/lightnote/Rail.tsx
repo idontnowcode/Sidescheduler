@@ -29,6 +29,7 @@ const Icons = {
   search: <svg {...ICON}><circle cx="11" cy="11" r="7" /><line x1="16.5" y1="16.5" x2="21" y2="21" /></svg>,
   note: <svg {...ICON}><path d="M6 3.5h8.5L19 8v12.5H6z" /><path d="M14 3.5V8h4.5" /><line x1="9" y1="12.5" x2="16" y2="12.5" /><line x1="9" y1="16" x2="14" y2="16" /></svg>,
   work: <svg {...ICON}><rect x="3" y="7" width="18" height="13" rx="2" /><path d="M8.5 7V5.5A1.5 1.5 0 0 1 10 4h4a1.5 1.5 0 0 1 1.5 1.5V7" /><line x1="3" y1="12" x2="21" y2="12" /></svg>,
+  action: <svg {...ICON}><path d="M4 7.2l2 2 3.2-3.4" /><path d="M4 16.2l2 2 3.2-3.4" /><line x1="12.5" y1="7.5" x2="20.5" y2="7.5" /><line x1="12.5" y1="16.5" x2="20.5" y2="16.5" /></svg>,
   journal: <svg {...ICON}><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" /><line x1="8.5" y1="10" x2="15.5" y2="10" /><line x1="8.5" y1="13.5" x2="13" y2="13.5" /></svg>,
   sticky: <svg {...ICON}><path d="M4 4.5h15.5v9.5L14 19.5H4z" /><path d="M19.5 14H14v5.5" /></svg>,
   ai: <svg {...ICON}><path d="M12 3.5l1.9 4.6 4.6 1.9-4.6 1.9L12 16.5l-1.9-4.6L5.5 10l4.6-1.9z" /><circle cx="18" cy="18" r="2" /></svg>,
@@ -40,8 +41,11 @@ const Icons = {
 }
 
 /** 화면을 고르는 단추 — 하나만 켜진다(라디오). */
-function ViewBtn({ icon, label, title, active, onClick }: {
-  icon: ReactNode; label: string; title: string; active: boolean; onClick: () => void
+function ViewBtn({ icon, label, title, active, badge, onClick }: {
+  icon: ReactNode; label: string; title: string; active: boolean
+  /** 아이콘 위에 얹는 숫자. 0이면 달지 않는다. */
+  badge?: number
+  onClick: () => void
 }) {
   return (
     <button
@@ -51,6 +55,11 @@ function ViewBtn({ icon, label, title, active, onClick }: {
     >
       {icon}
       <span className="rail-label">{label}</span>
+      {/* 두 자리가 되면 아이콘을 덮는다 — Teams처럼 9까지만 적고 그 위는 9+.
+          정확한 수가 궁금하면 눌러서 보면 된다. */}
+      {!!badge && badge > 0 && (
+        <span className="rail-badge" aria-label={`${badge}건`}>{badge > 9 ? '9+' : badge}</span>
+      )}
     </button>
   )
 }
@@ -76,6 +85,8 @@ interface Props {
   /** 일정 화면 안에서 보고 있는 탭 — 오늘/대시보드 버튼을 가려 칠한다 */
   plannerTab: string
   aiOpen: boolean
+  /** 오늘까지 마감인 미완료 액션 수 */
+  actionDue: number
   onView: (view: LnView, plannerTab?: string) => void
   onSticky: () => void
   onQuickAdd: () => void
@@ -94,8 +105,14 @@ export default function Rail(p: Props) {
 
       <ViewBtn icon={Icons.note} label="노트" title="노트 — 쓰던 페이지로 돌아가기"
         active={p.view === 'note'} onClick={() => p.onView('note')} />
-      <ViewBtn icon={Icons.work} label="업무 현황" title="업무 현황"
+      {/* 업무(프로젝트)와 액션은 보는 때가 다르다. 업무는 "무엇을 들고
+          있나"를 훑을 때, 액션은 "오늘 뭘 해야 하나"를 볼 때다. 한 화면에
+          모드로 묶여 있으면 뒤엣것을 보려고 늘 한 번 더 눌러야 했다. */}
+      <ViewBtn icon={Icons.work} label="업무" title="업무 — 들고 있는 일(프로젝트)과 진행률"
         active={p.view === 'work'} onClick={() => p.onView('work')} />
+      <ViewBtn icon={Icons.action} label="액션" badge={p.actionDue}
+        title={p.actionDue > 0 ? `액션 — 오늘까지 마감 ${p.actionDue}건` : '액션 — 업무마다의 다음 할 일'}
+        active={p.view === 'action'} onClick={() => p.onView('action')} />
       <ViewBtn icon={Icons.journal} label="기록장" title="기록장 — 날짜별로 자동 정리되는 짧은 기록"
         active={p.view === 'journal'} onClick={() => p.onView('journal')} />
       <ActBtn icon={Icons.sticky} label="스티커"

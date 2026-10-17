@@ -57,7 +57,7 @@ ok('앱 이름이 화면에 한 번만 적힌다',
 // ── 왼쪽 버튼 바 ────────────────────────────────────────────────────────
 ok('맨 왼쪽에 버튼 바가 있다', await ln.locator('.rail').count() === 1)
 const labels = await ln.locator('.rail-label').allTextContents()
-for (const want of ['노트', '업무 현황', '기록장', '스티커', 'AI', 'Settings']) {
+for (const want of ['노트', '업무', '액션', '기록장', '스티커', 'AI', 'Settings']) {
   ok(`"${want}" 버튼이 바로 옮겨졌다`, labels.includes(want), JSON.stringify(labels))
 }
 ok('일정 쪽(빠른 추가·오늘·대시보드)도 같이 있다',
@@ -75,7 +75,7 @@ ok('그래도 글자로 버튼을 찾을 수 있다',
   await ln.locator('.icon-btn', { hasText: '기록장' }).count() === 1)
 
 // ── 화면은 **하나만** 켜진다 ────────────────────────────────────────────
-// 예전엔 업무 현황·기록장이 각자 켜고 끄는 스위치였다. 둘 다 켜면 나중 것이
+// 예전엔 업무·기록장이 각자 켜고 끄는 스위치였다. 둘 다 켜면 나중 것이
 // 앞 것을 덮었고, 버튼은 둘 다 켜진 것처럼 보였다.
 const activeLabels = async () =>
   (await ln.locator('.rail-btn.active .rail-label').allTextContents())
@@ -83,14 +83,24 @@ const activeLabels = async () =>
 ok('처음엔 노트 화면이 켜져 있다', (await activeLabels()).join() === '노트',
   JSON.stringify(await activeLabels()))
 
-await ln.locator('.rail .icon-btn', { hasText: '업무 현황' }).click()
+await ln.locator('.rail .icon-btn', { hasText: '업무' }).click()
 await ln.waitForTimeout(1000)
-ok('업무 현황 버튼이 업무 현황을 연다', await ln.locator('.wl-view').count() === 1)
+ok('업무 버튼이 업무 화면을 연다', await ln.locator('.wl-view').count() === 1)
+ok('업무와 액션은 따로 선다 (한 화면 안 모드가 아니다)',
+  (await ln.locator('.wl-title').textContent()) === '업무',
+  await ln.locator('.wl-title').textContent())
+await ln.locator('.rail .icon-btn', { hasText: '액션' }).click()
+await ln.waitForTimeout(1000)
+ok('액션 버튼은 액션 화면을 연다',
+  (await ln.locator('.wl-title').textContent()) === '액션',
+  await ln.locator('.wl-title').textContent())
+ok('그때 칠해지는 건 액션 버튼 하나', (await activeLabels()).join() === '액션',
+  JSON.stringify(await activeLabels()))
 
 await ln.locator('.rail .icon-btn', { hasText: '기록장' }).click()
 await ln.waitForTimeout(1200)
 ok('기록장 버튼이 기록장을 연다', await ln.locator('.jn-view').count() === 1)
-ok('앞서 켜 둔 업무 현황은 닫힌다 (덮이지 않는다)', await ln.locator('.wl-view').count() === 0)
+ok('앞서 켜 둔 액션 화면은 닫힌다 (덮이지 않는다)', await ln.locator('.wl-view').count() === 0)
 ok('칠해진 버튼도 하나뿐이다', (await activeLabels()).join() === '기록장',
   JSON.stringify(await activeLabels()))
 
@@ -103,7 +113,7 @@ ok('그때 칠해지는 건 노트 버튼', (await activeLabels()).join() === '�
   JSON.stringify(await activeLabels()))
 
 // ── AI — 눌렀는데 아무 일도 없어 보이면 안 된다 ─────────────────────────
-// AI는 본문 옆에 붙는 칸이다. 기록장·업무 현황이 덮고 있으면 열려도 보이지
+// AI는 본문 옆에 붙는 칸이다. 기록장·업무 화면이 덮고 있으면 열려도 보이지
 // 않아서, 누른 사람 눈에는 고장 난 버튼이 된다.
 await ln.locator('.rail .icon-btn', { hasText: '기록장' }).click()
 await ln.waitForTimeout(900)

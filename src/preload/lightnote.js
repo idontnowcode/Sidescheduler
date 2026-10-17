@@ -153,6 +153,8 @@ contextBridge.exposeInMainWorld('lightnote', {
   bodyTasksList: () => ipcRenderer.invoke('lightnote:body-tasks:list'),
   bodyTaskToggle: (notebookId, sectionId, pageId, line, text) =>
     ipcRenderer.invoke('lightnote:body-tasks:toggle', { notebookId, sectionId, pageId, line, text }),
+  // 오늘까지 마감인 미완료 액션 수 (맨 왼쪽 "액션" 단추의 숫자)
+  workObjectDueCount: () => ipcRenderer.invoke('lightnote:work-object:due-count'),
   workObjectSchedulerAvailable: () => ipcRenderer.invoke('lightnote:work-object:scheduler-available'),
   workObjectCreateTask: (payload) => ipcRenderer.invoke('lightnote:work-object:create-task', payload),
   workObjectCompleteTask: (taskId) => ipcRenderer.invoke('lightnote:work-object:complete-task', { taskId }),

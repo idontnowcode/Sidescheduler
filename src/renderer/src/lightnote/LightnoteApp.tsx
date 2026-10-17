@@ -80,6 +80,8 @@ export default function LightnoteApp() {
   const [listSource, setListSource] = useState<ListSource>({ kind: 'recent' })
   // 별이 바뀔 때마다 올린다 — 목록과 에디터의 별이 같이 따라오게.
   const [favTick, setFavTick] = useState(0)
+  // 맨 왼쪽 "액션" 단추에 얹는 숫자 — 오늘까지 마감인 미완료 액션.
+  const [actionDue, setActionDue] = useState(0)
   const [favIds, setFavIds] = useState<Set<string>>(new Set())
   useEffect(() => {
     window.lightnote.favoriteIds().then((ids) => setFavIds(new Set(ids))).catch(() => {})
@@ -120,6 +122,18 @@ export default function LightnoteApp() {
   // 공유 노트 폴더를 지정했는데 못 읽는 상태면 노트 화면을 아예 열지 않는다.
   // 빈 폴더로 열리면 "노트가 전부 사라졌다"로 보이고, 그 상태로 적으면
   // 저쪽 노트와 갈라진다.
+  // 액션 숫자는 업무 속성이 바뀔 때마다(woRefresh) 다시 센다. 다른 창에서
+  // 체크한 것도 돌아오면 반영되게 창이 다시 잡힐 때도 센다.
+  useEffect(() => {
+    let alive = true
+    const count = () => window.lightnote.workObjectDueCount()
+      .then((n) => { if (alive) setActionDue(n) }).catch(() => {})
+    count()
+    const off = window.lightnote.onPageChangedElsewhere?.(() => count())
+    window.addEventListener('focus', count)
+    return () => { alive = false; off?.(); window.removeEventListener('focus', count) }
+  }, [woRefresh, view])
+
   const [dataDir, setDataDir] = useState<DataDirStatus | null>(null)
   useEffect(() => { window.lightnote.dataDirStatus().then(setDataDir).catch(() => {}) }, [])
 
@@ -546,6 +560,7 @@ export default function LightnoteApp() {
           view={view}
           plannerTab={plannerTab}
           aiOpen={isAiOpen}
+          actionDue={actionDue}
           onView={goView}
           onSticky={() => window.lightnote.stickyNew()}
           onQuickAdd={() => setQuickAdd(true)}
@@ -561,8 +576,9 @@ export default function LightnoteApp() {
             onOpenPage={handlePageSelect}
           />
         )}
-        {view === 'work' && (
+        {(view === 'work' || view === 'action') && (
           <WorkListView
+            mode={view}
             onOpen={(item) => {
               handlePageSelect(item.notebookId, item.sectionId, item.pageId, `${item.notebookName} › ${item.sectionName} › ${item.title}`)
               setView('note')

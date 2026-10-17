@@ -335,7 +335,9 @@ function registerIpcHandlers(ipcMain, getWindow, safeStorage, dialog, app, sched
   // Enriched list for the "업무 현황" dashboard: join each enabled work-object
   // with its (visible) page title + location in ONE pass over the tree. Pages in
   // the trash / deleted are excluded.
-  ipcMain.handle('lightnote:work-object:list', async () => {
+  // 살아 있는(휴지통에 없는) 페이지에 붙은 업무 객체만. 목록 화면과 숫자가
+  // 같은 것을 세도록 한 군데서 만든다 — 따로 세면 배지와 표가 어긋난다.
+  const listWorkObjects = async () => {
     const objs = await workObjectStorage.list();
     if (objs.length === 0) return [];
     const byId = new Map(objs.map(o => [o.pageId, o]));
@@ -351,6 +353,25 @@ function registerIpcHandlers(ipcMain, getWindow, safeStorage, dialog, app, sched
       }
     }
     return out;
+  };
+
+  ipcMain.handle('lightnote:work-object:list', async () => listWorkObjects());
+
+  // 맨 왼쪽 "액션" 단추에 붙일 숫자 — **오늘까지**가 마감인 미완료 액션.
+  // 내일 할 일까지 세면 숫자가 늘 떠 있어서 아무 뜻이 없어진다. 액션에
+  // 날짜가 없으면 그 업무의 마감을 쓴다(액션 화면의 '목표 일정'과 같은 규칙).
+  ipcMain.handle('lightnote:work-object:due-count', async () => {
+    const end = new Date(); end.setHours(23, 59, 59, 999);
+    const limit = end.getTime();
+    let n = 0;
+    for (const o of await listWorkObjects()) {
+      for (const a of o.nextActions || []) {
+        if (a.done) continue;
+        const due = a.due != null ? a.due : o.due;
+        if (due != null && due <= limit) n += 1;
+      }
+    }
+    return n;
   });
 
   // === 내보내기/가져오기 (page/section/notebook → single portable .json) ===

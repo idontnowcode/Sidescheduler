@@ -217,13 +217,15 @@ await snap(ln, 'lightnote-editor-toolbar-open', 'LightNote — 편집기 툴바�
 await ln.evaluate(() => document.querySelector('.ql-toolbar')?.classList.remove('ln-tb-open'))
 await ln.waitForTimeout(400)
 
-// 페이지 리스트 칸 — 세 가지 목록과 접은 모습
-for (const [tab, name, note] of [
-  ['즐겨찾기', 'pagelist-fav', 'LightNote — 페이지 목록 · 즐겨찾기'],
-  ['최근', 'pagelist-recent', 'LightNote — 페이지 목록 · 최근 편집'],
-  ['인박스', 'pagelist-inbox', 'LightNote — 페이지 목록 · 인박스(먼저 적고 나중에 분류)'],
+// 페이지 리스트 칸 — 폴더(원노트처럼) + 왼쪽 맨 위에서 고르는 세 목록
+await snap(ln, 'lightnote-pagelist-folder',
+  'LightNote — 페이지 목록 · 지금 페이지가 든 폴더(원노트처럼 옆 페이지가 같이 보인다)')
+for (const [row, name, note] of [
+  ['즐겨찾기', 'pagelist-fav', 'LightNote — 즐겨찾기'],
+  ['최근 편집', 'pagelist-recent', 'LightNote — 최근 편집'],
+  ['인박스', 'pagelist-inbox', 'LightNote — 인박스(먼저 적고 나중에 분류 · 담긴 수 표시)'],
 ]) {
-  await ln.locator('.pl-tab', { hasText: tab }).click()
+  await ln.locator('.sl-row', { hasText: row }).click()
   await ln.waitForTimeout(900)
   await snap(ln, `lightnote-${name}`, note)
 }
@@ -235,7 +237,8 @@ await ln.waitForTimeout(600)
 
 // 화면 고르기 — 한 번에 하나만 켜진다. 돌아올 때는 노트 버튼을 쓴다.
 for (const [open, name, note] of [
-  ['업무 현황', 'worklist', 'LightNote — 업무 현황(표로 모아보기)'],
+  ['업무', 'worklist', 'LightNote — 업무(들고 있는 일과 진행률)'],
+  ['액션', 'actionlist', 'LightNote — 액션(업무마다의 다음 할 일)'],
   ['기록장', 'journal', 'LightNote — 기록장(날짜별 짧은 기록)'],
   ['오늘', 'planner-today', 'LightNote — 오늘 일정(창을 따로 띄우지 않고 안에서)'],
   ['대시보드', 'planner-dash', 'LightNote — 대시보드(창을 따로 띄우지 않고 안에서)'],

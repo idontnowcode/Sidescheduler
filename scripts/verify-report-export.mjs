@@ -65,7 +65,7 @@ const ids = await ln.evaluate(async ({ dueA, dueB, gAt1, gAt2, dAt1, dAt2, dAt3,
 
 await ln.reload()
 await ln.waitForFunction(() => !!window.lightnote, null, { timeout: 8000 })
-await ln.waitForSelector('.icon-btn:has-text("업무 현황")', { timeout: 8000 })
+await ln.waitForSelector('.rail .icon-btn:has-text("업무")', { timeout: 8000 })
 await ln.waitForTimeout(400)
 
 // 1) Panel: open A, expand "보고용 정리", confirm fields loaded (read-only).
@@ -98,7 +98,7 @@ ok('의사결정 필요 두 건(해결+미해결)이 기록 목록에 보임',
   String(await ln.locator('.wo-action:has(.wo-kind-pending)').count()))
 
 // 2) Open 업무 현황, select both via checkboxes, export — still against pristine seed data.
-await ln.locator('.icon-btn', { hasText: '업무 현황' }).click()
+await ln.locator('.rail .icon-btn', { hasText: '업무' }).click()
 await ln.waitForSelector('.wl-view', { timeout: 4000 })
 await ln.waitForTimeout(300)
 ok('선택 0개일 땐 내보내기 버튼 없음', await ln.locator('.wl-export-btn').count() === 0)

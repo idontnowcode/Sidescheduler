@@ -33,11 +33,11 @@ await ln.evaluate(async ({ over, today }) => {
 
 await ln.reload()
 await ln.waitForFunction(() => !!window.lightnote, null, { timeout: 8000 })
-await ln.waitForSelector('.icon-btn:has-text("업무 현황")', { timeout: 8000 })
+await ln.waitForSelector('.rail .icon-btn:has-text("업무")', { timeout: 8000 })
 await ln.waitForTimeout(400)
 
 // Open the dashboard.
-await ln.locator('.icon-btn', { hasText: '업무 현황' }).click()
+await ln.locator('.rail .icon-btn', { hasText: '업무' }).click()
 await ln.waitForSelector('.wl-view', { timeout: 4000 })
 
 // Summary cards.

@@ -47,7 +47,7 @@ await ln.waitForTimeout(400)
 await ln.screenshot({ path: `${OUT}/rep-1-panel.png` })
 console.log('saved rep-1-panel.png')
 
-await ln.locator('.icon-btn', { hasText: '업무 현황' }).click()
+await ln.locator('.rail .icon-btn', { hasText: '업무' }).click()
 await ln.waitForSelector('.wl-view', { timeout: 4000 })
 await ln.locator('.wl-cell-check input[type="checkbox"]').first().click()
 await ln.locator('.wl-cell-check input[type="checkbox"]').nth(1).click()

@@ -50,13 +50,13 @@ const ids = await ln.evaluate(async ({ d1, d2, over }) => {
 
 await ln.reload()
 await ln.waitForFunction(() => !!window.lightnote, null, { timeout: 8000 })
-await ln.waitForSelector('.icon-btn:has-text("업무 현황")', { timeout: 8000 })
+await ln.waitForSelector('.rail .icon-btn:has-text("업무")', { timeout: 8000 })
 await ln.waitForTimeout(400)
 
 // Open dashboard, switch to 액션 mode.
-await ln.locator('.icon-btn', { hasText: '업무 현황' }).click()
+await ln.locator('.rail .icon-btn', { hasText: '업무' }).click()
 await ln.waitForSelector('.wl-view', { timeout: 4000 })
-await ln.locator('.wl-mode', { hasText: '액션' }).click()
+await ln.locator('.rail .icon-btn', { hasText: '액션' }).click()
 await ln.waitForSelector('.wl-atable', { timeout: 3000 })
 await ln.waitForTimeout(300)
 
@@ -90,7 +90,7 @@ ok('toggling 완료 in the table persists', a1done === true, `${a1done}`)
 // Calendar UI is switched off (일정은 Outlook으로 관리), so this drives the same
 // IPC path the hidden 📅 button used to call, confirming the plumbing still
 // prefers the action's own due date over the note's 기한.
-await ln.locator('.wl-mode', { hasText: '업무' }).click()
+await ln.locator('.rail .icon-btn', { hasText: '업무' }).click()
 await ln.locator('.wl-close').click()
 await ln.evaluate((id) => window.lightnote.loadPage(id.nbA, id.secA, id.p1), ids)
 await ln.reload()
