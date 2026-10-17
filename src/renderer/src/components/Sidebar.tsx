@@ -3,6 +3,7 @@ import { useToday } from '../hooks/useToday'
 import { useDateStore } from '../store/dateStore'
 import { useSettingsStore } from '../store/settingsStore'
 import { useFocusStore, focusDisplaySeconds } from '../store/focusStore'
+import type { SidebarButtonId } from './sidebarButtons'
 
 interface Props { onHover: () => void; anchor?: 'top' | 'bottom'; dimmed?: boolean }
 
@@ -44,6 +45,11 @@ export default function Sidebar({ onHover, anchor = 'top', dimmed = false }: Pro
   const iconSize = w === 32 ? 14 : w === 40 ? 16 : 19
   const btnSize  = w === 32 ? 24 : w === 40 ? 30 : 34
 
+  // 안 쓰는 버튼은 설정에서 끌 수 있다. 숨긴 것만 적혀 있으므로, 목록에 없는
+  // 버튼(=새로 생긴 버튼)은 기본으로 보인다.
+  const hidden = new Set(settings.hiddenSidebarButtons || [])
+  const show = (id: SidebarButtonId) => !hidden.has(id)
+
   return (
     <div
       ref={rootRef}
@@ -84,45 +90,59 @@ export default function Sidebar({ onHover, anchor = 'top', dimmed = false }: Pro
       <div className="w-5 h-px bg-ink-200 dark:bg-ink-700" />
 
       {/* Quick add (Cmd+K) */}
-      <IconBtn title="Quick add (Ctrl+K)" size={btnSize} onClick={(e) => { e.stopPropagation(); window.electronAPI.openPalette() }}>
-        <SearchIcon size={iconSize} />
-      </IconBtn>
+      {show('quickAdd') && (
+        <IconBtn title="Quick add (Ctrl+K)" size={btnSize} onClick={(e) => { e.stopPropagation(); window.electronAPI.openPalette() }}>
+          <SearchIcon size={iconSize} />
+        </IconBtn>
+      )}
 
       {/* Dashboard */}
-      <IconBtn title="Dashboard" size={btnSize}
-        onClick={(e) => { e.stopPropagation(); window.electronAPI.openDashboard() }}>
-        <GridIcon size={iconSize} />
-      </IconBtn>
+      {show('dashboard') && (
+        <IconBtn title="Dashboard" size={btnSize}
+          onClick={(e) => { e.stopPropagation(); window.electronAPI.openDashboard() }}>
+          <GridIcon size={iconSize} />
+        </IconBtn>
+      )}
 
       {/* Today */}
-      <IconBtn title={isToday ? 'Today' : 'Go to today'} size={btnSize}
-        active={isToday} onClick={(e) => { e.stopPropagation(); goToToday() }}>
-        <CalendarIcon size={iconSize} />
-      </IconBtn>
+      {show('today') && (
+        <IconBtn title={isToday ? 'Today' : 'Go to today'} size={btnSize}
+          active={isToday} onClick={(e) => { e.stopPropagation(); goToToday() }}>
+          <CalendarIcon size={iconSize} />
+        </IconBtn>
+      )}
 
       {/* Notes (LightNote) */}
-      <IconBtn title="Notes" size={btnSize}
-        onClick={(e) => { e.stopPropagation(); window.electronAPI.lightnoteOpen() }}>
-        <NoteIcon size={iconSize} />
-      </IconBtn>
+      {show('notes') && (
+        <IconBtn title="Notes" size={btnSize}
+          onClick={(e) => { e.stopPropagation(); window.electronAPI.lightnoteOpen() }}>
+          <NoteIcon size={iconSize} />
+        </IconBtn>
+      )}
 
       {/* 기록장 — 띄워놓고 채팅하듯 적는 창 */}
-      <IconBtn title="기록장" size={btnSize}
-        onClick={(e) => { e.stopPropagation(); window.electronAPI.openJournal() }}>
-        <JournalIcon size={iconSize} />
-      </IconBtn>
+      {show('journal') && (
+        <IconBtn title="기록장" size={btnSize}
+          onClick={(e) => { e.stopPropagation(); window.electronAPI.openJournal() }}>
+          <JournalIcon size={iconSize} />
+        </IconBtn>
+      )}
 
       {/* 스티커 메모 — 바탕화면에 붙여두는 작은 창 */}
-      <IconBtn title="새 스티커 메모" size={btnSize}
-        onClick={(e) => { e.stopPropagation(); window.electronAPI.newSticky() }}>
-        <StickyIcon size={iconSize} />
-      </IconBtn>
+      {show('sticky') && (
+        <IconBtn title="새 스티커 메모" size={btnSize}
+          onClick={(e) => { e.stopPropagation(); window.electronAPI.newSticky() }}>
+          <StickyIcon size={iconSize} />
+        </IconBtn>
+      )}
 
       {/* Help & guide */}
-      <IconBtn title="Help & guide" size={btnSize}
-        onClick={(e) => { e.stopPropagation(); window.electronAPI.openDashboardView('help') }}>
-        <span style={{ fontSize: iconSize + 1, fontWeight: 700, lineHeight: 1 }}>?</span>
-      </IconBtn>
+      {show('help') && (
+        <IconBtn title="Help & guide" size={btnSize}
+          onClick={(e) => { e.stopPropagation(); window.electronAPI.openDashboardView('help') }}>
+          <span style={{ fontSize: iconSize + 1, fontWeight: 700, lineHeight: 1 }}>?</span>
+        </IconBtn>
+      )}
 
 
       {/* Running focus timer — click to pause / resume */}

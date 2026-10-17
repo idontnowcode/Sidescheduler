@@ -35,6 +35,10 @@ export interface WindowSettings {
   // **PC별 설정**이라 이 파일(userData)에 둔다 — 공유 폴더에 두면 안 된다.
   // 페이지 기록(versions/)은 여기에 따라가지 않고 늘 로컬에 남는다.
   sharedDataDir?: string
+  // 사이드바에서 **숨긴** 버튼들의 id (sidebarButtons.ts의 SIDEBAR_BUTTONS).
+  // 보이는 것을 적지 않고 숨긴 것만 적는다 — 그래야 나중에 버튼이 늘어도
+  // 기본으로 보이고, 이 항목이 없던 예전 설정도 그대로 유효하다.
+  hiddenSidebarButtons?: string[]
 }
 
 export interface StickyNote {

@@ -9,6 +9,8 @@ export interface WindowSettings {
   workStartHour: number
   workEndHour: number
   reminderEnabled: boolean
+  /** 사이드바에서 숨긴 버튼 id들 (없으면 전부 보임) */
+  hiddenSidebarButtons?: string[]
 }
 
 export interface Workload {

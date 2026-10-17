@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { WindowSettings, DisplayInfo } from '../types'
 import { useThemeStore, ThemeMode } from '../store/themeStore'
+import { SIDEBAR_BUTTONS } from '../components/sidebarButtons'
 import { useT } from '../lib/i18n'
 
 export default function SettingsView() {
@@ -34,6 +35,8 @@ export default function SettingsView() {
     const next = await window.electronAPI.setSettings(patch)
     setSettings(next); setSaving(false)
   }
+
+  const hiddenButtons = settings?.hiddenSidebarButtons ?? []
 
   const toggleAuto = async () => {
     const next = !autoStart
@@ -111,6 +114,34 @@ export default function SettingsView() {
           </div>
           <Toggle checked={!!settings.clickThrough} onChange={() => update({ clickThrough: !settings.clickThrough })} />
         </div>
+      </Section>
+
+      <Section title="사이드바 버튼"
+        desc="안 쓰는 버튼은 꺼서 사이드바를 짧게 만들 수 있습니다. 끈 기능은 사라지지 않고, 트레이 아이콘과 단축키로 그대로 씁니다.">
+        <div className="space-y-1">
+          {SIDEBAR_BUTTONS.map((b) => {
+            const on = !hiddenButtons.includes(b.id)
+            return (
+              <div key={b.id} className="flex items-center justify-between py-1.5">
+                <div>
+                  <p className="text-sm font-medium">{b.label}</p>
+                  <p className="text-xs text-ink-400 mt-0.5">{b.desc}</p>
+                </div>
+                <Toggle checked={on} onChange={() => update({
+                  hiddenSidebarButtons: on
+                    ? [...hiddenButtons, b.id]
+                    : hiddenButtons.filter((x) => x !== b.id),
+                })} />
+              </div>
+            )
+          })}
+        </div>
+        {hiddenButtons.length >= SIDEBAR_BUTTONS.length && (
+          <p className="text-xs text-ink-400 mt-2">
+            💡 전부 끄면 사이드바에 날짜와 잠금만 남습니다. 대시보드는 트레이 아이콘의
+            “Open Dashboard”로 다시 열 수 있습니다.
+          </p>
+        )}
       </Section>
 
       <Section title="Sidebar Width" desc="Collapsed width">
