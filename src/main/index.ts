@@ -1,6 +1,6 @@
 import { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, screen, Display, Notification, safeStorage, dialog, globalShortcut, shell, clipboard } from 'electron'
 import { join, resolve } from 'path'
-import { readFileSync, writeFileSync } from 'fs'
+import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, statSync, copyFileSync, watch } from 'fs'
 import { computeWorkload, buildReminderBody } from './workload'
 import { eventsToIcs, icsToEvents } from './ics'
 
@@ -995,6 +995,223 @@ function openJournalCapture(): void {
   }
 }
 
+// ── 공유 노트 폴더 (OneDrive 등) ─────────────────────────────────────────
+// 노트를 로컬(%APPDATA%) 대신 동기화 폴더에서 읽고 쓴다. 회사 PC와 집 PC가
+// 같은 노트를 보게 하려는 것. 경로는 PC마다 다르므로 PC별 설정이다.
+//
+// 폴더가 없거나 비어 있으면 **그냥 켜지 않는다.** 빈 데이터 루트로 열리면
+// "노트가 전부 사라졌다"로 보이고, 그 상태로 적으면 유령 폴더에 쌓인다.
+
+/** 실제로 쓰는 노트 폴더. 공유 폴더가 성하지 않으면 undefined(=로컬). */
+let activeDataDir: string | undefined
+/** 공유 폴더를 지정했는데 못 쓰는 상태일 때의 사유. 화면이 이걸 보고 막는다. */
+let dataDirProblem: { path: string; reason: 'MISSING' | 'EMPTY' } | null = null
+
+function localDataDir(): string {
+  return join(app.getPath('appData'), 'lightnote', 'lightnote-data')
+}
+
+function resolveDataDir(): void {
+  activeDataDir = undefined
+  dataDirProblem = null
+  const want = (loadSettings().sharedDataDir || '').trim()
+  if (!want) return
+  if (!existsSync(want)) { dataDirProblem = { path: want, reason: 'MISSING' }; return }
+  // notebooks.json이 없으면 아직 동기화 중이거나 엉뚱한 폴더다. 둘 다 위험해서
+  // 그대로 열지 않는다 — 여기에 적으면 저쪽 노트와 갈라진다.
+  if (!existsSync(join(want, 'notebooks.json'))) { dataDirProblem = { path: want, reason: 'EMPTY' }; return }
+  activeDataDir = want
+}
+
+/** 폴더 하나를 통째로 복사한다(덮어쓰지 않고 없는 것만). 마이그레이션용. */
+function copyTree(src: string, dst: string, skip: (name: string) => boolean = () => false): number {
+  let n = 0
+  mkdirSync(dst, { recursive: true })
+  for (const name of readdirSync(src)) {
+    if (skip(name)) continue
+    const s = join(src, name)
+    const d = join(dst, name)
+    if (statSync(s).isDirectory()) n += copyTree(s, d, skip)
+    else if (!existsSync(d)) { copyFileSync(s, d); n++ }
+  }
+  return n
+}
+
+ipcMain.handle('lightnote:data-dir:status', () => ({
+  configured: (loadSettings().sharedDataDir || '') || null,
+  active: activeDataDir || localDataDir(),
+  shared: !!activeDataDir,
+  problem: dataDirProblem,
+}))
+
+/** 지금 노트 폴더를 고른 폴더로 **복사**하고, 그 폴더를 쓰도록 바꾼다.
+ *  원본은 지우지 않는다 — 확인은 사용자가 직접 하고 직접 지운다. */
+ipcMain.handle('lightnote:data-dir:migrate', async () => {
+  const picked = await dialog.showOpenDialog({
+    title: '공유 노트 폴더 고르기 (OneDrive 안 폴더를 권장)',
+    properties: ['openDirectory', 'createDirectory'],
+  })
+  if (picked.canceled || !picked.filePaths[0]) return { canceled: true }
+  const dst = picked.filePaths[0]
+  const src = activeDataDir || localDataDir()
+  if (resolve(dst) === resolve(src)) return { error: 'SAME' }
+  if (existsSync(join(dst, 'notebooks.json'))) return { error: 'NOT_EMPTY', path: dst }
+  try {
+    // versions/(페이지 기록)는 로컬에 남기므로 가져가지 않는다.
+    const copied = copyTree(src, dst, (name) => name === 'versions')
+    if (!existsSync(join(dst, 'notebooks.json'))) return { error: 'VERIFY_FAILED', path: dst }
+    saveSettings({ sharedDataDir: dst })
+    return { success: true, path: dst, copied }
+  } catch (e) {
+    return { error: 'COPY_FAILED', message: (e as Error).message }
+  }
+})
+
+/** 이미 노트가 들어 있는 공유 폴더에 **연결만** 한다(복사하지 않는다).
+ *  두 번째 PC가 쓰는 길이다 — 거긴 첫 PC가 올려둔 노트가 이미 있으므로
+ *  migrate는 "비어 있지 않다"고 거절한다. */
+ipcMain.handle('lightnote:data-dir:attach', async () => {
+  const picked = await dialog.showOpenDialog({
+    title: '이미 쓰던 공유 노트 폴더에 연결',
+    properties: ['openDirectory'],
+  })
+  if (picked.canceled || !picked.filePaths[0]) return { canceled: true }
+  const dir = picked.filePaths[0]
+  // 노트 폴더가 맞는지 확인하고 붙인다. 엉뚱한 폴더에 붙이면 "노트가 전부
+  // 사라졌다"로 보이고, 거기 적으면 저쪽과 갈라진다.
+  if (!existsSync(join(dir, 'notebooks.json'))) return { error: 'NOT_A_NOTE_DIR', path: dir }
+  saveSettings({ sharedDataDir: dir })
+  return { success: true, path: dir }
+})
+
+/** 공유를 그만두고 로컬로 돌아간다(복사해 둔 파일은 그대로 남는다). */
+ipcMain.handle('lightnote:data-dir:use-local', () => {
+  saveSettings({ sharedDataDir: '' })
+  return { success: true }
+})
+
+/** 설정을 바꾼 뒤에는 저장소를 다시 열어야 해서 앱을 다시 띄운다. */
+ipcMain.handle('lightnote:data-dir:relaunch', () => {
+  app.relaunch()
+  app.exit(0)
+})
+
+// ── 노트 폴더 감시 ────────────────────────────────────────────────────────
+// 저쪽 PC가 동기화로 파일을 바꿔도 지금은 아무도 알려주지 않는다. 폴더를
+// 지켜보다가 열려 있는 페이지가 바뀌면 **창끼리 쓰던 그 알림을 그대로** 쏜다
+// (렌더러에 이미 "다른 창에서 저장됨" 배너가 있다).
+const UUID = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'
+const PAGE_RE = new RegExp(
+  `notebooks[\\\\/](${UUID})[\\\\/]sections[\\\\/](${UUID})[\\\\/]pages[\\\\/](${UUID})\\.json$`, 'i')
+
+/** 우리가 방금 쓴 판. 되돌아온 메아리를 "저쪽이 바꿨다"로 오해하지 않으려는 것.
+ *
+ *  "몇 초 안이면 내 것"처럼 시간으로 재지 않는다. 윈도우의 폴더 감시는 변경을
+ *  모아서 늦게 주기도 해서, 창을 짧게 잡으면 제 저장이 새어 나오고 길게 잡으면
+ *  그 직후 도착한 저쪽 변경을 놓친다. 대신 **우리가 쓴 시각 값 자체**를
+ *  기억해 두고, 파일에 적힌 값과 같으면 내 것으로 본다. */
+const selfWrites = new Map<string, number>()
+
+function noteSelfWrite(pageId: string, updatedAt: number): void {
+  selfWrites.set(pageId, updatedAt)
+  if (selfWrites.size > 500) {
+    // 오래된 것부터 흘려보낸다(삽입 순서대로 들어 있다).
+    for (const k of selfWrites.keys()) {
+      selfWrites.delete(k)
+      if (selfWrites.size <= 400) break
+    }
+  }
+}
+
+/** 섹션 목록에서 그 페이지의 현재 시각만 싸게 읽는다(본문은 안 읽는다). */
+function pageStampOnDisk(root: string, nb: string, sec: string, pageId: string): number | null {
+  try {
+    const rows = JSON.parse(readFileSync(join(root, 'notebooks', nb, 'sections', sec, 'pages.json'), 'utf-8'))
+    const p = (rows || []).find((x: { id: string }) => x.id === pageId)
+    return p && typeof p.updatedAt === 'number' ? p.updatedAt : null
+  } catch {
+    return null
+  }
+}
+
+let dataWatcher: { close: () => void } | null = null
+const watchDebounce = new Map<string, ReturnType<typeof setTimeout>>()
+
+function startDataWatch(): void {
+  const root = activeDataDir || localDataDir()
+  try { dataWatcher?.close() } catch { /* ignore */ }
+  dataWatcher = null
+  // 폴더는 첫 저장 때 생긴다. 없다고 그냥 돌아가면 새 프로필에서는 그 세션
+  // 내내 감시가 죽어 있다 — 미리 만들어 두고 건다.
+  try { mkdirSync(root, { recursive: true }) } catch { /* 공유 폴더가 없으면 아래에서 포기 */ }
+  if (!existsSync(root)) return
+  try {
+    dataWatcher = watch(root, { recursive: true }, (_evt, file) => {
+      if (!file) return
+      const rel = String(file)
+      if (rel.endsWith('.tmp')) return
+      const m = PAGE_RE.exec(rel)
+      if (!m) return
+      const [, notebookId, sectionId, pageId] = m
+      // 동기화는 한 파일을 여러 번 톡톡 치기도 해서 잠깐 묶는다. 내 것인지는
+      // 묶음이 끝난 뒤 파일에 적힌 값으로 한 번만 가린다.
+      clearTimeout(watchDebounce.get(pageId))
+      watchDebounce.set(pageId, setTimeout(() => {
+        watchDebounce.delete(pageId)
+        const onDisk = pageStampOnDisk(activeDataDir || localDataDir(), notebookId, sectionId, pageId)
+        if (onDisk !== null && selfWrites.get(pageId) === onDisk) return   // 내가 쓴 그 판이다
+        for (const win of BrowserWindow.getAllWindows()) {
+          if (win.isDestroyed()) continue
+          win.webContents.send('lightnote:page-changed', { notebookId, sectionId, pageId })
+        }
+      }, 600))
+    })
+  } catch (e) {
+    console.error('data watch:', e)   // 감시 실패해도 앱은 그대로 쓴다
+  }
+}
+
+// ── OneDrive 충돌 사본 찾기 ──────────────────────────────────────────────
+// 동기화가 늦게 도착하면 OneDrive가 `notebooks-DESKTOP-A.json` 같은 사본을
+// 남기는데, 앱이 그냥 무시해서 **날아간 줄도 모른다.** 찾아서 알려만 준다
+// (지우거나 합치지 않는다 — 사용자가 보고 정한다).
+const ROOT_BASES = ['notebooks', 'page-refs', 'page-links', 'work-objects', 'references', 'settings']
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.json$/i
+
+function findConflictCopies(root: string, out: string[] = [], depth = 0): string[] {
+  if (out.length >= 30 || depth > 6 || !existsSync(root)) return out
+  let names: string[] = []
+  try { names = readdirSync(root) } catch { return out }
+  for (const name of names) {
+    const full = join(root, name)
+    let dir = false
+    try { dir = statSync(full).isDirectory() } catch { continue }
+    if (dir) {
+      if (name === 'versions') continue
+      findConflictCopies(full, out, depth + 1)
+      continue
+    }
+    if (!name.toLowerCase().endsWith('.json') || name.endsWith('.tmp')) continue
+    const parent = root.split(/[\\/]/).pop()
+    if (parent === 'pages') {
+      // 페이지 파일은 이름이 UUID다. 아니면 사본이다.
+      if (!UUID_RE.test(name)) out.push(full)
+    } else if (ROOT_BASES.some((b) => name.toLowerCase().startsWith(b + '-'))) {
+      out.push(full)
+    }
+  }
+  return out
+}
+
+ipcMain.handle('lightnote:conflict-copies', () => {
+  const root = activeDataDir || localDataDir()
+  return findConflictCopies(root).map((p) => ({ path: p, name: p.split(/[\\/]/).pop() || p }))
+})
+
+ipcMain.handle('lightnote:reveal-path', (_e, { path: p }: { path: string }) => {
+  try { shell.showItemInFolder(p) } catch { /* ignore */ }
+})
+
 // ── 스티커 메모 ───────────────────────────────────────────────────────────
 // 바탕화면에 붙여두는 작은 창. 창 하나가 노트 하나다 — 같은 노트를 다시
 // 띄우면 새 창을 만들지 않고 이미 떠 있는 창을 앞으로 가져온다. 내용은
@@ -1310,6 +1527,8 @@ app.whenReady().then(() => {
   })
 
   initDb()
+  resolveDataDir()
+  startDataWatch()
   registerLightNoteIpc(ipcMain, () => lightNoteWindow, safeStorage, dialog, app, {
     scheduleDigest: buildScheduleDigest,
     pageLinks: pageLinkContext,
@@ -1328,6 +1547,9 @@ app.whenReady().then(() => {
       const t = getTaskById(id)
       return t ? { id: t.id, title: t.title, due_at: t.due_at ?? null, done: !!t.done } : null
     },
+    // 우리가 방금 쓴 파일이라고 감시기에 알려 준다 — 그래야 제 저장이
+    // 되돌아와 "다른 창에서 바뀜" 배너를 헛되이 띄우지 않는다.
+    onPageSaved: (pageId: string, updatedAt: number) => noteSelfWrite(pageId, updatedAt),
     getItem: (kind: 'event' | 'task', id: string) => {
       if (kind === 'event') {
         const e = getEventById(id)
@@ -1336,7 +1558,7 @@ app.whenReady().then(() => {
       const t = getTaskById(id)
       return t ? { title: t.title, due_at: t.due_at ?? undefined } : null
     }
-  })
+  }, activeDataDir)
   createWindow()
   createTray()
   scheduleNextReminder()

@@ -110,9 +110,11 @@ w = await wo()
 ok('re-adding restores the kept data', w.enabled === true && w.status === '진행중' && w.nextActions.length === 1, JSON.stringify({ e: w.enabled, s: w.status }))
 
 // Full delete (dialog auto-accept).
-ln.once('dialog', d => d.accept())
+// 앱 자체 모달로 묻는다(네이티브 confirm 아님 — 2026-09-23에 바뀌었다).
 await ln.locator('.wo-del-btn').click()
-await ln.waitForTimeout(300)
+await ln.waitForSelector('.modal-box', { timeout: 3000 })
+await ln.locator('.modal-actions .btn-danger, .modal-actions .btn-primary').first().click()
+await ln.waitForTimeout(600)
 ok('full delete removes the work-object', (await wo()) === null)
 
 await app.close()

@@ -7,28 +7,29 @@ const fs = require('fs').promises;
 const crypto = require('crypto');
 
 let DATA_ROOT = '';
-// In-memory cache of the whole map (small: one object per work note).
-let cache = null;
 
 function init(dataRoot) {
   DATA_ROOT = dataRoot;
-  cache = null;
 }
 
 function filePath() { return path.join(DATA_ROOT, 'work-objects.json'); }
 
+/** 늘 디스크에서 다시 읽는다 — 메모리에 들고 있으면 안 된다.
+ *
+ *  예전에는 한 번 읽은 맵을 캐시로 들고 있다가 통째로 다시 썼다. 그러면 이
+ *  파일이 바깥에서 바뀐 걸 끝내 모른다. 아침에 회사에서 앱을 켜 두고 집에서
+ *  하루치 업무 속성을 고친 뒤, 저녁에 회사 PC에서 속성 하나만 건드리면 아침
+ *  스냅샷이 통째로 쓰여 하루치가 사라졌다. 맵이 작아(노트당 객체 하나) 매번
+ *  읽어도 체감되지 않는다. */
 async function readAll() {
-  if (cache) return cache;
   try {
-    cache = JSON.parse(await fs.readFile(filePath(), 'utf-8')) || {};
+    return JSON.parse(await fs.readFile(filePath(), 'utf-8')) || {};
   } catch {
-    cache = {};
+    return {};
   }
-  return cache;
 }
 
 async function writeAll(map) {
-  cache = map;
   const p = filePath();
   await fs.mkdir(path.dirname(p), { recursive: true });
   const tmp = p + '.tmp';

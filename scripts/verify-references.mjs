@@ -108,8 +108,13 @@ await ln.locator('.ql-editor .ln-ref').first().hover()
 await ln.waitForTimeout(400)
 ok('올리자마자는 안 뜬다 (바로 뜨면 지나가기만 해도 깜빡인다)',
   await ln.locator('.ln-ref-tip').count() === 0)
-await ln.waitForTimeout(900)
-const tipText = await ln.locator('.ln-ref-tip').textContent().catch(() => null)
+// 마우스가 막 들어온 직후라 가끔 한 박자 늦는다 — 떠오를 때까지 기다린다.
+let tipText = null
+for (let i = 0; i < 20 && !tipText; i++) {
+  await ln.waitForTimeout(200)
+  tipText = await ln.locator('.ln-ref-tip').textContent().catch(() => null)
+  if (!tipText && i === 6) await ln.locator('.ql-editor .ln-ref').first().hover()
+}
 ok('1초쯤 머무르면 번호와 제목이 뜸', /\[1\]\s*A 시료 측정/.test(tipText || ''), JSON.stringify(tipText))
 
 await ln.locator('#ln-page-title').hover()
@@ -169,8 +174,11 @@ ok('번호 칩으로 여러 개를 골라 볼 수 있음(다중 선택)',
 // ── 인용 중인 참조 삭제 → 본문 마커는 [?]로 남는다 ──────────────────────
 await ln.locator('.ref-chip-all').click()
 await ln.waitForTimeout(250)
-ln.once('dialog', d => d.accept())
+// 지울지 묻는 건 네이티브 confirm이 아니라 앱 자체 모달이다(2026-09-23에
+// 바뀌었다). dialog 이벤트를 기다리면 영영 안 와서 삭제가 일어나지 않는다.
 await ln.locator('.ref-card', { hasText: 'A 시료 측정' }).locator('.ref-del').click()
+await ln.waitForSelector('.modal-box', { timeout: 3000 })
+await ln.locator('.modal-actions .btn-danger, .modal-actions .btn-primary').first().click()
 await ln.waitForTimeout(800)
 const marksAfterDelete = await ln.evaluate(() =>
   Array.from(document.querySelectorAll('.ql-editor .ln-ref')).map(e => e.getAttribute('data-num')))

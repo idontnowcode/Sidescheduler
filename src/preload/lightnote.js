@@ -21,6 +21,8 @@ contextBridge.exposeInMainWorld('lightnote', {
   getPages: (notebookId, sectionId) => ipcRenderer.invoke('lightnote:get-pages', { notebookId, sectionId }),
   createPage: (notebookId, sectionId, title, parentId) => ipcRenderer.invoke('lightnote:create-page', { notebookId, sectionId, title, parentId }),
   loadPage: (notebookId, sectionId, pageId) => ipcRenderer.invoke('lightnote:load-page', { notebookId, sectionId, pageId }),
+  // 본문을 읽지 않고 "그 사이 바뀌었나"만 확인한다 (창 포커스 시 사용)
+  pageStamp: (notebookId, sectionId, pageId) => ipcRenderer.invoke('lightnote:page-stamp', { notebookId, sectionId, pageId }),
   savePage: (data) => ipcRenderer.invoke('lightnote:save-page', data),
   renamePage: (notebookId, sectionId, id, title) => ipcRenderer.invoke('lightnote:rename-page', { notebookId, sectionId, id, title }),
   deletePage: (notebookId, sectionId, id) => ipcRenderer.invoke('lightnote:delete-page', { notebookId, sectionId, id }),
@@ -71,6 +73,16 @@ contextBridge.exposeInMainWorld('lightnote', {
   // 기록장
   journalAppend: (text, at) => ipcRenderer.invoke('lightnote:journal:append', { text, at }),
   journalAppendImage: (dataUrl, text, at) => ipcRenderer.invoke('lightnote:journal:append-image', { dataUrl, text, at }),
+  // 공유 노트 폴더 (OneDrive 등)
+  dataDirStatus: () => ipcRenderer.invoke('lightnote:data-dir:status'),
+  dataDirMigrate: () => ipcRenderer.invoke('lightnote:data-dir:migrate'),
+  dataDirAttach: () => ipcRenderer.invoke('lightnote:data-dir:attach'),
+  dataDirUseLocal: () => ipcRenderer.invoke('lightnote:data-dir:use-local'),
+  dataDirRelaunch: () => ipcRenderer.invoke('lightnote:data-dir:relaunch'),
+  // OneDrive가 남긴 충돌 사본 찾기 (알려만 준다 — 지우거나 합치지 않는다)
+  conflictCopies: () => ipcRenderer.invoke('lightnote:conflict-copies'),
+  revealPath: (p) => ipcRenderer.invoke('lightnote:reveal-path', { path: p }),
+
   // 스티커 메모 — 창 하나가 노트 하나
   stickyNew: () => ipcRenderer.invoke('sticky:new'),
   stickyOpen: (target) => ipcRenderer.invoke('sticky:open', target),

@@ -12,27 +12,28 @@ const fs = require('fs').promises;
 const attachments = require('./attachments');
 
 let DATA_ROOT = '';
-let cache = null;
 
 function init(dataRoot) {
   DATA_ROOT = dataRoot;
-  cache = null;
 }
 
 function filePath() { return path.join(DATA_ROOT, 'references.json'); }
 
+/** 늘 디스크에서 다시 읽는다 — 메모리에 들고 있으면 안 된다.
+ *
+ *  예전에는 한 번 읽은 맵을 캐시로 들고 있다가 통째로 다시 썼는데, 그러면
+ *  이 파일이 바깥에서 바뀐 걸 끝내 모른다. 창을 두 개 띄우거나(또는 공유
+ *  폴더를 쓰면 다른 PC에서) 저쪽이 더해 둔 참조가, 이쪽의 다음 저장 한 번에
+ *  파일 통째로 지워졌다. 맵이 작아 매번 읽어도 체감되지 않는다. */
 async function readAll() {
-  if (cache) return cache;
   try {
-    cache = JSON.parse(await fs.readFile(filePath(), 'utf-8')) || {};
+    return JSON.parse(await fs.readFile(filePath(), 'utf-8')) || {};
   } catch {
-    cache = {};
+    return {};
   }
-  return cache;
 }
 
 async function writeAll(map) {
-  cache = map;
   const p = filePath();
   await fs.mkdir(path.dirname(p), { recursive: true });
   const tmp = p + '.tmp';

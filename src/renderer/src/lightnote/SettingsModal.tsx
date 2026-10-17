@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import type { CustomFont } from './types'
+import type { CustomFont, DataDirStatus } from './types'
 
 const THEMES = {
   dark:   { label: 'Dark',    vars: { '--bg':'#1e1e1e','--bg2':'#252526','--bg3':'#2d2d30','--bg4':'#3c3c3c','--border':'#3c3c3c','--text':'#cccccc','--text-dim':'#888888' } },
@@ -124,6 +124,33 @@ export default function SettingsModal({ onClose }: Props) {
   const [dedupStatus, setDedupStatus] = useState('')
   const [deduping, setDeduping] = useState(false)
   const [customFonts, setCustomFonts] = useState<CustomFont[]>([])
+
+  // 공유 노트 폴더 (OneDrive 등)
+  const [dataDir, setDataDir] = useState<DataDirStatus | null>(null)
+  const [sddMsg, setSddMsg] = useState('')
+  useEffect(() => { window.lightnote.dataDirStatus().then(setDataDir).catch(() => {}) }, [])
+
+  const pickSharedDir = useCallback(async () => {
+    setSddMsg('')
+    const r = await window.lightnote.dataDirMigrate()
+    if (r.canceled) return
+    if (r.error === 'NOT_EMPTY') { setSddMsg('그 폴더엔 이미 노트가 있습니다. 비어 있는 폴더를 고르세요 (덮어쓰지 않습니다).'); return }
+    if (r.error === 'SAME') { setSddMsg('지금 쓰는 폴더와 같습니다.'); return }
+    if (r.error) { setSddMsg(`옮기지 못했습니다: ${r.message || r.error}`); return }
+    setSddMsg(`${r.copied}개 파일을 복사했습니다. 앱을 다시 띄웁니다…`)
+    setTimeout(() => window.lightnote.dataDirRelaunch(), 900)
+  }, [])
+
+  // 두 번째 PC — 그 폴더엔 이미 노트가 있으므로 복사하지 않고 가리키기만 한다.
+  const attachSharedDir = useCallback(async () => {
+    setSddMsg('')
+    const r = await window.lightnote.dataDirAttach()
+    if (r.canceled) return
+    if (r.error === 'NOT_A_NOTE_DIR') { setSddMsg('그 폴더엔 노트 목록(notebooks.json)이 없습니다. 다른 PC에서 먼저 옮겨 둔 폴더를 고르세요.'); return }
+    if (r.error) { setSddMsg(`연결하지 못했습니다: ${r.error}`); return }
+    setSddMsg('연결했습니다. 앱을 다시 띄웁니다…')
+    setTimeout(() => window.lightnote.dataDirRelaunch(), 900)
+  }, [])
 
   const handleDedup = useCallback(async () => {
     if (deduping) return
@@ -316,6 +343,34 @@ export default function SettingsModal({ onClose }: Props) {
           <span style={{ fontSize: '11px', color: 'var(--text-dim, #888)' }}>
             .ttf/.otf/.woff/.woff2 파일을 넣고 앱을 다시 시작하면 위 목록에 나타납니다.
           </span>
+        </div>
+
+        <div className="settings-divider" />
+
+        <div className="settings-section-title">공유 노트 폴더</div>
+        <div className="sdd-row">
+          <span className="sdd-path" title={dataDir?.active || ''}>
+            {dataDir ? (dataDir.shared ? dataDir.active : `이 PC에만 (${dataDir.active})`) : '…'}
+          </span>
+          {dataDir?.shared ? (
+            <button type="button" className="ddb-btn" onClick={async () => {
+              await window.lightnote.dataDirUseLocal()
+              window.lightnote.dataDirRelaunch()
+            }}>이 PC로 되돌리기</button>
+          ) : (
+            <>
+              <button type="button" className="ddb-btn" onClick={pickSharedDir}>빈 폴더로 옮기기…</button>
+              <button type="button" className="ddb-btn" onClick={attachSharedDir}>이미 쓰던 폴더에 연결…</button>
+            </>
+          )}
+        </div>
+        {sddMsg && <div className="sdd-note">{sddMsg}</div>}
+        <div className="sdd-note">
+          OneDrive 안의 폴더를 쓰면 회사·집 PC가 같은 노트를 봅니다.
+          <b> 첫 PC</b>에서는 [빈 폴더로 옮기기]로 지금 노트를 그 폴더에 <b>복사</b>합니다
+          (원본은 지우지 않습니다). <b>다른 PC</b>에서는 [이미 쓰던 폴더에 연결]로 그 폴더를
+          가리키기만 하면 됩니다. 경로는 PC마다 따로 기억하고, 페이지 기록(되돌리기)은
+          이 PC에만 남습니다. 두 PC에서 같은 노트를 동시에 고치는 건 피하세요.
         </div>
 
         <div className="settings-divider" />

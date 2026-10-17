@@ -30,17 +30,21 @@ function escapeHtml(s) {
  * @param {Electron.Dialog} dialog
  * @param {Electron.App} app
  */
-function registerIpcHandlers(ipcMain, getWindow, safeStorage, dialog, app, scheduler) {
+function registerIpcHandlers(ipcMain, getWindow, safeStorage, dialog, app, scheduler, dataRootOverride) {
   // Data root: use appData so it matches the standalone LightNote install location
   const APP_ROOT = path.join(app.getPath('appData'), 'lightnote');
-  const DATA_ROOT = path.join(APP_ROOT, 'lightnote-data');
+  const LOCAL_ROOT = path.join(APP_ROOT, 'lightnote-data');
+  // 공유 폴더(OneDrive 등)를 지정했으면 노트는 거기서 읽고 쓴다.
+  const DATA_ROOT = dataRootOverride || LOCAL_ROOT;
 
   noteStorage.init(DATA_ROOT);
   imageHandler.init(DATA_ROOT);
   linkStorage.init(DATA_ROOT);
   workObjectStorage.init(DATA_ROOT);
   customFonts.init(APP_ROOT);
-  pageVersions.init(DATA_ROOT);
+  // 페이지 기록만은 늘 **로컬**에 남긴다. 저장할 때마다 쌓이는 데다 되돌리기는
+  // 각 PC에서만 쓰면 되는 것이라, 공유 폴더에 두면 동기화 트래픽만 는다.
+  pageVersions.init(LOCAL_ROOT);
   attachments.init(DATA_ROOT);
   referenceStorage.init(DATA_ROOT);
   storage.init(safeStorage);
@@ -120,15 +124,46 @@ function registerIpcHandlers(ipcMain, getWindow, safeStorage, dialog, app, sched
     return noteStorage.loadPage(notebookId, sectionId, pageId);
   });
 
-  ipcMain.handle('lightnote:save-page', async (event, { notebookId, sectionId, pageId, delta, title, snapshot }) => {
+  // "이 페이지가 그 사이 바뀌었나"만 묻는 가벼운 질문. 본문을 통째로 읽지
+  // 않으려고 섹션 목록(pages.json)의 updatedAt을 본다 — 저장·이름변경이
+  // 둘을 같은 값으로 맞춰 두므로 본문 파일의 시각과 일치한다.
+  // 창이 포커스를 받을 때마다 부르므로 가벼워야 한다.
+  ipcMain.handle('lightnote:page-stamp', async (_, { notebookId, sectionId, pageId }) => {
+    try {
+      const pages = await noteStorage.getPages(notebookId, sectionId);
+      const p = (pages || []).find((x) => x.id === pageId);
+      return p ? { updatedAt: p.updatedAt, title: p.title } : null;
+    } catch {
+      return null;
+    }
+  });
+
+  ipcMain.handle('lightnote:save-page', async (event, { notebookId, sectionId, pageId, delta, title, snapshot, baseUpdatedAt, force }) => {
+    // 덮어쓰기 전에 디스크를 먼저 본다. 창이 이 페이지를 읽은 뒤에 파일이
+    // 바뀌었다면(다른 창, 또는 공유 폴더를 쓸 때 다른 PC), 이 창이 들고 있는
+    // 건 묵은 내용이다. 그대로 쓰면 저쪽 작업이 조용히 되돌아간다.
+    // 스냅샷 때문에 어차피 읽는 값이라 추가 비용은 없다.
+    let prev = null;
+    try {
+      prev = await noteStorage.loadPage(notebookId, sectionId, pageId);
+    } catch (e) { console.error('load prev:', e); }
+
+    if (!force && prev && Number.isFinite(baseUpdatedAt) && Number.isFinite(prev.updatedAt)
+        && prev.updatedAt !== baseUpdatedAt) {
+      return { conflict: true, updatedAt: prev.updatedAt, title: prev.title };
+    }
+
     // Snapshot what's being replaced BEFORE overwriting (throttled inside;
     // `snapshot: true` forces one, used before AI Organize rewrites).
     try {
-      const prev = await noteStorage.loadPage(notebookId, sectionId, pageId);
-      await pageVersions.snapshot(pageId, prev, !!snapshot);
+      if (prev) await pageVersions.snapshot(pageId, prev, !!snapshot);
     } catch (e) { console.error('page snapshot:', e); }
     const result = await noteStorage.savePage(notebookId, sectionId, pageId, delta, title);
     noteIndexer.invalidateCache(pageId);
+    // 폴더 감시기에게 "이건 우리가 쓴 것"이라고 알린다(메아리 무시용).
+    try {
+      if (scheduler && scheduler.onPageSaved) scheduler.onPageSaved(pageId, result && result.updatedAt);
+    } catch { /* ignore */ }
     // Multiple windows (the main LightNote window, "open in new window"
     // copies) can have the same page open at once with no shared memory —
     // let every OTHER window know this page just changed on disk, so it can
@@ -181,13 +216,17 @@ function registerIpcHandlers(ipcMain, getWindow, safeStorage, dialog, app, sched
     return r || { success: false };
   });
 
-  const dropRefsAndIndex = (pageIds) => {
+  // 영구 삭제된 페이지의 딸림 자료도 같이 치운다(고아 방지).
+  //
+  // 기다린다(await). 예전에는 띄워만 놓고 바로 돌아왔는데, 사이드카가 맵을
+  // 메모리에 들고 있던 때라 사실상 즉시 끝나 가려져 있었다. 이제는 파일을
+  // 다시 읽고 쓰므로, 안 기다리면 "지웠는데 아직 남아 있는" 창이 생긴다.
+  const dropRefsAndIndex = async (pageIds) => {
     for (const pid of pageIds) { linkStorage.removePageLinks(pid); noteIndexer.invalidateCache(pid); }
-    // Permanently deleted pages lose their work-object metadata too (no orphans).
-    workObjectStorage.removeMany(pageIds).catch((e) => console.error('workObject cleanup:', e));
-    referenceStorage.removeMany(pageIds).catch((e) => console.error('reference cleanup:', e));
-    pageVersions.removeAll(pageIds).catch((e) => console.error('version cleanup:', e));
-    attachments.removeAll(pageIds).catch((e) => console.error('attachment cleanup:', e));
+    await workObjectStorage.removeMany(pageIds).catch((e) => console.error('workObject cleanup:', e));
+    await referenceStorage.removeMany(pageIds).catch((e) => console.error('reference cleanup:', e));
+    await pageVersions.removeAll(pageIds).catch((e) => console.error('version cleanup:', e));
+    await attachments.removeAll(pageIds).catch((e) => console.error('attachment cleanup:', e));
   };
 
   ipcMain.handle('lightnote:trash:purge', async (_, node) => {
@@ -196,14 +235,14 @@ function registerIpcHandlers(ipcMain, getWindow, safeStorage, dialog, app, sched
     else if (node.type === 'section') res = await noteStorage.purgeSection(node.notebookId, node.sectionId);
     else if (node.type === 'notebook') res = await noteStorage.purgeNotebook(node.notebookId);
     else res = { pageIds: [] };
-    dropRefsAndIndex(res.pageIds || []);
+    await dropRefsAndIndex(res.pageIds || []);
     noteIndexer.clearCache();
     return { success: true };
   });
 
   ipcMain.handle('lightnote:trash:empty', async () => {
     const r = await noteStorage.emptyTrash();
-    dropRefsAndIndex(r.pageIds || []);
+    await dropRefsAndIndex(r.pageIds || []);
     noteIndexer.clearCache();
     return { success: true, count: r.count };
   });

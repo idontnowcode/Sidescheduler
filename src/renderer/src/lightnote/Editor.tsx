@@ -560,6 +560,11 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
   // drifting out of sync (or, worse, this window's next autosave clobbering
   // that other save with its own stale content).
   const [remotelyChanged, setRemotelyChanged] = useState(false)
+  // 이 창이 마지막으로 읽은 판의 시각. 저장할 때 같이 보내, 그 사이 파일이
+  // 바뀌었으면(다른 창 · 공유 폴더를 쓸 때 다른 PC) 덮어쓰지 않게 한다.
+  const baseUpdatedAtRef = useRef<number | null>(null)
+  // 포커스 핸들러가 쓰려면 refreshFromDisk보다 먼저 있어야 해서 ref로 둔다.
+  const refreshFromDiskRef = useRef<(() => void) | null>(null)
   const [counts, setCounts] = useState({ chars: 0, words: 0 })
   // Format painter: holds the copied inline formats while "armed".
   const painterRef = useRef<Record<string, unknown> | null>(null)
@@ -665,6 +670,27 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
     return unsub
   }, [])
 
+  // 자리에 앉는 순간 최신으로 맞춘다.
+  //
+  // 위의 알림은 같은 앱의 다른 창이 저장했을 때만 온다. 공유 폴더를 쓰면
+  // 저쪽 PC가 파일을 바꾼 건 아무도 알려주지 않아, 창을 켜둔 채 자리를 옮겼다
+  // 돌아와 한 글자만 쳐도 묵은 본문이 통째로 덮어써진다. 그래서 창이 포커스를
+  // 받을 때 디스크 쪽 시각을 보고 따라간다(본문은 안 읽는다).
+  useEffect(() => {
+    const onFocus = async () => {
+      const cp = currentPageRef.current
+      const base = baseUpdatedAtRef.current
+      if (!cp || base === null) return
+      const st = await window.lightnote.pageStamp(cp.notebookId, cp.sectionId, cp.pageId)
+      if (!st || typeof st.updatedAt !== 'number' || st.updatedAt === base) return
+      // 고치던 게 있으면 말없이 덮지 않는다 — 배너로 고르게 한다.
+      if (isDirtyRef.current) setRemotelyChanged(true)
+      else refreshFromDiskRef.current?.()
+    }
+    window.addEventListener('focus', onFocus)
+    return () => window.removeEventListener('focus', onFocus)
+  }, [])
+
   // Load linked items (events/tasks) + related pages when the page changes
   useEffect(() => {
     // Restore this page's saved fold state (persisted, per-page).
@@ -709,15 +735,29 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
   // `snapshot: true` forces a version checkpoint of the content being replaced
   // (autosave otherwise throttles snapshots) — used right before destructive
   // rewrites like AI Organize.
-  const savePage = useCallback(async (snapshot = false) => {
+  // force=true면 디스크가 더 새롭더라도 이 창의 내용으로 덮어쓴다 — 배너에서
+  // 사용자가 "내 것으로 저장"을 고른 경우. 덮이는 쪽은 스냅샷으로 남는다.
+  const savePage = useCallback(async (snapshot = false, force = false) => {
     const cp = currentPageRef.current
     if (!cp || !quillRef.current) return
     const delta = quillRef.current.getContents()
     const title = (document.getElementById('ln-page-title') as HTMLInputElement)?.value?.trim() || 'Untitled'
     try {
       setSaveState('saving')
-      await window.lightnote.savePage({ ...cp, delta, title, snapshot })
+      const res = await window.lightnote.savePage({
+        ...cp, delta, title, snapshot: snapshot || force, force,
+        baseUpdatedAt: force ? undefined : (baseUpdatedAtRef.current ?? undefined),
+      })
+      // 내가 읽은 뒤에 파일이 바뀌었다 — 묵은 내용으로 덮지 않고 알린다.
+      // 고치던 내용은 창에 그대로 있고, 배너의 [새로고침]이 선택지를 준다.
+      if (res && res.conflict) {
+        setSaveState('editing')   // 아직 저장 안 됨 — "Saved"로 보이면 안 된다
+        setRemotelyChanged(true)
+        return
+      }
+      if (res && typeof res.updatedAt === 'number') baseUpdatedAtRef.current = res.updatedAt
       setSaveState('saved')
+      setRemotelyChanged(false)
       isDirtyRef.current = false
       setIsDirty(false)
       // Reflect a renamed title in the left tree immediately (only when it changed).
@@ -742,6 +782,7 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
     }
     try {
       const data = await window.lightnote.loadPage(cp.notebookId, cp.sectionId, cp.pageId)
+      baseUpdatedAtRef.current = typeof data.updatedAt === 'number' ? data.updatedAt : null
       setTitleValue(data.title || 'Untitled')
       lastSavedTitleRef.current = data.title || 'Untitled'
       if (quillRef.current) {
@@ -758,6 +799,7 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
       console.error('Refresh from disk failed:', err)
     }
   }, [])
+  refreshFromDiskRef.current = refreshFromDisk
 
   // Initialize Quill once
   useEffect(() => {
@@ -1717,6 +1759,7 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
       currentPageRef.current = cp
       try {
         const data = await window.lightnote.loadPage(nbId, secId, pageId)
+        baseUpdatedAtRef.current = typeof data.updatedAt === 'number' ? data.updatedAt : null
         setTitleValue(data.title || 'Untitled')
         lastSavedTitleRef.current = data.title || 'Untitled'
         if (quillRef.current) {
@@ -2069,8 +2112,11 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
         )}
         {remotelyChanged && (
           <div className="ln-remote-banner">
-            <span>⚠ 이 페이지가 다른 창에서 저장되었습니다.</span>
-            <button onClick={refreshFromDisk}>새로고침</button>
+            <span>⚠ 이 페이지가 다른 곳에서 저장되었습니다 (다른 창 또는 다른 PC).</span>
+            <button onClick={refreshFromDisk}>저쪽 것 불러오기</button>
+            {/* 이 길이 없으면 막다른 골목이 된다 — 새로고침은 내 편집을 버리고,
+                닫으면 다음 자동저장이 또 거부돼 영영 저장을 못 한다. */}
+            <button onClick={() => savePage(true, true)}>내 것으로 저장</button>
             <button className="ln-remote-dismiss" title="닫기" onClick={() => setRemotelyChanged(false)}>✕</button>
           </div>
         )}

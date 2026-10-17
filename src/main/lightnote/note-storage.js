@@ -286,7 +286,9 @@ async function savePage(notebookId, sectionId, pageId, delta, title) {
     page.updatedAt = now;
     await writeJson(pagesPath(notebookId, sectionId), pages);
   }
-  return { success: true };
+  // 방금 찍은 시각을 돌려준다 — 창이 "내가 마지막으로 본 판"을 갱신해 둬야
+  // 다음 저장이 제 자신과 충돌났다고 오해하지 않는다.
+  return { success: true, updatedAt: now };
 }
 
 async function renamePage(notebookId, sectionId, pageId, title) {

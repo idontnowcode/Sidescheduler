@@ -91,10 +91,10 @@ const zones = await ln.evaluate(() =>
     el.classList.contains('wo-log-zone') ? `[${el.textContent}]`
       : (el.querySelector?.('.wo-kind')?.textContent || null)).filter(Boolean))
 ok('열린 것 구역에 할일·질문이 모임',
-  zones.indexOf('[열린 것]') === 0 && zones.slice(1, 3).sort().join() === ['질문', '할일'].sort().join(),
+  zones.indexOf('[처리할 것]') === 0 && zones.slice(1, 3).sort().join() === ['질문', '할일'].sort().join(),
   JSON.stringify(zones))
 ok('지나온 것 구역에 진행·결정이 모임',
-  zones.includes('[지나온 것]') && zones.slice(zones.indexOf('[지나온 것]') + 1).sort().join() === ['결정', '진행'].sort().join(),
+  zones.includes('[지난 기록]') && zones.slice(zones.indexOf('[지난 기록]') + 1).sort().join() === ['결정', '진행'].sort().join(),
   JSON.stringify(zones))
 
 // 할일을 완료하면 '지나온 것'으로 내려간다
@@ -107,12 +107,14 @@ const zones2 = await ln.evaluate(() =>
     el.classList.contains('wo-log-zone') ? `[${el.textContent}]`
       : (el.querySelector?.('.wo-kind')?.textContent || null)).filter(Boolean))
 ok('완료한 할일은 지나온 것으로 내려감',
-  zones2.slice(zones2.indexOf('[열린 것]') + 1, zones2.indexOf('[지나온 것]')).join() === '질문',
+  zones2.slice(zones2.indexOf('[처리할 것]') + 1, zones2.indexOf('[지난 기록]')).join() === '질문',
   JSON.stringify(zones2))
 
 // 삭제도 종류별로 올바른 배열에서 빠진다
-ln.once('dialog', d => d.accept())
+// 지울지 묻는 건 앱 자체 모달이다(네이티브 confirm 아님 — 2026-09-23에 바뀜).
 await ln.locator('.wo-action:has(.wo-kind-progress) .wo-x').first().click()
+await ln.waitForSelector('.modal-box', { timeout: 3000 })
+await ln.locator('.modal-actions .btn-danger, .modal-actions .btn-primary').first().click()
 await ln.waitForTimeout(800)
 const wo2 = await ln.evaluate((id) => window.lightnote.workObjectGet(id), ids.pg)
 ok('진행 한 줄을 지우면 progressLog 에서만 빠짐',

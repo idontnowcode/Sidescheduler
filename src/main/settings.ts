@@ -30,6 +30,11 @@ export interface WindowSettings {
   // 바탕화면에 붙여둔 스티커 메모들. 창 하나가 노트 하나라서 목록으로 둔다 —
   // 닫으면 목록에서 빠지므로 저절로 정리된다. 앱을 다시 켜면 그대로 뜬다.
   stickies?: StickyNote[]
+  // 공유 노트 폴더(예: OneDrive 안의 폴더). 비어 있으면 평소대로 로컬
+  // (%APPDATA%/lightnote/lightnote-data). PC마다 OneDrive 경로가 달라
+  // **PC별 설정**이라 이 파일(userData)에 둔다 — 공유 폴더에 두면 안 된다.
+  // 페이지 기록(versions/)은 여기에 따라가지 않고 늘 로컬에 남는다.
+  sharedDataDir?: string
 }
 
 export interface StickyNote {

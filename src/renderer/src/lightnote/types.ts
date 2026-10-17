@@ -127,6 +127,14 @@ export interface PageReference {
 // 줄들은 그 기록에 딸린 내용(extra)으로 묶인다.
 // 기록 한 줄을 "보통 글 / 링크" 조각으로 쪼갠 것. 붙여넣은 주소는 저장할 때
 // 링크로 들어가므로, 화면에서도 눌러서 바로 열 수 있다.
+// 노트를 어느 폴더에서 읽고 쓰는지. problem이 있으면 화면을 막는다.
+export interface DataDirStatus {
+  configured: string | null
+  active: string
+  shared: boolean
+  problem: { path: string; reason: 'MISSING' | 'EMPTY' } | null
+}
+
 // 스티커 메모가 보고 있는 노트. 창 하나가 노트 하나다.
 export interface StickyTarget { pageId: string; notebookId: string; sectionId: string; title?: string }
 
@@ -183,8 +191,14 @@ declare global {
       deleteSection: (notebookId: string, id: string) => Promise<void>
       getPages: (notebookId: string, sectionId: string) => Promise<Page[]>
       createPage: (notebookId: string, sectionId: string, title: string, parentId?: string | null) => Promise<Page>
-      loadPage: (notebookId: string, sectionId: string, pageId: string) => Promise<{ title: string; delta: unknown }>
-      savePage: (args: { notebookId: string; sectionId: string; pageId: string; delta: unknown; title: string; snapshot?: boolean }) => Promise<void>
+      loadPage: (notebookId: string, sectionId: string, pageId: string) => Promise<{ title: string; delta: unknown; updatedAt?: number }>
+      /** 본문을 읽지 않고 "그 사이 바뀌었나"만 확인한다 (창 포커스 시). */
+      pageStamp: (notebookId: string, sectionId: string, pageId: string) => Promise<{ updatedAt: number; title: string } | null>
+      /** baseUpdatedAt을 주면 그 사이 파일이 바뀐 경우 저장하지 않고 conflict로 돌아온다. */
+      savePage: (args: {
+        notebookId: string; sectionId: string; pageId: string; delta: unknown; title: string
+        snapshot?: boolean; baseUpdatedAt?: number; force?: boolean
+      }) => Promise<{ success?: boolean; updatedAt?: number; conflict?: boolean; title?: string } | void>
       renamePage: (notebookId: string, sectionId: string, id: string, title: string) => Promise<Page>
       deletePage: (notebookId: string, sectionId: string, id: string) => Promise<void>
       duplicatePage: (notebookId: string, sectionId: string, id: string) => Promise<Page>
@@ -237,6 +251,13 @@ declare global {
       refsImage: (pageId: string, file: string) => Promise<string | null>
       journalAppend: (text: string, at?: number) => Promise<{ success?: boolean; error?: string } & Partial<JournalPageLoc>>
       journalAppendImage: (dataUrl: string, text?: string, at?: number) => Promise<{ success?: boolean; error?: string }>
+      dataDirStatus: () => Promise<DataDirStatus>
+      dataDirMigrate: () => Promise<{ success?: boolean; canceled?: boolean; error?: string; path?: string; copied?: number; message?: string }>
+      dataDirAttach: () => Promise<{ success?: boolean; canceled?: boolean; error?: string; path?: string }>
+      dataDirUseLocal: () => Promise<{ success: boolean }>
+      dataDirRelaunch: () => Promise<void>
+      conflictCopies: () => Promise<{ path: string; name: string }[]>
+      revealPath: (path: string) => Promise<void>
       stickyNew: () => Promise<StickyTarget | null>
       stickyOpen: (target: StickyTarget) => Promise<boolean>
       stickyWhich: () => Promise<StickyTarget | null>

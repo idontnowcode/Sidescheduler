@@ -73,6 +73,9 @@ export default function StickyApp() {
   const boxRef = useRef<HTMLTextAreaElement>(null)
   const dirty = useRef(false)
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // 이 창이 마지막으로 읽은 판의 시각 — 저장할 때 보내 묵은 내용으로
+  // 덮어쓰지 않게 한다(공유 폴더를 쓰면 저쪽 PC가 바꿨을 수 있다).
+  const base = useRef<number | null>(null)
 
   const load = useCallback(async (t: StickyTarget) => {
     // 지워진(휴지통으로 간) 노트인지 먼저 본다. loadPage는 없는 페이지에도
@@ -82,6 +85,7 @@ export default function StickyApp() {
     const page = await window.lightnote.loadPage(t.notebookId, t.sectionId, t.pageId)
     const { text: body, plain } = deltaToText(page?.delta)
     const name = page?.title || UNTITLED
+    base.current = typeof page?.updatedAt === 'number' ? page.updatedAt : null
     setText(body)
     setTitle(alive ? name : '지워진 노트')
     setMissing(!alive)
@@ -104,16 +108,29 @@ export default function StickyApp() {
     })()
   }, [load])
 
-  const save = useCallback(async (body: string) => {
+  // force=true면 디스크가 더 새롭더라도 이 창의 글로 덮어쓴다 — 배너에서
+  // "내 것으로 저장"을 고른 경우(덮이는 쪽은 스냅샷으로 남는다).
+  const save = useCallback(async (body: string, force = false) => {
     const t = target
     if (!t || !editable) return
     dirty.current = false
     const name = autoTitle.current ? titleOf(body) : title
     setTitle(name)
-    await window.lightnote.savePage({
+    const res = await window.lightnote.savePage({
       notebookId: t.notebookId, sectionId: t.sectionId, pageId: t.pageId,
       delta: textToDelta(body), title: name,
+      baseUpdatedAt: force ? undefined : (base.current ?? undefined),
+      force, snapshot: force,
     })
+    // 내가 읽은 뒤에 파일이 바뀌었다 — 덮지 않고 알린다. 적던 글은 그대로
+    // 창에 남아 있고, 배너를 누르면 저쪽 내용을 가져온다.
+    if (res && res.conflict) {
+      dirty.current = true
+      setStaleElsewhere(true)
+      return
+    }
+    if (res && typeof res.updatedAt === 'number') base.current = res.updatedAt
+    setStaleElsewhere(false)
   }, [target, editable, title])
 
   // 적는 동안 알아서 저장한다 — 스티커에 저장 버튼을 두면 쓰지 않게 된다.
@@ -126,10 +143,25 @@ export default function StickyApp() {
   // 창을 닫거나 포커스를 잃을 때 남은 것을 흘리지 않고 저장한다.
   useEffect(() => {
     const flush = () => { if (dirty.current) save(text) }
+    // 자리에 앉는 순간 최신으로 맞춘다 — 창을 켜둔 채 다른 PC에서 고쳤어도
+    // 묵은 내용 위에 이어 적지 않도록. 적던 게 있으면 배너로만 알린다.
+    const onFocus = async () => {
+      const t = target
+      if (!t || base.current === null) return
+      const st = await window.lightnote.pageStamp(t.notebookId, t.sectionId, t.pageId)
+      if (!st || typeof st.updatedAt !== 'number' || st.updatedAt === base.current) return
+      if (dirty.current) setStaleElsewhere(true)
+      else load(t)
+    }
     window.addEventListener('blur', flush)
+    window.addEventListener('focus', onFocus)
     window.addEventListener('beforeunload', flush)
-    return () => { window.removeEventListener('blur', flush); window.removeEventListener('beforeunload', flush) }
-  }, [save, text])
+    return () => {
+      window.removeEventListener('blur', flush)
+      window.removeEventListener('focus', onFocus)
+      window.removeEventListener('beforeunload', flush)
+    }
+  }, [save, text, target, load])
 
   // 같은 노트를 LightNote 본창에서 고치면 여기도 따라간다. 단, 여기에 아직
   // 저장 안 된 글이 있으면 덮어쓰지 않고 알려만 준다.
@@ -196,10 +228,14 @@ export default function StickyApp() {
         </div>
       ) : (
         <>
+          {/* 불러오기만 두면 막다른 길이 된다 — 적던 글을 버리거나, 그냥 두면
+              다음 저장이 계속 거부된다. 두 길을 다 준다. */}
           {staleElsewhere && (
-            <button className="sn-bar" onClick={() => target && load(target)}>
-              다른 창에서 바뀌었습니다 · 눌러서 불러오기
-            </button>
+            <div className="sn-bar">
+              <span className="sn-bar-text">다른 곳에서 바뀌었습니다</span>
+              <button className="sn-bar-btn" onClick={() => target && load(target)}>불러오기</button>
+              <button className="sn-bar-btn" onClick={() => save(text, true)}>내 것으로</button>
+            </div>
           )}
           {editable ? (
             <textarea ref={boxRef} className="sn-body" value={text} placeholder="메모…" spellCheck={false}

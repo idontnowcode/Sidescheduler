@@ -1,7 +1,8 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import 'quill/dist/quill.snow.css'
 import './lightnote.css'
-import type { Selected, TrashNode, SearchResult, TocItem, OpenTab, PageReference } from './types'
+import type { Selected, TrashNode, SearchResult, TocItem, OpenTab, PageReference, DataDirStatus } from './types'
+import DataDirBlocked from './DataDirBlocked'
 import NotebookTree, { type TreeHandle } from './NotebookTree'
 import Editor, { type EditorHandle } from './Editor'
 import TrashViewer from './TrashViewer'
@@ -79,6 +80,18 @@ export default function LightnoteApp() {
 
   const editorRef = useRef<EditorHandle>(null)
   const treeRef = useRef<TreeHandle>(null)
+
+  // 공유 노트 폴더를 지정했는데 못 읽는 상태면 노트 화면을 아예 열지 않는다.
+  // 빈 폴더로 열리면 "노트가 전부 사라졌다"로 보이고, 그 상태로 적으면
+  // 저쪽 노트와 갈라진다.
+  const [dataDir, setDataDir] = useState<DataDirStatus | null>(null)
+  useEffect(() => { window.lightnote.dataDirStatus().then(setDataDir).catch(() => {}) }, [])
+
+  // OneDrive가 남긴 충돌 사본 — 앱이 안 읽는 파일이라 그냥 두면 날아간 줄도
+  // 모른다. 알려만 주고 손은 대지 않는다.
+  const [conflicts, setConflicts] = useState<{ path: string; name: string }[]>([])
+  const [conflictsHidden, setConflictsHidden] = useState(false)
+  useEffect(() => { window.lightnote.conflictCopies().then(setConflicts).catch(() => {}) }, [])
 
   useEffect(() => {
     document.title = 'LightNote'
@@ -449,8 +462,23 @@ export default function LightnoteApp() {
     } catch { /* ignore */ }
   }, [selected, breadcrumb, handlePageSelect])
 
+  if (dataDir?.problem) return <DataDirBlocked problem={dataDir.problem} />
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
+      {conflicts.length > 0 && !conflictsHidden && (
+        <div className="cc-bar">
+          <span className="cc-text">
+            동기화 충돌 사본 {conflicts.length}개가 있습니다 — 앱이 읽지 않는 파일이라,
+            저쪽 PC에서 적은 내용이 그 안에 남아 있을 수 있습니다.
+          </span>
+          <span className="cc-names" title={conflicts.map(c => c.path).join('\n')}>
+            {conflicts.slice(0, 2).map(c => c.name).join(', ')}{conflicts.length > 2 ? ' …' : ''}
+          </span>
+          <button className="cc-btn" onClick={() => window.lightnote.revealPath(conflicts[0].path)}>폴더 열기</button>
+          <button className="cc-btn" title="닫기" onClick={() => setConflictsHidden(true)}>✕</button>
+        </div>
+      )}
       <header className="app-header">
         <span className="app-name">LightNote</span>
         <SearchBar onOpen={openSearchResult} />
