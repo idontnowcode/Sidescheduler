@@ -6,13 +6,17 @@
 //
 //   node scripts/capture-all-screens.mjs
 import { _electron as electron } from 'playwright'
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync, existsSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, readdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 const OUT = 'screenshots'
-if (existsSync(OUT)) rmSync(OUT, { recursive: true, force: true })
+// 폴더째 지우지 않는다 — 탐색기로 열어 두기만 해도 지워지지 않아(EPERM)
+// 캡처가 통째로 실패한다. 안의 파일만 비운다.
 mkdirSync(OUT, { recursive: true })
+for (const f of readdirSync(OUT)) {
+  if (/\.(png|md)$/i.test(f)) { try { rmSync(join(OUT, f), { force: true }) } catch { /* 열려 있으면 덮어쓴다 */ } }
+}
 
 const shots = []
 let n = 0
@@ -202,7 +206,16 @@ await ln.waitForFunction(() => !!window.lightnote, null, { timeout: 10000 })
 await ln.waitForTimeout(1200)
 await ln.evaluate((s) => window.lightnote.openPageInMain(s.nb, s.sec, s.page), seeded)
 await ln.waitForTimeout(2200)
-await snap(ln, 'lightnote-editor', 'LightNote — 노트 편집기(트리 + 본문)')
+// 테스트로 띄우면 툴바가 펴진 채 시작한다. 캡처는 **사용자가 실제로 보는**
+// 접힌 모습이어야 하므로 되돌려 놓고 찍는다.
+await ln.evaluate(() => document.querySelector('.ql-toolbar')?.classList.remove('ln-tb-open'))
+await ln.waitForTimeout(500)
+await snap(ln, 'lightnote-editor', 'LightNote — 노트 편집기(트리 + 본문, 툴바 접힘)')
+await ln.evaluate(() => document.querySelector('.ql-toolbar')?.classList.add('ln-tb-open'))
+await ln.waitForTimeout(500)
+await snap(ln, 'lightnote-editor-toolbar-open', 'LightNote — 편집기 툴바를 ⋯로 펼친 모습')
+await ln.evaluate(() => document.querySelector('.ql-toolbar')?.classList.remove('ln-tb-open'))
+await ln.waitForTimeout(400)
 
 for (const [label, note, open] of [
   ['업무 현황', 'LightNote — 업무 현황(표로 모아보기)', '업무 현황'],

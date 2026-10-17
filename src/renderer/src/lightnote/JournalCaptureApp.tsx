@@ -1,7 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import './lightnote.css'
 import JournalLine from './JournalLine'
-import type { JournalRecord } from './types'
+import type { JournalDay, JournalRecord } from './types'
+
+const pad = (x: number) => String(x).padStart(2, '0')
+const todayKey = (): string => {
+  const d = new Date()
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
 
 // 전역 단축키로 뜨는 기록장 창. 지금 쓰시는 채팅방을 그대로 대체하는 게
 // 목적이라 모양도 채팅방으로 뒀다 — 오늘 적은 것들이 위에 쌓이고, 아래
@@ -58,16 +64,33 @@ export default function JournalCaptureApp() {
   // 위로 올려 예전 기록을 읽는 중이면 끌어내리지 않는다.
   const pinned = useRef(true)
 
+  // 어느 날짜에 적을지. 기본은 오늘.
+  //
+  // 전에는 이 창이 **오늘에만** 적을 수 있었다. 지난 날짜에 뒤늦게 적는 건
+  // 전체 기록장 화면에만 있었는데, 정작 하루 종일 띄워두는 건 이 창이다.
+  const [date, setDate] = useState(todayKey)
+  const [picking, setPicking] = useState(false)
+  const [days, setDays] = useState<JournalDay[]>([])
+
   const reload = useCallback(async () => {
-    const days = await window.lightnote.journalDays(1)
-    const today = days[0]
-    if (!today) return
-    setDateLabel(today.label)
-    const d = await window.lightnote.journalDay(today.date)
+    const list = await window.lightnote.journalDays(14)
+    setDays(list)
+    const row = list.find((x) => x.date === date) || list[0]
+    if (!row) return
+    setDateLabel(row.label)
+    const d = await window.lightnote.journalDay(row.date)
     setRecords(d.records)
-  }, [])
+  }, [date])
 
   useEffect(() => { reload(); ref.current?.focus() }, [reload])
+
+  /** 고른 날짜에 적을 시각. 오늘이면 지금, 지난 날짜면 그 날의 현재 시각. */
+  const stamp = useCallback(() => {
+    if (date === todayKey()) return undefined
+    const [y, m, dd] = date.split('-').map(Number)
+    const now = new Date()
+    return new Date(y, m - 1, dd, now.getHours(), now.getMinutes()).getTime()
+  }, [date])
 
   // 맨 아래에 붙어 있는지 기억해 둔다 — 예전 기록을 읽는 중에 사진 한 장이
   // 늦게 그려졌다고 화면이 툭 내려가면 읽던 자리를 잃는다.
@@ -106,7 +129,7 @@ export default function JournalCaptureApp() {
     if (!body) return
     setText('')
     pinned.current = true   // 내가 방금 적은 건 위를 읽던 중이라도 보여준다
-    await window.lightnote.journalAppend(body)
+    await window.lightnote.journalAppend(body, stamp())
     await reload()
     ref.current?.focus()
   }
@@ -126,11 +149,11 @@ export default function JournalCaptureApp() {
         fr.onerror = () => rej(new Error('read failed'))
         fr.readAsDataURL(file)
       })
-      await window.lightnote.journalAppendImage(dataUrl, i === 0 ? caption : '')
+      await window.lightnote.journalAppendImage(dataUrl, i === 0 ? caption : '', stamp())
     }
     await reload()
     ref.current?.focus()
-  }, [text, reload])
+  }, [text, reload, stamp])
 
   const onPaste = (e: React.ClipboardEvent) => {
     const files = Array.from(e.clipboardData?.files || [])
@@ -145,9 +168,33 @@ export default function JournalCaptureApp() {
       <div className="jc-head">
         <span className="jc-brand"><JournalIcon /></span>
         <span className="jc-title">기록장</span>
-        <span className="jc-date">{dateLabel}</span>
         <div className="jc-spacer" />
         <button className="jc-close" title="닫기 (Esc)" onClick={() => window.lightnote.journalCaptureClose?.()}>×</button>
+      </div>
+
+      {/* 어느 날짜에 적을지 — 전에는 오늘에만 적혔다. 어제 적어둘 걸 깜빡했을
+          때 전체 기록장을 따로 열지 않아도 되게 여기서 고른다. */}
+      <div className="jc-when">
+        <button className={`jc-when-btn${picking ? ' on' : ''}${date !== todayKey() ? ' past' : ''}`}
+          onClick={() => setPicking((v) => !v)}
+          title="어느 날짜에 적을지 고르기">
+          <span className="jc-when-label">
+            {date === todayKey() ? '오늘에 기록' : `${dateLabel}에 기록`}
+          </span>
+          <span className="jc-when-caret">⌄</span>
+        </button>
+        {picking && (
+          <div className="jc-when-list">
+            {days.map((d) => (
+              <button key={d.date}
+                className={`jc-when-item${d.date === date ? ' active' : ''}`}
+                onClick={() => { setDate(d.date); setPicking(false) }}>
+                <span>{d.date === todayKey() ? `오늘 · ${d.label}` : d.label}</span>
+                <span className="jc-when-count">{d.count || ''}</span>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {dropping && <div className="jc-drop">여기에 놓으면 오늘 기록에 사진이 들어갑니다</div>}

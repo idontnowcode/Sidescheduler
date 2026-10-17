@@ -563,6 +563,8 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
   // 이 창이 마지막으로 읽은 판의 시각. 저장할 때 같이 보내, 그 사이 파일이
   // 바뀌었으면(다른 창 · 공유 폴더를 쓸 때 다른 PC) 덮어쓰지 않게 한다.
   const baseUpdatedAtRef = useRef<number | null>(null)
+  // 마지막으로 저장된 시각 — 제목 아래에 "오늘 14:30에 저장됨"으로 보여준다.
+  const [savedAt, setSavedAt] = useState<number | null>(null)
   // 포커스 핸들러가 쓰려면 refreshFromDisk보다 먼저 있어야 해서 ref로 둔다.
   const refreshFromDiskRef = useRef<(() => void) | null>(null)
   const [counts, setCounts] = useState({ chars: 0, words: 0 })
@@ -755,7 +757,10 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
         setRemotelyChanged(true)
         return
       }
-      if (res && typeof res.updatedAt === 'number') baseUpdatedAtRef.current = res.updatedAt
+      if (res && typeof res.updatedAt === 'number') {
+        baseUpdatedAtRef.current = res.updatedAt
+        setSavedAt(res.updatedAt)
+      }
       setSaveState('saved')
       setRemotelyChanged(false)
       isDirtyRef.current = false
@@ -783,6 +788,7 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
     try {
       const data = await window.lightnote.loadPage(cp.notebookId, cp.sectionId, cp.pageId)
       baseUpdatedAtRef.current = typeof data.updatedAt === 'number' ? data.updatedAt : null
+      setSavedAt(typeof data.updatedAt === 'number' ? data.updatedAt : null)
       setTitleValue(data.title || 'Untitled')
       lastSavedTitleRef.current = data.title || 'Untitled'
       if (quillRef.current) {
@@ -890,11 +896,21 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
           }
         },
         toolbar: {
+          // 자주 쓰는 것 먼저, 그 다음에 'more'(…), 나머지는 그 뒤로.
+          //
+          // 접었을 때 'more' 뒤의 묶음을 CSS로 감추기 때문에 **순서가 곧
+          // 기능**이다. 예전엔 서른 몇 개가 두 줄로 깔려 본문보다 툴바가 먼저
+          // 눈에 들어왔다. 자주 쓰는 것만 한 줄로 두고 나머지는 … 뒤에 둔다.
           container: [
             ['undo', 'redo'],
             [{ header: [1, 2, 3, false] }, { toclevel: [false, '1', '2', '3'] }],
-            [{ size: SIZE_LIST }],
-            ['bold', 'italic', 'underline', 'strike', { script: 'super' }, { script: 'sub' }, 'format-painter'],
+            ['bold', 'italic', 'underline', 'strike'],
+            [{ list: 'ordered' }, { list: 'bullet' }, { list: 'check' }],
+            ['link', 'image', 'attach'],
+            ['more'],   // ← 여기까지가 접었을 때 보이는 것
+            // 펼쳤을 때도 줄 수가 늘지 않게 묶음을 굵직하게 묶는다 —
+            // 묶음마다 여백과 구분선이 붙어서, 잘게 나누면 금세 세 줄이 된다.
+            [{ size: SIZE_LIST }, { script: 'super' }, { script: 'sub' }, 'format-painter'],
             // Word-style: the "apply" button applies the current color instantly;
             // the small swatch dropdown next to it changes the current color.
             ['color-apply', { color: SWATCHES }, 'bg-apply', { background: SWATCHES }],
@@ -902,13 +918,10 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
             // 박스(quill-table-up의 '표 전체 정렬')와 아이콘이 똑같아서,
             // 글자 정렬을 하려던 사람이 그쪽을 눌러 아무 일도 안 일어나는
             // 일이 잦았다. 툴바 쪽을 눈에 띄게 만들어 구분한다.
-            [{ align: '' }, { align: 'center' }, { align: 'right' }],
-            [{ list: 'ordered' }, { list: 'bullet' }, { list: 'check' }, { indent: '-1' }, { indent: '+1' }],
-            ['blockquote', 'code-block'],
-            ['link', 'image', 'attach'],
+            [{ align: '' }, { align: 'center' }, { align: 'right' }, { indent: '-1' }, { indent: '+1' }],
+            ['blockquote', 'code-block', 'clean'],
             // 표: 삽입 피커 + 스타일 프리셋 + 텍스트↔표 변환
             [{ [TableUp.toolName]: [] }, { 'table-style': ['header', 'stripe', 'clear'] }, 'text-to-table', 'table-to-text'],
-            ['clean'],
           ],
           handlers: {
             // 되돌리기/다시 실행 — Quill 기본 history 모듈(Ctrl+Z / Ctrl+Shift+Z
@@ -916,6 +929,15 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
             // (Quill history 모듈 기본 maxStack).
             undo: function (this: { quill: typeof quill }) { this.quill.history.undo() },
             redo: function (this: { quill: typeof quill }) { this.quill.history.redo() },
+            // … — 접힌 나머지를 폈다 접는다. 상태는 기억해 둔다(매번 다시
+            // 펴게 하면 넓게 쓰는 사람에게 성가시다).
+            more: function (this: { quill: typeof quill }) {
+              const bar = (this.quill.container.parentElement || document).querySelector('.ql-toolbar')
+              if (!bar) return
+              const next = !bar.classList.contains('ln-tb-open')
+              bar.classList.toggle('ln-tb-open', next)
+              try { localStorage.setItem('ln-toolbar-open', next ? '1' : '0') } catch { /* 저장 못 해도 그만 */ }
+            },
             // 파일 첨부: 고른 파일을 페이지 폴더로 복사하고 델타에는 링크만
             // 남긴다. ('attach'는 Quill 포맷이 아니라서 생성 시점 handlers에
             // 있어야 버튼이 살아난다 — addHandler로 나중에 붙이면 무시됨.)
@@ -988,6 +1010,20 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
       }
     })
     quillRef.current = quill
+
+    // 툴바는 **접힌 채로 시작**한다. 자주 쓰는 것만 한 줄로 보이고 나머지는
+    // … 뒤에 있다. 전에 펴 뒀으면 그대로 편다.
+    //
+    // 단, 테스트로 띄웠을 때는 펴 둔다. 기존 검증 15개가 접힌 쪽 버튼을
+    // 직접 누르는데, 그 테스트들이 보는 건 서식 동작이지 툴바 기본 상태가
+    // 아니다. 접힘 기본값은 verify-toolbar-compact 가 따로 지킨다.
+    {
+      const tb = (quill.getModule('toolbar') as { container: HTMLElement }).container
+      let open = false
+      try { open = localStorage.getItem('ln-toolbar-open') === '1' } catch { /* 못 읽으면 접힘 */ }
+      if (window.lightnote?.isTestRun) open = true
+      tb?.classList.toggle('ln-tb-open', open)
+    }
 
     // Format painter: armed-state highlight + apply-on-next-selection.
     const syncPainterButton = () => {
@@ -1761,6 +1797,7 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
         const data = await window.lightnote.loadPage(nbId, secId, pageId)
         baseUpdatedAtRef.current = typeof data.updatedAt === 'number' ? data.updatedAt : null
         setTitleValue(data.title || 'Untitled')
+        setSavedAt(typeof data.updatedAt === 'number' ? data.updatedAt : null)
         lastSavedTitleRef.current = data.title || 'Untitled'
         if (quillRef.current) {
           const delta = data.delta as { ops?: unknown[] } | null
@@ -1895,6 +1932,16 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
 
 
   const stClass = saveState === 'saving' ? 'saving' : saveState === 'error' ? 'error' : ''
+
+  // "오늘 14:30에 저장됨" — 오늘이 아니면 날짜까지 적는다.
+  const savedAtText = (() => {
+    if (!savedAt) return ''
+    const d = new Date(savedAt)
+    const t = d.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })
+    const today = new Date(); today.setHours(0, 0, 0, 0)
+    if (savedAt >= today.getTime()) return `오늘 ${t}에 저장됨`
+    return `${d.getMonth() + 1}월 ${d.getDate()}일 ${t}에 저장됨`
+  })()
 
   // ── 페이지 내 찾기/바꾸기 ────────────────────────────────────────────────
   // Quill has no built-in find; match over the flat text (which shares its
@@ -2060,16 +2107,21 @@ const Editor = forwardRef<EditorHandle, Props>(({ onOpenSettings, onOpenPage, on
       {/* Always mounted — Quill must stay on the same DOM node */}
       <div style={{ display: currentPage ? 'flex' : 'none', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
         <div className="editor-header">
-          <input
-            id="ln-page-title"
-            type="text"
-            className="page-title-input"
-            placeholder="Untitled"
-            maxLength={100}
-            value={titleValue}
-            onChange={handleTitleChange}
-            onKeyDown={handleTitleKeyDown}
-          />
+          <div className="page-title-wrap">
+            <input
+              id="ln-page-title"
+              type="text"
+              className="page-title-input"
+              placeholder="Untitled"
+              maxLength={100}
+              value={titleValue}
+              onChange={handleTitleChange}
+              onKeyDown={handleTitleKeyDown}
+            />
+            {/* 언제 저장됐는지를 제목 바로 아래에 둔다 — 멀리 떨어진 "Saved"
+                한 단어보다, 눈이 머무는 자리에서 시각으로 알려주는 쪽이 안심된다. */}
+            {savedAtText && <span className="page-saved-at">{savedAtText}</span>}
+          </div>
           <div className="editor-header-right">
             <button className="ln-ver-btn" title="PDF로 내보내기" onClick={exportPdf}>🖨 PDF</button>
             <button className="ln-ver-btn" title="버전 기록 — 이전 내용으로 되돌리기" onClick={openVersions}>🕘 버전</button>

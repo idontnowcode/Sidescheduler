@@ -138,6 +138,13 @@ export interface DataDirStatus {
 // 스티커 메모가 보고 있는 노트. 창 하나가 노트 하나다.
 export interface StickyTarget { pageId: string; notebookId: string; sectionId: string; title?: string }
 
+// 본문에 체크박스로 적어둔 줄. 원본은 본문이고 이건 그때그때 읽어온 것이다.
+export interface BodyTaskPage {
+  notebookId: string; sectionId: string; pageId: string
+  title: string; notebookName: string; sectionName: string
+  items: { line: number; text: string; done: boolean }[]
+}
+
 export interface JournalSeg { text: string; link: string | null }
 export interface JournalRecord {
   time: string
@@ -251,6 +258,11 @@ declare global {
       refsImage: (pageId: string, file: string) => Promise<string | null>
       journalAppend: (text: string, at?: number) => Promise<{ success?: boolean; error?: string } & Partial<JournalPageLoc>>
       journalAppendImage: (dataUrl: string, text?: string, at?: number) => Promise<{ success?: boolean; error?: string }>
+      /** 테스트 격리로 띄웠는지 (화면 기본값을 펴 두는 데만 쓴다) */
+      isTestRun?: boolean
+      bodyTasksList: () => Promise<BodyTaskPage[]>
+      bodyTaskToggle: (notebookId: string, sectionId: string, pageId: string, line: number, text: string)
+        => Promise<{ success?: boolean; done?: boolean; error?: string }>
       dataDirStatus: () => Promise<DataDirStatus>
       dataDirMigrate: () => Promise<{ success?: boolean; canceled?: boolean; error?: string; path?: string; copied?: number; message?: string }>
       dataDirAttach: () => Promise<{ success?: boolean; canceled?: boolean; error?: string; path?: string }>

@@ -11,6 +11,7 @@ const customFonts = require('./custom-fonts');
 const pageVersions = require('./page-versions');
 const attachments = require('./attachments');
 const referenceStorage = require('./reference-storage');
+const bodyTasks = require('./body-tasks');
 const journal = require('./journal');
 const path = require('path');
 const fs = require('fs').promises;
@@ -173,6 +174,23 @@ function registerIpcHandlers(ipcMain, getWindow, safeStorage, dialog, app, sched
       win.webContents.send('lightnote:page-changed', { notebookId, sectionId, pageId });
     }
     return result;
+  });
+
+  // === 본문 체크박스를 할 일로 ===
+  // 업무 속성의 "다음 Action"만 세면 노트에 체크박스로 적어둔 것들이 어디에도
+  // 안 잡힌다. 적는 사람에겐 둘 다 할 일이다.
+  ipcMain.handle('lightnote:body-tasks:list', () => bodyTasks.list());
+  ipcMain.handle('lightnote:body-tasks:toggle', async (_, { notebookId, sectionId, pageId, line, text }) => {
+    const r = await bodyTasks.toggle(notebookId, sectionId, pageId, line, text);
+    if (r && r.success) {
+      // 본문을 고친 것이므로 열려 있는 창에도 알린다(헛경보는 안 나게 등록).
+      try { if (scheduler && scheduler.onPageSaved) scheduler.onPageSaved(pageId, r.updatedAt); } catch { /* ignore */ }
+      noteIndexer.invalidateCache(pageId);
+      for (const w of BrowserWindow.getAllWindows()) {
+        if (!w.isDestroyed()) w.webContents.send('lightnote:page-changed', { notebookId, sectionId, pageId });
+      }
+    }
+    return r;
   });
 
   // === 페이지 버전 기록 ===

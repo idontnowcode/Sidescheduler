@@ -1,6 +1,9 @@
 import { contextBridge, ipcRenderer } from 'electron'
 
 contextBridge.exposeInMainWorld('lightnote', {
+  // 테스트 격리(DSP_TEST_DATA_DIR)로 띄웠는지. 화면 기본값 중 테스트가
+  // 건드리기 곤란한 것(접힌 툴바 등)을 펴 두는 데만 쓴다.
+  isTestRun: !!process.env.DSP_TEST_DATA_DIR,
   // 노트북
   getNotebooks: () => ipcRenderer.invoke('lightnote:get-notebooks'),
   createNotebook: (name, color) => ipcRenderer.invoke('lightnote:create-notebook', { name, color }),
@@ -128,6 +131,10 @@ contextBridge.exposeInMainWorld('lightnote', {
   workObjectSet: (pageId, patch) => ipcRenderer.invoke('lightnote:work-object:set', { pageId, patch }),
   workObjectRemove: (pageId) => ipcRenderer.invoke('lightnote:work-object:remove', { pageId }),
   workObjectList: () => ipcRenderer.invoke('lightnote:work-object:list'),
+  // 본문에 체크박스로 적어둔 줄도 할 일로 센다
+  bodyTasksList: () => ipcRenderer.invoke('lightnote:body-tasks:list'),
+  bodyTaskToggle: (notebookId, sectionId, pageId, line, text) =>
+    ipcRenderer.invoke('lightnote:body-tasks:toggle', { notebookId, sectionId, pageId, line, text }),
   workObjectSchedulerAvailable: () => ipcRenderer.invoke('lightnote:work-object:scheduler-available'),
   workObjectCreateTask: (payload) => ipcRenderer.invoke('lightnote:work-object:create-task', payload),
   workObjectCompleteTask: (taskId) => ipcRenderer.invoke('lightnote:work-object:complete-task', { taskId }),

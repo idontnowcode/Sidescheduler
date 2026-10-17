@@ -423,6 +423,21 @@ html, body {
 /* Consistent toolbar layout: flex row, vertically centred, even spacing, with a
    subtle shadowed vertical divider between groups (fixes the "jagged" feel). */
 .ql-toolbar.ql-snow { display: flex; flex-wrap: wrap; align-items: center; row-gap: 4px; padding: 5px 8px; }
+
+/* ── 접힌 툴바 ───────────────────────────────────────────────────────────
+   서른 몇 개가 두 줄로 깔려 있으면 본문보다 툴바가 먼저 눈에 들어온다.
+   자주 쓰는 것만 한 줄로 두고, 나머지는 … 뒤에 둔다.
+   묶음 순서는 Editor.tsx의 toolbar.container가 정한다 — 'more'가 6번째라
+   접혔을 때 7번째부터 감춘다. 순서를 바꾸면 이 숫자도 같이 바꿔야 한다. */
+.ql-toolbar.ql-snow:not(.ln-tb-open) { flex-wrap: nowrap; }
+.ql-toolbar.ql-snow:not(.ln-tb-open) .ql-formats:nth-of-type(n+7) { display: none; }
+/* … 버튼 — Quill이 모르는 이름이라 아이콘을 직접 그린다 */
+.ql-toolbar.ql-snow button.ql-more { position: relative; font-size: 0; }
+.ql-toolbar.ql-snow button.ql-more::after {
+  content: '⋯'; font-size: 17px; line-height: 1; color: var(--text-dim);
+}
+.ql-toolbar.ql-snow button.ql-more:hover::after { color: var(--text); }
+.ql-toolbar.ql-snow.ln-tb-open button.ql-more::after { color: var(--accent); }
 .ql-toolbar.ql-snow .ql-formats {
   display: inline-flex; align-items: center; gap: 1px; height: 26px;
   margin: 0 8px 0 0; padding-right: 8px;
@@ -574,6 +589,10 @@ html, body {
   gap: 12px;
   flex-shrink: 0;
 }
+/* 제목 + 그 아래 저장 시각을 한 덩어리로 */
+.page-title-wrap { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.page-saved-at { font-size: 10.5px; color: var(--text-dim); padding-left: 1px; }
+
 .page-title-input {
   flex: 1;
   background: transparent;
@@ -1638,8 +1657,22 @@ button.ql-text-to-table, button.ql-table-to-text { width: 30px !important; }
 .jn-backfill-time:focus { outline: none; border-color: var(--accent); }
 .jn-backfill-time::-webkit-calendar-picker-indicator { filter: invert(0.6); cursor: pointer; }
 
+/* 점 + 세로선으로 꿴 타임라인. 시각만 칸에 적어 두면 상자만 줄줄이 보인다. */
+.jn-row { position: relative; display: flex; align-items: flex-start; gap: 10px; }
+.jn-row + .jn-row { margin-top: 8px; }
+.jn-dot {
+  flex-shrink: 0; width: 9px; height: 9px; margin-top: 13px; border-radius: 50%;
+  background: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent);
+}
+/* 점과 점을 잇는 선 — 마지막 줄 뒤로는 긋지 않는다. */
+.jn-row:not(:last-child)::before {
+  content: ''; position: absolute; left: 4px; top: 24px; bottom: -8px;
+  width: 1px; background: var(--border);
+}
+.jn-row .jn-time { margin-top: 10px; }
+
 .jn-card {
-  position: relative;
+  position: relative; flex: 1; min-width: 0;
   display: flex; gap: 12px; align-items: flex-start;
   border: 1px solid var(--border); border-radius: 9px; background: var(--bg2); padding: 10px 12px;
 }
@@ -2248,3 +2281,61 @@ button.wo-kind:hover { color: var(--text); background: var(--bg3); }
   color: var(--text); border-radius: 6px; font-size: 11px; padding: 3px 9px; cursor: pointer;
 }
 .cc-btn:hover { border-color: var(--danger); }
+
+/* ── 제목에 왼쪽 액센트 바 ──────────────────────────────────────────────
+   어두운 바탕에서는 글자 크기만으로 글의 구조가 잘 안 잡힌다. 제목 왼쪽에
+   가는 막대를 세우면 어디서 단락이 갈리는지 훑기만 해도 보인다. */
+.ql-editor h1, .ql-editor h2, .ql-editor h3 { position: relative; padding-left: 12px; }
+.ql-editor h1::before, .ql-editor h2::before, .ql-editor h3::before {
+  content: ''; position: absolute; left: 0; top: 0.18em; bottom: 0.18em;
+  width: 3px; border-radius: 2px; background: var(--accent);
+}
+.ql-editor h2::before { opacity: 0.75; }
+.ql-editor h3::before { opacity: 0.5; }
+/* 목차 수준(toc-level)으로 매긴 줄에는 세우지 않는다 — 본문 줄이라 막대가
+   붙으면 제목처럼 보인다. */
+.ql-editor [data-toc-level]::before { display: none; }
+
+/* ── 빠른 기록: 어느 날짜에 적을지 ──────────────────────────────────────
+   지난 날짜를 골랐을 때 눈에 띄어야 한다 — 모르고 어제에 계속 적으면
+   더 나쁘다. */
+.jc-when { position: relative; flex-shrink: 0; padding: 0 10px 8px; }
+.jc-when-btn {
+  width: 100%; display: flex; align-items: center; gap: 6px;
+  background: var(--bg); border: 1px solid var(--border); border-radius: 9px;
+  color: var(--text); font-size: 11.5px; padding: 6px 10px; cursor: pointer;
+}
+.jc-when-btn:hover { border-color: var(--accent); }
+.jc-when-btn.on { border-color: var(--accent); }
+.jc-when-btn.past {
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  background: color-mix(in srgb, var(--accent) 14%, var(--bg));
+}
+.jc-when-label { flex: 1; min-width: 0; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.jc-when-caret { flex-shrink: 0; color: var(--text-dim); font-size: 13px; line-height: 1; }
+.jc-when-list {
+  position: absolute; z-index: 10; left: 10px; right: 10px; top: 100%;
+  max-height: 230px; overflow-y: auto;
+  background: var(--bg2); border: 1px solid var(--border); border-radius: 9px;
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.45); padding: 4px;
+}
+.jc-when-item {
+  width: 100%; display: flex; align-items: center; gap: 8px;
+  background: none; border: none; border-radius: 6px; cursor: pointer;
+  color: var(--text); font-size: 11.5px; padding: 6px 8px; text-align: left;
+}
+.jc-when-item:hover { background: var(--bg3); }
+.jc-when-item.active { background: color-mix(in srgb, var(--accent) 20%, transparent); }
+.jc-when-item span:first-child { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.jc-when-count { flex-shrink: 0; font-size: 10px; color: var(--text-dim); }
+
+/* 본문 체크박스에서 온 할 일 — 어디서 왔는지 보이고, 여기서 바로 체크한다 */
+.ai-row-box {
+  flex-shrink: 0; border: none; background: none; cursor: pointer;
+  color: var(--text-dim); font-size: 13px; line-height: 1; padding: 0 2px 0 0;
+}
+.ai-row-box:hover { color: var(--accent); }
+.ai-row-src {
+  margin-left: 6px; font-size: 9.5px; padding: 0 5px; border-radius: 999px;
+  color: var(--text-dim); border: 1px solid var(--border);
+}

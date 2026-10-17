@@ -257,9 +257,13 @@ export default function JournalView({ onClose, onOpenPage }: Props) {
                     }}>✎ 편집기로 열기</button>
                 )}
               </div>
+              {/* 점과 세로선으로 꿰어 시간 순서가 한눈에 읽히게 한다 —
+                  시각만 왼쪽 칸에 적어 두면 줄줄이 늘어선 상자로만 보인다. */}
               {d.rows.map(({ r, i }) => (
-                <div className="jn-card" key={i}>
+                <div className="jn-row" key={i}>
+                  <span className="jn-dot" aria-hidden />
                   <span className="jn-time">{r.time || '—'}</span>
+                  <div className="jn-card">
                   {editing && editing.date === d.date && editing.index === i ? (
                     <div className="jn-edit">
                       <textarea className="jn-edit-box" autoFocus value={editDraft}
@@ -287,6 +291,7 @@ export default function JournalView({ onClose, onOpenPage }: Props) {
                       </div>
                     </>
                   )}
+                  </div>
                 </div>
               ))}
             </section>
