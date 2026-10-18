@@ -11,7 +11,6 @@ import TocPanel from './TocPanel'
 import WorkObjectPanel from './WorkObjectPanel'
 import WorkListView from './WorkListView'
 import JournalView from './JournalView'
-import WorkQuickList from './WorkQuickList'
 import PageList from './PageList'
 import SmartLists from './SmartLists'
 import Rail from './Rail'
@@ -605,7 +604,6 @@ export default function LightnoteApp() {
             refreshKey={`${woRefresh}:${favTick}`}
             onPick={(kind) => { setListSource({ kind }); setListHidden(false); setView('note') }}
           />
-          <WorkQuickList onOpen={handlePageSelect} activePageId={selected.pageId} refreshKey={woRefresh} />
           <div style={{ flex: 1, minHeight: 0, display: 'flex' }}>
             <NotebookTree
               ref={treeRef}
