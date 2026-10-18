@@ -5,10 +5,13 @@
 const { app, nativeImage } = require('electron')
 
 const ROOT = 'C:/Users/admin/Desktop/AI_Based_Projects/04_Daily_Sidebar_Planner/daily-sidebar-planner'
-const F = {
-  '시안': `${ROOT}/resources/ChatGPT 이미지 2026년 10월 18일 오전 11_00_23.png`,
-  '지금': `${ROOT}/.worktrees/lightnote-integration/screenshots/themes/leather.png`,
-}
+// 인자로 짝을 받는다:  npx electron measure.js <시안> <우리화면>
+const F = process.argv[2]
+  ? { '시안': process.argv[2], '지금': process.argv[3] }
+  : {
+      '시안': `${ROOT}/resources/ChatGPT 이미지 2026년 10월 18일 오전 11_00_23.png`,
+      '지금': `${ROOT}/.worktrees/lightnote-integration/screenshots/themes/leather.png`,
+    }
 
 function load(file) {
   const img = nativeImage.createFromPath(file)

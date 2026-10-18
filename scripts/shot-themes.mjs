@@ -24,7 +24,7 @@ await ln.waitForFunction(() => !!window.lightnote, null, { timeout: 10000 })
 // 배율 때문에 없는 차이가 생기고 있는 차이는 묻힌다.
 await app.evaluate(({ BrowserWindow }) => {
   for (const w of BrowserWindow.getAllWindows()) {
-    if (w.webContents.getURL().includes('#lightnote')) w.setContentSize(1587, 991)
+    if (w.webContents.getURL().includes('#lightnote')) w.setContentSize(Number(process.env.SHOT_W || 1587), Number(process.env.SHOT_H || 991))
   }
 })
 await ln.waitForTimeout(1200)

@@ -51,7 +51,10 @@
   --paper-lines: none;          /* 줄노트 · 모눈 — 글과 같이 스크롤한다 */
   --paper-margin: transparent;  /* 왼쪽 세로선 */
   --paper-margin-x: 28px;
-  --paper-shadow: none;
+  /* 쉼표로 다른 그림자와 함께 쓰므로 'none' 이면 안 된다 — none 은 목록
+     안에서 문법 오류라 선언 전체가 버려지고, 다른 테마의 종이 그림자까지
+     같이 사라진다. '안 보이는 그림자'로 둔다. */
+  --paper-shadow: 0 0 #0000;
   --paper-inset: 0;
   --paper-radius: 0;
 
@@ -667,6 +670,7 @@ html, body {
   outline: none;
   color: var(--text);
   font-size: var(--title-fs, 18px);
+  font-family: var(--title-font, inherit);
   font-weight: 600;
   user-select: text;
 }
@@ -737,14 +741,15 @@ html, body {
    스크롤해야 하므로 .ql-editor 쪽에 둔다. */
 .ql-container.ql-snow {
   flex: 1;
-  border: none !important;
   overflow: hidden;
-  font-size: 13px;
+  font-size: var(--paper-fs, 13px);
   position: relative;
-  background: var(--paper-bg);
+  /* 종이 바탕 + 네 귀퉁이 금색 눈금을 한 번에. 장식 그림을 22px 테두리에
+     눌러 넣으면 점으로만 보여서, 눈금은 그라데이션으로 긋는다. */
+  background: var(--paper-layers, var(--paper-bg));
+  box-shadow: var(--paper-shadow), inset 0 0 0 1px var(--paper-edge, transparent);
   margin: var(--paper-inset);
   border-radius: var(--paper-radius);
-  box-shadow: var(--paper-shadow);
 }
 /* 종이결 — 회색조 한 장을 곱하기로 얹는다(밝은 종이 위에서 섬유만 어두워진다) */
 .ql-container.ql-snow::before {
@@ -2525,6 +2530,12 @@ button.wo-kind:hover { color: var(--text); background: var(--bg3); }
   border: 1.5px solid var(--bg2);
 }
 .rail-btn.active .rail-badge { border-color: color-mix(in srgb, var(--accent) 22%, var(--bg2)); }
+/* 버튼 바 맨 위 문장 (시안의 나침반 자리) */
+.rail::before {
+  content: ''; display: var(--crest-mode, none); flex-shrink: 0;
+  width: 22px; height: 22px; margin: 0 0 6px;
+  background: var(--crest-src, none) center / contain no-repeat;
+}
 .rail-sep {
   width: var(--rail-sep-w, 22px); height: 1px;
   background: var(--rail-sep, var(--border));
@@ -2702,7 +2713,7 @@ button.wo-kind:hover { color: var(--text); background: var(--bg3); }
    그래서 그림으로 바꿀 때는 칸 크기를 따로 준다. */
 .sec-icon { font-size: var(--icon-text-size, 12px); }
 .page-icon { font-size: var(--icon-text-size, 11px); }
-.sec-icon, .page-icon, .icon-btn-sm[data-icon] {
+.sec-icon, .page-icon, .icon-btn-sm[data-icon], .sl-icon[data-icon] {
   width: var(--icon-box, auto); height: var(--icon-box, auto);
   display: inline-block; flex-shrink: 0;
 }
@@ -2764,13 +2775,10 @@ button.wo-kind:hover { color: var(--text); background: var(--bg3); }
    가장자리를 찢긴 모양으로 오려 낸다. 글은 안쪽 여백 안에 있어서 안 잘린다. */
 .ql-container.ql-snow {
   -webkit-mask-image: var(--paper-mask, none);
-  -webkit-mask-size: 100% 100%;
+  /* 100% 면 그림에 그려진 톱니가 그대로 다 보인다 — 너무 깊다. 가리개를
+     키워 깊은 톱니는 바깥으로 밀어내고 얕은 가장자리만 남긴다. */
+  -webkit-mask-size: var(--paper-mask-size, 100% 100%);
+  -webkit-mask-position: center;
   -webkit-mask-repeat: no-repeat;
 }
-/* 종이 네 귀퉁이의 금색 꺾쇠 */
-.quill-wrapper::after {
-  content: ''; position: absolute; pointer-events: none; z-index: 3;
-  inset: var(--paper-inset, 0);
-  border: var(--paper-frame-w, 0) solid transparent;
-  border-image: var(--paper-frame-img, none) var(--paper-frame-slice, 0) stretch;
-}
+

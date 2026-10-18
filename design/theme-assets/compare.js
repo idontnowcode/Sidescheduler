@@ -8,9 +8,12 @@ const fs = require('fs')
 const path = require('path')
 
 const ROOT = 'C:/Users/admin/Desktop/AI_Based_Projects/04_Daily_Sidebar_Planner/daily-sidebar-planner'
-const MOCK = `${ROOT}/resources/ChatGPT 이미지 2026년 10월 18일 오전 11_00_23.png`
-const OURS = `${ROOT}/.worktrees/lightnote-integration/screenshots/themes/leather.png`
-const OUT = `${ROOT}/.worktrees/lightnote-integration/screenshots/themes/_compare.png`
+// 인자로 받으면 그 짝을, 안 주면 가죽 테마를 견준다.
+//   npx electron compare.js <시안> <우리화면> [저장경로] [그림폭]
+const MOCK = process.argv[2] || `${ROOT}/resources/ChatGPT 이미지 2026년 10월 18일 오전 11_00_23.png`
+const OURS = process.argv[3] || `${ROOT}/.worktrees/lightnote-integration/screenshots/themes/leather.png`
+const OUT = process.argv[4] || `${ROOT}/.worktrees/lightnote-integration/screenshots/themes/_compare.png`
+const IMGW = Number(process.argv[5] || 1587)
 
 // [이름, x, y, 폭, 높이]
 const CROPS = [
@@ -31,11 +34,11 @@ app.whenReady().then(async () => {
       <div class="label">${label}  <span>(${w}×${h} @ ${x},${y})</span></div>
       <div class="row"><div class="tag">시안</div>
         <div class="win" style="width:${w * SCALE}px;height:${h * SCALE}px">
-          <img src="${toUrl(MOCK)}" style="left:${-x * SCALE}px;top:${-y * SCALE}px;width:${1587 * SCALE}px">
+          <img src="${toUrl(MOCK)}" style="left:${-x * SCALE}px;top:${-y * SCALE}px;width:${IMGW * SCALE}px">
         </div></div>
       <div class="row"><div class="tag now">지금</div>
         <div class="win" style="width:${w * SCALE}px;height:${h * SCALE}px">
-          <img src="${toUrl(OURS)}" style="left:${-x * SCALE}px;top:${-y * SCALE}px;width:${1587 * SCALE}px">
+          <img src="${toUrl(OURS)}" style="left:${-x * SCALE}px;top:${-y * SCALE}px;width:${IMGW * SCALE}px">
         </div></div>
     </div>`).join('')
 

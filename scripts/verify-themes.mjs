@@ -58,7 +58,16 @@ const dist = (a, b) => {
   return Math.abs(r1 - r2) + Math.abs(g1 - g2) + Math.abs(b1 - b2)
 }
 
-for (const [key, label] of [['leather', '가죽 서재'], ['field', '현장 노트'], ['library', '고서재']]) {
+// 테마마다 기대하는 빽빽함이 다르다(시안을 각각 재서 맞췄다).
+const EXPECT = {
+  leather: { h: 56, st: 34, rail: 58, search: 34, listGap: [2, 40] },
+  field: { h: 56, st: 34, rail: 58, search: 34, listGap: [100, 999] },
+  library: { h: 56, st: 34, rail: 58, search: 34, listGap: [100, 999] },
+  fantasy: { h: 62, st: 38, rail: 66, search: 38, listGap: [-5, 40] },
+}
+
+for (const [key, label] of [['leather', '가죽 서재'], ['field', '현장 노트'],
+  ['library', '고서재'], ['fantasy', '고서 · 금장']]) {
   console.log(`\n── ${label} ──`)
   await pick(label)
 
@@ -90,10 +99,15 @@ for (const [key, label] of [['leather', '가죽 서재'], ['field', '현장 노�
       railW: Math.round(document.querySelector('.rail').getBoundingClientRect().width),
       searchH: Math.round(document.querySelector('.ln-search-input').getBoundingClientRect().height),
       searchIconIsSvg: !!document.querySelector('.ln-search-icon svg'),
+      // 판타지 테마가 더 쓰는 층
+      frameOn: getComputedStyle(document.querySelector('.ln-sidebar'), '::after').borderImageSource,
+      railIcon: getComputedStyle(document.querySelector('.rail-btn'), '::before').backgroundImage,
+      treeIconSize: cs('.sec-icon').fontSize,
+      paperLayers: root.getPropertyValue('--paper-layers').trim().slice(0, 18),
     }
   })
 
-  ok('로고가 세리프로 바뀐다', /Playfair|Baskerville|Garamond/.test(m.logoFont), m.logoFont.slice(0, 40))
+  ok('로고가 세리프로 바뀐다', /Playfair|Baskerville|Garamond|Cinzel/.test(m.logoFont), m.logoFont.slice(0, 40))
   ok('사이드바 글자가 바탕과 충분히 떨어져 있다 (물려받은 색이 안 남는다)',
     dist(m.nbNameColor, m.chromeBg) > 180, `${m.nbNameColor} / ${m.chromeBg} = ${dist(m.nbNameColor, m.chromeBg)}`)
   ok('본문 글자도 종이와 떨어져 있다',
@@ -102,10 +116,10 @@ for (const [key, label] of [['leather', '가죽 서재'], ['field', '현장 노�
   // 사이드바만 어둡고 목록이 밝다. 테마마다 기대가 다르다.
   const lum = (c) => { const [r, g, b] = (c.match(/\d+/g) || []).map(Number); return 0.299 * r + 0.587 * g + 0.114 * b }
   const gap = lum(m.listBg) - lum(m.chromeBg)
-  ok(key === 'leather'
-    ? '목록 칸이 사이드바보다 조금 밝다 (가죽 시안)'
-    : '목록 칸은 밝고 사이드바는 어둡다 (현장·고서재 시안)',
-    key === 'leather' ? gap > 2 && gap < 40 : gap > 100, `차이 ${gap.toFixed(0)}`)
+  const [lo, hi] = EXPECT[key].listGap
+  ok(hi > 500 ? '목록 칸은 밝고 사이드바는 어둡다 (시안이 그렇다)'
+    : '목록 칸과 사이드바가 둘 다 어둡다 (시안이 그렇다)',
+    gap > lo && gap < hi, `차이 ${gap.toFixed(0)}`)
   ok('질감이 실제로 깔린다', m.hasTexFile, m.texChrome)
   ok('본문에 종이색이 깔린다', m.paperBg !== 'rgba(0, 0, 0, 0)', m.paperBg)
   ok('노트 줄이 그려진다', m.lines.startsWith('repeating-linear-gradient'), m.lines)
@@ -114,10 +128,19 @@ for (const [key, label] of [['leather', '가죽 서재'], ['field', '현장 노�
   ok('아래 띠가 테마 색이다', m.statusBg !== 'rgba(0, 0, 0, 0)', m.statusBg)
   // 빽빽함 — 시안을 같은 크기로 찍어 재 보니 56 / 34 / 58 이었다.
   // 색을 아무리 맞춰도 이게 다르면 "느낌이 다르다"가 된다.
-  ok('머리말이 시안만큼 널찍하다', m.headerH === 56, `${m.headerH}px`)
-  ok('아래 띠도', m.statusH === 34, `${m.statusH}px`)
-  ok('버튼 바도', m.railW === 58, `${m.railW}px`)
-  ok('검색칸도', m.searchH === 34, `${m.searchH}px`)
+  const E = EXPECT[key]
+  ok('머리말이 시안만큼 널찍하다', m.headerH === E.h, `${m.headerH}px (기대 ${E.h})`)
+  ok('아래 띠도', m.statusH === E.st, `${m.statusH}px`)
+  ok('버튼 바도', m.railW === E.rail, `${m.railW}px`)
+  ok('검색칸도', m.searchH === E.search, `${m.searchH}px`)
+  if (key === 'fantasy') {
+    // 장식 층은 이 테마만 쓴다
+    ok('패널에 금장 틀이 둘린다', m.frameOn.includes('url('), m.frameOn.slice(0, 30))
+    ok('버튼 바 아이콘이 금속 그림으로 바뀐다', m.railIcon.includes('url('), m.railIcon.slice(0, 30))
+    ok('트리 이모지는 숨는다 (그림이 대신 선다)', m.treeIconSize === '0px', m.treeIconSize)
+    ok('종이 네 귀퉁이에 금색 눈금이 있다',
+      m.paperLayers.startsWith('linear-gradient'), m.paperLayers)
+  }
   ok('돋보기가 이모지가 아니라 선으로 그린 아이콘', m.searchIconIsSvg)
 }
 
@@ -156,6 +179,10 @@ const back = await ln.evaluate(() => {
 ok('종이가 걷힌다', back.paper === 'transparent', back.paper)
 ok('질감이 걷힌다', back.tex === 'none' && back.railImg === 'none', `${back.tex} / ${back.railImg}`)
 ok('노트 줄이 걷힌다', back.lines === 'none', back.lines)
+ok('금장 틀도 걷힌다',
+  await ln.evaluate(() => getComputedStyle(document.querySelector('.ln-sidebar'), '::after').borderImageSource) === 'none')
+ok('아이콘도 원래 것으로 돌아온다',
+  await ln.evaluate(() => getComputedStyle(document.querySelector('.rail-btn'), '::before').display) === 'none')
 ok('로고 글꼴도 돌아온다', !/Playfair|Baskerville|Garamond/.test(back.logo), back.logo.slice(0, 30))
 ok('원래 Dark 색으로 돌아온다', back.bg2 === '#252526', back.bg2)
 

@@ -14,7 +14,6 @@ import parchmentTex from '../assets/fantasy/parchment.jpg'
 import framePanel from '../assets/fantasy/frame-panel.png'
 import frameWindow from '../assets/fantasy/frame-window.png'
 import crestImg from '../assets/fantasy/crest.png'
-import paperMask from '../assets/fantasy/paper-mask.png'
 
 const fantasyIcons: Record<string, string> = Object.fromEntries(
   Object.entries(
@@ -23,6 +22,22 @@ const fantasyIcons: Record<string, string> = Object.fromEntries(
 )
 
 const u = (p: string) => `url(${p})`
+
+/** 종이 네 귀퉁이에 긋는 금색 ㄱ자 눈금 + 바탕색을 한 줄로. 장식 그림을
+ *  좁은 테두리에 눌러 넣으면 점으로만 보여서 선으로 긋는다. */
+const paperCorners = (gold: string, bg: string, len = 26, w = 2, off = 8) => {
+  const bar = `linear-gradient(${gold} 0 0)`
+  const at = (x: string, y: string, sx: string, sy: string) =>
+    `${bar} ${x} ${y} / ${sx} ${sy} no-repeat`
+  const L = `${len}px`, W = `${w}px`, O = `${off}px`
+  return [
+    at(`left ${O}`, `top ${O}`, L, W), at(`left ${O}`, `top ${O}`, W, L),
+    at(`right ${O}`, `top ${O}`, L, W), at(`right ${O}`, `top ${O}`, W, L),
+    at(`left ${O}`, `bottom ${O}`, L, W), at(`left ${O}`, `bottom ${O}`, W, L),
+    at(`right ${O}`, `bottom ${O}`, L, W), at(`right ${O}`, `bottom ${O}`, W, L),
+    bg,
+  ].join(', ')
+}
 
 // 줄노트 / 모눈 — 이미지로 굽지 않고 그라데이션으로 그린다. 창 배율이
 // 바뀌어도 선명하고, 줄 간격을 글자 줄 높이에 맞춰 조절할 수 있다.
@@ -210,32 +225,40 @@ const THEMES = {
       '--paper-soft-bg': '#c0a480',
       '--paper-lines': ruled('rgba(90,62,28,0.14)'),
       '--paper-shadow': '0 0 0 1px rgba(0,0,0,0.55), 0 16px 40px rgba(0,0,0,0.6)',
-      '--paper-inset': '16px 26px 20px', '--paper-radius': '2px',
+      '--paper-inset': '16px 26px 20px', '--paper-radius': '3px',
+      '--paper-layers': paperCorners('#9a7636', '#cdb391'),
+      '--paper-edge': 'rgba(154,118,54,0.55)',
       // 찢긴 가장자리가 안쪽으로 꽤 들어온다. 좌우 여백을 넓히지 않으면
       // 글자가 그 톱니에 물려 잘린다.
-      '--paper-pad-x': '74px',
+      '--paper-pad-x': '46px',
       '--paper-line-h': '25px', '--paper-gap': '0px',
       // 위쪽도 톱니가 깊게 들어온다 — 줄 간격(25)의 배수로 키운다.
-      '--paper-head-gap': '0px', '--paper-pad-y': '50px',
+      '--paper-head-gap': '0px', '--paper-pad-y': '25px',
       '--tabbar-bg': '#0e0d0b', '--tab-active-bg': 'linear-gradient(180deg, #5a120d 0%, #3c0807 100%)',
       '--tab-active-fg': '#ffeccd', '--tab-active-border': '#b98b3e',
       '--tab-radius': '8px 8px 0 0', '--tab-active-weight': '600',
-      '--tab-gap': '3px', '--tab-strip-pad': '6px 8px 0', '--tab-pad': '8px 10px 8px 14px',
+      '--tab-gap': '4px', '--tab-strip-pad': '7px 10px 0', '--tab-pad': '11px 12px 11px 16px',
       '--tab-top': '#d9ab55', '--tab-top-w': '2px',
-      '--status-bg': 'linear-gradient(180deg, #4a110c 0%, #2c0604 100%)',
+      // 아래 띠는 질감을 섞느라 background-color 로 칠한다 — 거기엔
+      // 그라데이션을 넣을 수 없다(넣으면 색이 통째로 날아가 투명해진다).
+      '--status-bg': '#3a0c08',
       '--status-fg': '#f0d9ae',
       '--logo-font': "'Cinzel', Georgia, serif",
-      '--logo-ink': '#f5e4bb', '--logo-weight': '600', '--logo-size': '19px', '--logo-tracking': '0.06em',
-      '--search-h': '34px', '--search-radius': '8px',
-      '--search-bg': '#090807', '--search-border': '#4a3f2b', '--search-fs': '13.5px',
-      '--btn-fs': '13px', '--btn-pad': '6px 12px',
+      '--logo-ink': '#f5e4bb', '--logo-weight': '600', '--logo-size': '25px', '--logo-tracking': '0.07em',
+      '--search-h': '38px', '--search-radius': '9px',
+      '--search-bg': '#090807', '--search-border': '#4a3f2b', '--search-fs': '15px',
+      '--btn-fs': '14px', '--btn-pad': '8px 14px',
       '--badge-bg': '#8d1f16', '--badge-fg': '#ffe3bd',
       '--rail-sep': '#4a3f2b', '--rail-sep-w': '26px', '--rail-sep-m': '9px',
       '--edge-gold': '#4a3f2b',
       // 빽빽함 — 시안이 앞 셋보다도 널찍하다
-      '--header-h': '58px', '--status-h': '36px', '--rail-w': '62px', '--rail-btn': '42px',
-      '--row-fs': '14px', '--row-pad': '8px 9px', '--nb-fs': '14.5px', '--tree-fs': '13.5px',
-      '--title-fs': '25px', '--status-fs': '13px', '--tab-fs': '14px',
+      // 시안은 앞 셋보다도 널찍하다 — 조각을 겹쳐 보니 아이콘·글자가 한
+      // 치수씩 더 컸다.
+      '--header-h': '62px', '--status-h': '38px', '--rail-w': '66px', '--rail-btn': '48px',
+      '--row-fs': '15px', '--row-pad': '10px 10px', '--nb-fs': '15.5px', '--tree-fs': '14.5px',
+      '--title-fs': '28px', '--status-fs': '14px', '--tab-fs': '15.5px',
+      '--title-font': "'Cinzel', Georgia, serif",
+      '--paper-fs': '15px',
       // 질감 — 돌은 어두운 면에 더하기(screen), 양피지는 곱하기
       '--tex-chrome': u(stoneTex), '--tex-chrome-size': '240px',
       '--tex-panel': u(stoneTex), '--tex-panel-size': '240px', '--tex-panel-blend': 'screen',
@@ -244,11 +267,10 @@ const THEMES = {
       '--frame-img': u(framePanel), '--frame-slice': '128', '--frame-w': '26px',
       '--frame-line': 'rgba(150,118,62,0.55)',
       '--frame-win-img': u(frameWindow), '--frame-win-slice': '192', '--frame-win-w': '34px',
-      '--paper-mask': u(paperMask),
       '--crest-mode': 'block', '--crest-src': u(crestImg),
       // 아이콘을 금속 그림으로 갈아 끼운다
       '--icon-mode': 'block', '--icon-orig': '0', '--icon-text-size': '0px',
-      '--icon-inset': '3px', '--icon-box': '16px',
+      '--icon-inset': '2px', '--icon-box': '20px',
     },
   },
 }
