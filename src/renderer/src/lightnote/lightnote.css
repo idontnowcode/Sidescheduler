@@ -2125,6 +2125,7 @@ button.ql-text-to-table, button.ql-table-to-text { width: 30px !important; }
 }
 .rp-tab {
   padding: var(--tab-pad, 6px 12px);
+  white-space: nowrap;
   border: 1px solid transparent; border-bottom: none;
   border-radius: var(--tab-radius);
   background: transparent; color: var(--text-dim);
@@ -2801,3 +2802,80 @@ button.wo-kind:hover { color: var(--text); background: var(--bg3); }
   -webkit-mask-repeat: no-repeat;
 }
 
+
+/* ══ 판타지 키트 — 그려진 틀을 9등분으로 늘려 쓴다 ═══════════════════════
+   값이 비면 아무것도 안 그린다(다른 테마는 그대로).
+   `fill` 은 그림의 **가운데 조각까지** 칠하라는 뜻 — 속이 찬 명판에 필요하다. */
+
+/* 줄 — 목록·트리·모아보기 */
+.pl-row, .page-item, .sl-row {
+  border-style: solid; border-color: transparent;
+  border-width: var(--row-bw, 0);
+  border-image: var(--row-img, none) var(--row-slice, 0) fill stretch;
+}
+.pl-row:hover, .page-item:hover, .sl-row:hover { border-image-source: var(--row-hover-img, var(--row-img, none)); }
+.pl-row.active, .page-item.selected, .sl-row.active { border-image-source: var(--row-active-img, var(--row-img, none)); }
+
+/* 탭 — 본문 탭과 오른쪽 패널 탭 */
+.ln-tab, .rp-tab {
+  border-color: transparent;
+  border-width: var(--tabimg-bw, 0);
+  border-image: var(--tab-img, none) var(--tab-slice, 0) fill stretch;
+}
+.ln-tab.active, .rp-tab.active { border-image-source: var(--tab-active-img, var(--tab-img, none)); }
+
+/* 단추 */
+.ln-ver-btn, .pl-capture-btn, .btn-secondary {
+  border-style: solid; border-color: transparent;
+  border-width: var(--btnimg-bw, 0);
+  border-image: var(--btn-img, none) var(--btn-slice, 0) fill stretch;
+}
+.ln-ver-btn:hover, .pl-capture-btn:hover, .btn-secondary:hover { border-image-source: var(--btn-hover-img, var(--btn-img, none)); }
+.organize-btn, .btn-primary {
+  border-style: solid; border-color: transparent;
+  border-width: var(--btnimg-bw, 0);
+  border-image: var(--btn-primary-img, none) var(--btn-slice, 0) fill stretch;
+}
+
+/* 입력칸 · 드롭다운 */
+.ln-search-input, .pl-capture-in {
+  border-style: solid; border-color: transparent;
+  border-width: var(--fieldimg-bw, 0);
+  border-image: var(--field-img, none) var(--field-slice, 0) fill stretch;
+}
+.ql-snow .ql-picker-label {
+  border-image: var(--select-img, none) var(--select-slice, 0) fill stretch;
+}
+
+/* 띠 — 머리말 · 아래 띠 · 서식 도구 줄 (가로로만 늘어난다) */
+.app-header {
+  border-style: solid; border-color: transparent;
+  border-width: var(--barimg-bw, 0);
+  border-image: var(--bar-top-img, none) var(--bar-top-slice, 0) fill stretch;
+}
+.status-bar {
+  border-style: solid; border-color: transparent;
+  border-width: var(--barimg-bw, 0);
+  border-image: var(--bar-bottom-img, none) var(--bar-bottom-slice, 0) fill stretch;
+}
+.ql-toolbar.ql-snow {
+  border-style: solid !important; border-color: transparent !important;
+  border-width: var(--barimg-bw, 0) !important;
+  border-image: var(--toolbar-img, none) var(--toolbar-slice, 0) fill stretch !important;
+}
+
+/* 맨 왼쪽 세로 바 — 위가 아치인 기둥 */
+.rail {
+  border-style: solid; border-color: transparent;
+  border-width: var(--railimg-bw, 0);
+  border-image: var(--rail-img, none) var(--rail-slice, 0) fill stretch;
+}
+
+/* 본문 종이 — Quill 이 테두리를 박아 두어 !important 로 되돌린다.
+   단축 `border` 로 쓰면 border-image 까지 초기화되므로 쪼개 쓴다. */
+.ql-container.ql-snow {
+  border-width: var(--paperimg-bw, 0) !important;
+  border-style: solid !important;
+  border-color: transparent !important;
+  border-image: var(--paper-img, none) var(--paper-slice, 0) stretch !important;
+}

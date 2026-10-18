@@ -12,8 +12,37 @@ import paperTex from '../assets/textures/paper.jpg'
 //  선 아이콘에 금색을 얹는 쪽이 시안에 더 가깝다. 파일은 남겨 둔다.)
 import stoneTex from '../assets/fantasy/stone-dark.jpg'
 import parchmentTex from '../assets/fantasy/parchment.jpg'
-import crestImg from '../assets/fantasy/crest.png'
 
+
+// 판타지 키트 — 그려진 틀 33장. pack-kit.js 가 구워 두고, 자를 자리(9등분
+// 슬라이스)를 kit.json 에 적어 둔다. 눈대중으로 넣으면 모서리가 잘려서
+// 그 숫자를 **그대로** 읽어 쓴다.
+import kitSlices from '../assets/fantasy/kit.json'
+
+const kitUrls = import.meta.glob('../assets/fantasy/*.png', {
+  eager: true, query: '?url', import: 'default',
+}) as Record<string, string>
+
+const assetUrl = (name: string) =>
+  kitUrls[`../assets/fantasy/${name}`] as string | undefined
+
+/** 그림과 자를 자리를 한 쌍으로 — `--x-img` 와 `--x-slice` 를 함께 낸다. */
+const kit = (prefix: string, file: string) => {
+  const url = assetUrl(file)
+  const sl = (kitSlices as Record<string, { slice?: number[] }>)[file]?.slice
+  if (!url) return {}
+  return {
+    [`--${prefix}-img`]: `url(${url})`,
+    ...(sl ? { [`--${prefix}-slice`]: sl.join(' ') } : {}),
+  }
+}
+
+/** 아이콘 — 파일 이름이 곧 토큰 이름 (icon-note.png → --i-note) */
+const kitIcons = Object.fromEntries(
+  Object.entries(kitUrls)
+    .filter(([f]) => f.includes('/icon-'))
+    .map(([f, url]) => [`--i-${/icon-(.+)\.png$/.exec(f)?.[1]}`, `url(${url})`]),
+)
 
 const u = (p: string) => `url(${p})`
 
@@ -212,7 +241,7 @@ const THEMES = {
       '--tabbar-bg': '#0e0d0b', '--tab-active-bg': 'linear-gradient(180deg, #5a120d 0%, #3c0807 100%)',
       '--tab-active-fg': '#ffeccd', '--tab-active-border': '#b98b3e',
       '--tab-radius': '8px 8px 0 0', '--tab-active-weight': '600',
-      '--tab-gap': '4px', '--tab-strip-pad': '7px 10px 0', '--tab-pad': '11px 12px 11px 16px',
+      '--tab-gap': '4px', '--tab-strip-pad': '7px 10px 0', '--tab-pad': '9px 10px 9px 12px',
       '--tab-top': '#d9ab55', '--tab-top-w': '2px',
       // 아래 띠는 질감을 섞느라 background-color 로 칠한다 — 거기엔
       // 그라데이션을 넣을 수 없다(넣으면 색이 통째로 날아가 투명해진다).
@@ -241,7 +270,33 @@ const THEMES = {
       '--tex-panel': u(stoneTex), '--tex-panel-size': '240px', '--tex-panel-blend': 'screen',
       '--tex-paper': u(parchmentTex), '--tex-paper-size': '300px', '--tex-paper-opacity': '0.5',
       // 장식 층
-      '--crest-mode': 'block', '--crest-src': u(crestImg),
+      // ── 그려진 틀 (키트) ───────────────────────────────────────────
+      // 칸을 '카드'로 세우고 그 자리에 틀을 앉힌다. 여백 없이 틀만 얹으면
+      // 선이 글자 위를 지나간다 — 지난번 실패가 그것이었다.
+      '--shell-pad': '10px', '--panel-gap': '6px', '--frame-pad': '18px',
+      '--panel-radius': '4px',
+      ...kit('frame', 'f-panel.png'), '--frame-w': '30px',
+      ...kit('frame-win', 'f-window.png'), '--frame-win-w': '46px',
+      ...kit('paper', 'f-paper.png'), '--paperimg-bw': '34px',
+      ...kit('row', 'b-row.png'),
+      ...kit('row-hover', 'b-row-hover.png'),
+      ...kit('row-active', 'b-row-active.png'), '--row-bw': '10px',
+      ...kit('tab', 'b-tab.png'),
+      ...kit('tab-active', 'b-tab-active.png'), '--tabimg-bw': '12px',
+      ...kit('btn', 'b-btn.png'),
+      ...kit('btn-hover', 'b-btn-hover.png'),
+      ...kit('btn-primary', 'b-btn-primary.png'), '--btnimg-bw': '12px',
+      ...kit('field', 'f-field.png'), '--fieldimg-bw': '14px 26px',
+      ...kit('select', 'b-select.png'),
+      ...kit('bar-top', 's-bar-top.png'),
+      ...kit('bar-bottom', 's-bar-bottom.png'),
+      ...kit('toolbar', 's-toolbar.png'), '--barimg-bw': '10px 28px',
+      // 조각 장식
+      '--crest-mode': 'block', '--crest-src': `url(${assetUrl('o-rail-top.png')})`,
+      // 아이콘 — 이번 판은 **선**이라 작은 크기에서도 선명하다
+      ...kitIcons,
+      '--icon-mode': 'block', '--icon-orig': '0', '--icon-box': '20px',
+      '--icon-inset': '2px',
       // 아이콘 — 꽉 찬 금속 그림을 받아 써 봤는데, 22~26px 로 줄이면
       // 뭉개져 조잡해졌다(시안은 **가는 금색 선**이다). 선 아이콘에 금색과
       // 아래 그림자만 얹는 쪽이 시안에 가깝고 어떤 크기에서도 선명하다.

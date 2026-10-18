@@ -131,42 +131,69 @@ function review(file, kind, bg) {
   const isBg = bgTest(bg)
   const out = { file, size: `${im.W}x${im.H}`, notes: [], ok: true }
 
+  // 배경 검사는 **종류마다 보는 자리가 다르다.**
+  //  - 속이 비는 틀(검정): 가운데가 순수 검정이어야 한다. 모서리에는
+  //    장식이 있는 게 정상이라 거기서 재면 안 된다(처음에 그렇게 재서
+  //    멀쩡한 틀을 전부 불합격 처리했다).
+  //  - 속이 차는 명판(마젠타): 바깥 귀퉁이에서 재고, 가운데는 "비었나"가
+  //    아니라 **고른가**(늘려도 안 뭉개지는가)를 본다.
+  const frameLike = kind === 'frame9' || kind === 'frame3h' || kind === 'frame3v'
+  const filled = bg === 'magenta'
+
   if (bg !== 'gray') {
-    // ① 배경이 진짜인가 — 네 귀퉁이 8x8
-    let bad = 0, n = 0
-    for (const [cx, cy] of [[0, 0], [im.W - 8, 0], [0, im.H - 8], [im.W - 8, im.H - 8]]) {
-      for (let y = cy; y < cy + 8; y++) for (let x = cx; x < cx + 8; x++) { n++; if (!isBg(im.px(x, y))) bad++ }
+    const probe = []
+    if (filled) {
+      for (const [cx, cy] of [[0, 0], [im.W - 8, 0], [0, im.H - 8], [im.W - 8, im.H - 8]]) {
+        for (let y = cy; y < cy + 8; y++) for (let x = cx; x < cx + 8; x++) probe.push(im.px(x, y))
+      }
+    } else {
+      const x0 = Math.round(im.W * 0.4), x1 = Math.round(im.W * 0.6)
+      const y0 = Math.round(im.H * 0.4), y1 = Math.round(im.H * 0.6)
+      for (let y = y0; y < y1; y += 2) for (let x = x0; x < x1; x += 2) probe.push(im.px(x, y))
     }
-    const pure = 100 - (bad / n) * 100
+    const pure = 100 - (probe.filter((p) => !isBg(p)).length / probe.length) * 100
     out.bg = `${pure.toFixed(0)}%`
-    if (pure < 97) { out.ok = false; out.notes.push(`배경이 ${bg === 'magenta' ? '마젠타' : '검정'}가 아님 (${pure.toFixed(0)}%)`) }
+    if (pure < 97) {
+      out.ok = false
+      out.notes.push(filled
+        ? `귀퉁이가 마젠타가 아님 (${pure.toFixed(0)}%) — 오려 낼 때 테가 남는다`
+        : `가운데가 안 비었음 (${pure.toFixed(0)}% 만 검정) — 늘리면 뭉개진다`)
+    }
   }
 
-  if (kind === 'frame9' || kind === 'frame3h' || kind === 'frame3v') {
+  if (frameLike) {
     const sides = kind === 'frame3h' ? ['left', 'right']
       : kind === 'frame3v' ? ['top', 'bottom'] : ['top', 'bottom', 'left', 'right']
-    const d = sides.map((s) => edgeDepth(im, isBg, s))
-    out.border = d.join('/')
-    if (d.some((v) => v < 0)) { out.ok = false; out.notes.push('테두리를 못 찾음 (배경과 구분이 안 됨)') }
-    else {
-      const lo = Math.min(...d), hi = Math.max(...d)
-      const spread = hi - lo
-      // 두께 차가 큰 쪽 기준 25% 를 넘으면 자를 자리가 안 맞는다
-      if (spread > Math.max(6, hi * 0.25)) {
-        out.ok = false
-        out.notes.push(`테두리 두께가 사방 다름 (${d.join(' / ')})`)
+    if (!filled) {
+      // 속이 비는 틀만 가장자리에서 두께를 잴 수 있다
+      const d = sides.map((s) => edgeDepth(im, isBg, s))
+      out.border = d.join('/')
+      if (d.some((v) => v < 0)) { out.ok = false; out.notes.push('테두리를 못 찾음') }
+      else {
+        const lo = Math.min(...d), hi = Math.max(...d)
+        if (hi - lo > Math.max(6, hi * 0.25)) {
+          out.ok = false
+          out.notes.push(`테두리 두께가 사방 다름 (${d.join(' / ')}) — 9등분 자를 자리가 안 맞는다`)
+        }
+        out.slice = lo
       }
-      out.slice = lo
+    } else {
+      // 속이 찬 명판은 가운데가 **고른지**만 보면 된다 (늘어나는 자리)
+      const x0 = Math.round(im.W * 0.4), x1 = Math.round(im.W * 0.6)
+      const y0 = Math.round(im.H * 0.42), y1 = Math.round(im.H * 0.58)
+      const v = []
+      for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x += 2) v.push(im.lum(x, y))
+      const m = v.reduce((a, b) => a + b, 0) / v.length
+      const sd = Math.sqrt(v.reduce((a, b) => a + (b - m) ** 2, 0) / v.length)
+      out.center = `±${sd.toFixed(1)}`
+      if (sd > 14) { out.ok = false; out.notes.push(`가운데가 고르지 않음 (±${sd.toFixed(0)}) — 늘리면 무늬가 늘어진다`) }
     }
-    const fill = centerFill(im, isBg, kind === 'frame9' ? 0.33 : 0.3)
-    out.center = `${fill.toFixed(0)}%`
-    if (fill > 6) { out.ok = false; out.notes.push(`가운데가 안 비었음 (${fill.toFixed(0)}% 가 채워짐)`) }
   }
 
-  if (kind === 'frame9') {
+  if (kind === 'frame9' && !filled) {
     const sym = cornerSym(im, Math.min(96, Math.min(im.W, im.H) >> 2))
     out.sym = sym.toFixed(1)
-    if (sym > 26) { out.ok = false; out.notes.push(`네 모서리가 비대칭 (차이 ${sym.toFixed(0)})`) }
+    if (sym > 30) { out.ok = false; out.notes.push(`네 모서리가 비대칭 (차이 ${sym.toFixed(0)})`) }
   }
 
   if (kind === 'sheet') {

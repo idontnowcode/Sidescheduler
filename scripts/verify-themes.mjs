@@ -103,6 +103,9 @@ for (const [key, label] of [['leather', '가죽 서재'], ['field', '현장 노�
       frameOn: getComputedStyle(document.querySelector('.ln-sidebar'), '::after').borderImageSource,
       railIcon: getComputedStyle(document.querySelector('.rail-btn'), '::before').backgroundImage,
       uiFont: cs('.ln-root').fontFamily,
+      framePad: cs('.ln-sidebar').paddingLeft,
+      rowPlate: getComputedStyle(document.querySelector('.pl-row.active') || document.querySelector('.pl-row')).borderImageSource,
+      paperFrame: cs('.ql-container').borderImageSource,
     }
   })
 
@@ -133,11 +136,14 @@ for (const [key, label] of [['leather', '가죽 서재'], ['field', '현장 노�
   ok('버튼 바도', m.railW === E.rail, `${m.railW}px`)
   ok('검색칸도', m.searchH === E.search, `${m.searchH}px`)
   if (key === 'fantasy') {
-    // 테두리 장식은 뺐다 — 칸을 '여백 있는 카드'로 다시 짜지 않은 채
-    // 얹으니 선이 글자 위를 지나갔다. 다시 켤 때까지 꺼져 있어야 한다.
-    ok('패널에 떠도는 테두리 선이 없다', m.frameOn === 'none', m.frameOn.slice(0, 30))
+    // 그려진 틀 키트 — 칸마다 틀이 둘리고, 칸은 '카드'로 떨어져 있어야 한다.
+    ok('칸마다 그려진 틀이 둘린다', m.frameOn.includes('url('), m.frameOn.slice(0, 30))
+    ok('칸이 카드로 떨어져 있다 (틀이 글자를 안 침범하게)',
+      parseFloat(m.framePad) >= 10, m.framePad)
     ok('화면 전체 글꼴이 명조로 바뀐다', /Georgia|Myeongjo|Batang/.test(m.uiFont), m.uiFont.slice(0, 40))
-    ok('아이콘은 선 그대로 두고 금색만 입힌다', m.railIcon === 'none', m.railIcon.slice(0, 20))
+    ok('아이콘이 그림으로 바뀐다', m.railIcon.includes('url('), m.railIcon.slice(0, 20))
+    ok('고른 줄이 그려진 명판이다', m.rowPlate.includes('url('), m.rowPlate.slice(0, 20))
+    ok('본문 종이에도 틀이 둘린다', m.paperFrame.includes('url('), m.paperFrame.slice(0, 20))
   }
   ok('돋보기가 이모지가 아니라 선으로 그린 아이콘', m.searchIconIsSvg)
 }
