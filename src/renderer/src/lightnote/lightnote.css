@@ -261,7 +261,7 @@ html, body {
   flex: 1;
 }
 /* 사이드바 한 칸 — 모아 보기 + 트리. 질감은 여기서 한 번만 깐다. */
-.ln-sidebar, .rail, .app-header {
+.ln-sidecol, .rail, .app-header {
   /* 이 안쪽에서는 --text/--text-dim 이 크롬용 색을 가리킨다. :root 에서 이미
      계산된 값을 받아 쓰는 것이라 순환하지 않는다. */
   --text: var(--chrome-ink);
@@ -271,7 +271,7 @@ html, body {
      그대로 들고 있어서, 어두운 사이드바 위에 어두운 글씨로 남는다. */
   color: var(--chrome-ink);
 }
-.ln-sidebar {
+.ln-sidecol {
   display: flex; flex-direction: column; min-width: 0; flex-shrink: 0;
   background-color: var(--chrome-bg);
   background-image: var(--tex-chrome);
@@ -2753,17 +2753,17 @@ button.wo-kind:hover { color: var(--text); background: var(--bg3); }
 /* 화면 전체 글꼴. 지금까지 로고와 제목만 세리프로 바꿨는데, 시안은
    사이드바·목록·본문까지 전부 명조다. 그게 가장 크게 달라 보이는 점이었다. */
 .ln-root { font-family: var(--ui-font, inherit); }
-.ln-root, .ln-sidebar, .pl-col, .ln-editor-col, .rp-panel { position: relative; }
+.ln-root, .ln-sidecol, .pl-col, .ln-editor-col, .rp-panel { position: relative; }
 /* 테두리를 얹기만 하면 선과 모서리 장식이 글자 위로 올라온다. 칸 안쪽에
    그만큼 여백을 줘서 내용이 테두리 **안쪽**에 앉게 한다. */
 /* 카드가 될 칸들 — 안쪽 여백(테두리가 앉을 자리)과 둥근 모서리 */
-.ln-sidebar, .pl-col, .ln-editor-col, .rp-panel {
+.ln-sidecol, .pl-col, .ln-editor-col, .rp-panel {
   padding: var(--frame-pad, 0);
   border-radius: var(--panel-radius, 0);
 }
 /* 본문 칸은 탭 줄과 편집기를 함께 담는다 — 카드 하나로 묶어야 틀이 맞는다 */
 .ln-editor-col { display: flex; flex-direction: column; flex: 1; min-width: 0; position: relative; }
-.ln-root::after, .ln-sidebar::after, .pl-col::after,
+.ln-root::after, .ln-sidecol::after, .pl-col::after,
 .ln-editor-col::after, .rp-panel::after {
   content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 40;
   border: var(--frame-w, 0) solid transparent;
@@ -2810,19 +2810,28 @@ button.wo-kind:hover { color: var(--text); background: var(--bg3); }
 /* 줄 — 목록·트리·모아보기 */
 .pl-row, .page-item, .sl-row {
   border-style: solid; border-color: transparent;
-  border-width: var(--row-bw, 0);
   border-image: var(--row-img, none) var(--row-slice, 0) fill stretch;
+  border-width: var(--row-img-bw, 0);
 }
 .pl-row:hover, .page-item:hover, .sl-row:hover { border-image-source: var(--row-hover-img, var(--row-img, none)); }
-.pl-row.active, .page-item.selected, .sl-row.active { border-image-source: var(--row-active-img, var(--row-img, none)); }
+/* 고른 줄만 명판 */
+.pl-row.active, .page-item.selected, .sl-row.active {
+  border-width: var(--row-bw, var(--row-img-bw, 0));
+  border-image-source: var(--row-active-img, var(--row-img, none));
+  border-image-slice: var(--row-active-slice, var(--row-slice, 0)) fill;
+}
 
 /* 탭 — 본문 탭과 오른쪽 패널 탭 */
 .ln-tab, .rp-tab {
   border-color: transparent;
-  border-width: var(--tabimg-bw, 0);
   border-image: var(--tab-img, none) var(--tab-slice, 0) fill stretch;
 }
-.ln-tab.active, .rp-tab.active { border-image-source: var(--tab-active-img, var(--tab-img, none)); }
+/* 켜진 탭만 그림을 깐다. 안 켜진 탭까지 두르면 탭 줄이 단추 더미가 된다. */
+.ln-tab.active, .rp-tab.active {
+  border-width: var(--tabimg-bw, 0);
+  border-image-source: var(--tab-active-img, var(--tab-img, none));
+  border-image-slice: var(--tab-active-slice, var(--tab-slice, 0)) fill;
+}
 
 /* 단추 */
 .ln-ver-btn, .pl-capture-btn, .btn-secondary {
@@ -2850,7 +2859,7 @@ button.wo-kind:hover { color: var(--text); background: var(--bg3); }
 /* 띠 — 머리말 · 아래 띠 · 서식 도구 줄 (가로로만 늘어난다) */
 .app-header {
   border-style: solid; border-color: transparent;
-  border-width: var(--barimg-bw, 0);
+  border-width: var(--bartop-bw, 0);
   border-image: var(--bar-top-img, none) var(--bar-top-slice, 0) fill stretch;
 }
 .status-bar {
@@ -2860,7 +2869,7 @@ button.wo-kind:hover { color: var(--text); background: var(--bg3); }
 }
 .ql-toolbar.ql-snow {
   border-style: solid !important; border-color: transparent !important;
-  border-width: var(--barimg-bw, 0) !important;
+  border-width: var(--toolbar-bw, 0) !important;
   border-image: var(--toolbar-img, none) var(--toolbar-slice, 0) fill stretch !important;
 }
 

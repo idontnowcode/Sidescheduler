@@ -231,10 +231,10 @@ const THEMES = {
       '--paper-soft-bg': '#c0a480',
       '--paper-lines': ruled('rgba(90,62,28,0.11)'),
       '--paper-shadow': '0 0 0 1px rgba(0,0,0,0.55), 0 16px 40px rgba(0,0,0,0.6)',
-      '--paper-inset': '14px 18px 16px', '--paper-radius': '2px',
+      '--paper-inset': '6px 8px 8px', '--paper-radius': '2px',
       // 찢긴 가장자리가 안쪽으로 꽤 들어온다. 좌우 여백을 넓히지 않으면
       // 글자가 그 톱니에 물려 잘린다.
-      '--paper-pad-x': '56px',
+      '--paper-pad-x': '62px',
       '--paper-line-h': '25px', '--paper-gap': '0px',
       // 위쪽도 톱니가 깊게 들어온다 — 줄 간격(25)의 배수로 키운다.
       '--paper-head-gap': '0px', '--paper-pad-y': '25px',
@@ -260,7 +260,7 @@ const THEMES = {
       // 빽빽함 — 시안이 앞 셋보다도 널찍하다
       // 시안은 앞 셋보다도 널찍하다 — 조각을 겹쳐 보니 아이콘·글자가 한
       // 치수씩 더 컸다.
-      '--header-h': '58px', '--status-h': '34px', '--rail-w': '54px', '--rail-btn': '38px',
+      '--header-h': '58px', '--status-h': '34px', '--rail-w': '62px', '--rail-btn': '40px',
       '--row-fs': '14px', '--row-pad': '8px 10px', '--nb-fs': '14.5px', '--tree-fs': '13.5px',
       '--title-fs': '26px', '--status-fs': '13px', '--tab-fs': '14.5px',
       '--title-font': "'Cinzel', Georgia, serif",
@@ -273,24 +273,21 @@ const THEMES = {
       // ── 그려진 틀 (키트) ───────────────────────────────────────────
       // 칸을 '카드'로 세우고 그 자리에 틀을 앉힌다. 여백 없이 틀만 얹으면
       // 선이 글자 위를 지나간다 — 지난번 실패가 그것이었다.
-      '--shell-pad': '10px', '--panel-gap': '6px', '--frame-pad': '18px',
+      // 창 바깥 틀은 뺐다. 가장 바깥이라 머리말 띠·상태바·칸 틀과 전부
+      // 겹쳤고, 금테가 세 겹으로 쌓이니 눈이 아팠다.
+      '--shell-pad': '8px', '--panel-gap': '8px', '--frame-pad': '14px',
       '--panel-radius': '4px',
-      ...kit('frame', 'f-panel.png'), '--frame-w': '30px',
-      ...kit('frame-win', 'f-window.png'), '--frame-win-w': '46px',
+      ...kit('frame', 'f-panel.png'), '--frame-w': '24px',
       ...kit('paper', 'f-paper.png'), '--paperimg-bw': '34px',
-      ...kit('row', 'b-row.png'),
-      ...kit('row-hover', 'b-row-hover.png'),
+      // 보통 줄과 마우스 올린 줄은 맨 글자로 둔다 — 시안도 그렇다.
+      // 줄마다 금테를 두르면 목록이 아니라 단추 더미가 된다.
       ...kit('row-active', 'b-row-active.png'), '--row-bw': '10px',
-      ...kit('tab', 'b-tab.png'),
       ...kit('tab-active', 'b-tab-active.png'), '--tabimg-bw': '12px',
       ...kit('btn', 'b-btn.png'),
       ...kit('btn-hover', 'b-btn-hover.png'),
       ...kit('btn-primary', 'b-btn-primary.png'), '--btnimg-bw': '12px',
-      ...kit('field', 'f-field.png'), '--fieldimg-bw': '14px 26px',
       ...kit('select', 'b-select.png'),
-      ...kit('bar-top', 's-bar-top.png'),
-      ...kit('bar-bottom', 's-bar-bottom.png'),
-      ...kit('toolbar', 's-toolbar.png'), '--barimg-bw': '10px 28px',
+      ...kit('bar-bottom', 's-bar-bottom.png'), '--barimg-bw': '5px 24px',
       // 조각 장식
       '--crest-mode': 'block', '--crest-src': `url(${assetUrl('o-rail-top.png')})`,
       // 아이콘 — 이번 판은 **선**이라 작은 크기에서도 선명하다

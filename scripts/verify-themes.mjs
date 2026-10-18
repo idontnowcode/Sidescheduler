@@ -63,7 +63,7 @@ const EXPECT = {
   leather: { h: 56, st: 34, rail: 58, search: 34, listGap: [2, 40] },
   field: { h: 56, st: 34, rail: 58, search: 34, listGap: [100, 999] },
   library: { h: 56, st: 34, rail: 58, search: 34, listGap: [100, 999] },
-  fantasy: { h: 58, st: 34, rail: 54, search: 38, listGap: [-5, 40] },
+  fantasy: { h: 58, st: 34, rail: 62, search: 38, listGap: [-5, 40] },
 }
 
 for (const [key, label] of [['leather', '가죽 서재'], ['field', '현장 노트'],
@@ -80,7 +80,7 @@ for (const [key, label] of [['leather', '가죽 서재'], ['field', '현장 노�
     return {
       logoFont: cs('.app-name').fontFamily,
       logoColor: cs('.app-name').color,
-      chromeBg: cs('.ln-sidebar').backgroundColor,
+      chromeBg: cs('.ln-sidecol').backgroundColor,
       nbNameColor: cs('.nb-name').color,
       listBg: cs('.pl-col').backgroundColor,
       railBg: cs('.rail').backgroundColor,
@@ -100,10 +100,10 @@ for (const [key, label] of [['leather', '가죽 서재'], ['field', '현장 노�
       searchH: Math.round(document.querySelector('.ln-search-input').getBoundingClientRect().height),
       searchIconIsSvg: !!document.querySelector('.ln-search-icon svg'),
       // 판타지 테마가 더 쓰는 층
-      frameOn: getComputedStyle(document.querySelector('.ln-sidebar'), '::after').borderImageSource,
+      frameOn: getComputedStyle(document.querySelector('.ln-sidecol'), '::after').borderImageSource,
       railIcon: getComputedStyle(document.querySelector('.rail-btn'), '::before').backgroundImage,
       uiFont: cs('.ln-root').fontFamily,
-      framePad: cs('.ln-sidebar').paddingLeft,
+      framePad: cs('.ln-sidecol').paddingLeft,
       rowPlate: getComputedStyle(document.querySelector('.pl-row.active') || document.querySelector('.pl-row')).borderImageSource,
       paperFrame: cs('.ql-container').borderImageSource,
     }
@@ -184,7 +184,7 @@ ok('종이가 걷힌다', back.paper === 'transparent', back.paper)
 ok('질감이 걷힌다', back.tex === 'none' && back.railImg === 'none', `${back.tex} / ${back.railImg}`)
 ok('노트 줄이 걷힌다', back.lines === 'none', back.lines)
 ok('금장 틀도 걷힌다',
-  await ln.evaluate(() => getComputedStyle(document.querySelector('.ln-sidebar'), '::after').borderImageSource) === 'none')
+  await ln.evaluate(() => getComputedStyle(document.querySelector('.ln-sidecol'), '::after').borderImageSource) === 'none')
 ok('아이콘도 원래 것으로 돌아온다',
   await ln.evaluate(() => getComputedStyle(document.querySelector('.rail-btn'), '::before').display) === 'none')
 ok('로고 글꼴도 돌아온다', !/Playfair|Baskerville|Garamond/.test(back.logo), back.logo.slice(0, 30))
