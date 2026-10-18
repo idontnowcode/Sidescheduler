@@ -57,7 +57,7 @@ export default function TemplatesPanel({ onOpen }: Props) {
     <div className="tpl-panel">
       <button className="tpl-header" onClick={toggleOpen}>
         <span className={`tpl-arrow${open ? ' open' : ''}`}>▶</span>
-        <span className="tpl-node-icon">📑</span>
+        <span className="tpl-node-icon foot-icon" data-icon="folder"><span className="foot-glyph">📑</span></span>
         <span className="tpl-title">템플릿{loaded && items.length ? ` (${items.length})` : ''}</span>
       </button>
       {open && (

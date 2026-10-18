@@ -213,92 +213,146 @@ const THEMES = {
   fantasy: {
     label: '고서 · 금장',
     vars: {
-      '--bg': '#090806', '--bg2': '#100e0b', '--bg3': '#1b1813', '--bg4': '#271f17',
-      '--border': '#332a1e', '--text': '#ddd0b4', '--text-dim': '#8d8168',
+      '--bg': '#090806', '--bg2': '#12110e', '--bg3': '#1b1813', '--bg4': '#271f17',
+      '--border': '#332a1e', '--text': '#e6dac0', '--text-dim': '#b0a386',
       '--accent': '#b4874e', '--accent-hover': '#cfa066',
-      '--chrome-bg': '#0d0b09', '--rail-bg': '#0a0907',
-      '--chrome-ink': '#e9dcc0', '--chrome-ink-dim': '#9a8d72',
-      '--list-bg': '#0d0c0a', '--panel-bg': '#0d0c0a',
-      '--editor-head-bg': '#0b0a09', '--toolbar-bg': '#0e0d0b',
+      '--chrome-bg': '#0b0a08', '--rail-bg': '#040302',
+      '--chrome-ink': '#e9dcc0', '--chrome-ink-dim': '#b8ab8e',
+      '--list-bg': '#12110e', '--panel-bg': '#12110e',
+      '--editor-head-bg': 'transparent', '--toolbar-bg': 'transparent',
       // 고른 줄은 "붉은 명판" — 그라데이션 + 금테
-      '--sel-bg': 'linear-gradient(180deg, #65150f 0%, #43090a 100%)',
+      '--sel-bg': 'linear-gradient(180deg, #45100b 0%, #2c0606 100%)',
       '--sel-text': '#ffeccd', '--sel-border': '#b98b3e',
       '--sel-edge': '#d9ab55', '--sel-edge-w': '0px',
       '--sel-soft-bg': 'rgba(200,155,74,0.16)',
-      '--rail-active-bg': 'linear-gradient(180deg, #5d130e 0%, #3a0806 100%)',
+      '--rail-active-bg': 'linear-gradient(180deg, #3f0d09 0%, #260504 100%)',
       '--rail-active-fg': '#ffe3bd', '--rail-edge': '#d9ab55',
-      '--paper-bg': '#c8aa78', '--paper-ink': '#211810', '--paper-ink-dim': '#584a33',
-      '--paper-soft-bg': '#c0a480',
-      '--paper-lines': ruled('rgba(90,62,28,0.11)'),
-      '--paper-shadow': '0 0 0 1px rgba(0,0,0,0.55), 0 16px 40px rgba(0,0,0,0.6)',
-      '--paper-inset': '6px 8px 8px', '--paper-radius': '2px',
+      '--paper-bg': '#c3ab8f', '--paper-ink': '#1e1409', '--paper-ink-dim': '#5a4a31',
+      '--paper-soft-bg': '#b49a7b',
+      '--paper-lines': `url(${assetUrl('paper-lines.png')})`, '--paper-lines-size': '100% 704px',
+      '--paper-shadow': '0 14px 34px rgba(0,0,0,0.55)',
+      // 기준을 재 보니 우리 종이가 위로 26px 올라가 있고 아래로 44px
+      // 더 내려와 있었다(70px 더 길다). 여백으로 맞춘다.
+      '--paper-inset': '6px 8px 6px', '--paper-radius': '0px',
       // 찢긴 가장자리가 안쪽으로 꽤 들어온다. 좌우 여백을 넓히지 않으면
       // 글자가 그 톱니에 물려 잘린다.
-      '--paper-pad-x': '62px',
-      '--paper-line-h': '25px', '--paper-gap': '0px',
+      '--paper-pad-x': '76px',
+      '--paper-line-h': '35px', '--paper-gap': '0px',
       // 위쪽도 톱니가 깊게 들어온다 — 줄 간격(25)의 배수로 키운다.
-      '--paper-head-gap': '0px', '--paper-pad-y': '25px',
-      '--tabbar-bg': '#0e0d0b', '--tab-active-bg': 'linear-gradient(180deg, #5a120d 0%, #3c0807 100%)',
+      '--paper-head-gap': '0px', '--paper-pad-y': '28px',
+      '--tabbar-bg': 'transparent', '--tab-active-bg': '#1c1914',
       '--tab-active-fg': '#ffeccd', '--tab-active-border': '#b98b3e',
-      '--tab-radius': '8px 8px 0 0', '--tab-active-weight': '600',
-      '--tab-gap': '4px', '--tab-strip-pad': '7px 10px 0', '--tab-pad': '9px 10px 9px 12px',
-      '--tab-top': '#d9ab55', '--tab-top-w': '2px',
+      '--tab-radius': '0', '--tab-active-weight': '600',
+      '--tab-gap': '4px', '--tab-strip-pad': '0px 10px 0', '--tab-pad': '2px 10px 2px 12px',
+      '--tab-top': 'transparent', '--tab-top-w': '0px',
       // 아래 띠는 질감을 섞느라 background-color 로 칠한다 — 거기엔
       // 그라데이션을 넣을 수 없다(넣으면 색이 통째로 날아가 투명해진다).
-      '--status-bg': '#3a0c08',
+      // 관련 페이지 줄 — 여태 보라색(#7c6ff0)이 박혀 있어 혼자 테마 밖이었다.
+      '--rel-ink': '#dcb467', '--rel-edge': '#8a6a30',
+      '--rel-soft': 'rgba(217,171,85,0.12)', '--rel-bg': 'transparent',
+      '--rel-btn-fs': '16px', '--rel-btn-pad': '5px 14px',
+      '--rel-fs': '15px', '--rel-pad': '10px 18px',
+      '--status-bg': '#2a0906',
       '--status-fg': '#f0d9ae',
       // 화면 전체 글꼴. Cinzel 은 한글이 없어서 로고·제목에만 쓰고,
       // 본문·사이드바는 한글이 있는 명조로 간다.
-      '--ui-font': "Georgia, 'Nanum Myeongjo', Batang, serif",
-      '--logo-font': "'Cinzel', Georgia, serif",
-      '--logo-ink': '#f5e4bb', '--logo-weight': '600', '--logo-size': '25px', '--logo-tracking': '0.07em',
-      '--search-h': '38px', '--search-radius': '9px',
-      '--search-bg': '#090807', '--search-border': '#4a3f2b', '--search-fs': '15px',
-      '--btn-fs': '14px', '--btn-pad': '8px 14px',
+      '--ui-font': "'Malgun Gothic', 'Noto Sans KR', 'Segoe UI', sans-serif",
+      '--logo-font': "Georgia, 'Malgun Gothic', serif",
+      '--logo-ink': '#dcc69b', '--logo-weight': '500', '--logo-size': '26px', '--logo-tracking': '0.015em',
+      // 기준은 로고 왼쪽에 장식 자리를 비워 둔다 — 로고가 x 144 쯤에서 시작한다.
+      '--header-pad': '0 14px 0 82px', '--header-gap': '26px',
+      // 머리말 왼쪽 끝 문장(레일 위) — 배경 층으로 얹는다
+      '--header-orn': `url(${assetUrl('k-rail-crest.png')})`, '--header-orn-size': '44px 44px', '--header-orn-pos': '12px center',
+      '--search-h': '41px', '--search-radius': '5px', '--search-max': '700px',
+      '--search-bg': '#0b0a08', '--search-border': '#8a6d3e', '--search-fs': '17.5px', '--search-icon-left': '12px', '--search-icon-op': '0.9',
+      '--btn-fs': '16.5px', '--btn-pad': '0px 9px', '--title-min': '0px',
       '--badge-bg': '#8d1f16', '--badge-fg': '#ffe3bd',
       '--rail-sep': '#4a3f2b', '--rail-sep-w': '26px', '--rail-sep-m': '9px',
       // 빽빽함 — 시안이 앞 셋보다도 널찍하다
       // 시안은 앞 셋보다도 널찍하다 — 조각을 겹쳐 보니 아이콘·글자가 한
       // 치수씩 더 컸다.
-      '--header-h': '58px', '--status-h': '34px', '--rail-w': '62px', '--rail-btn': '40px',
-      '--row-fs': '14px', '--row-pad': '8px 10px', '--nb-fs': '14.5px', '--tree-fs': '13.5px',
-      '--title-fs': '26px', '--status-fs': '13px', '--tab-fs': '14.5px',
-      '--title-font': "'Cinzel', Georgia, serif",
-      '--paper-fs': '15px',
-      // 질감 — 돌은 어두운 면에 더하기(screen), 양피지는 곱하기
-      // 돌 질감이 240px 로 잘게 반복돼 빈 패널에서 내용보다 먼저 보였다.
-      // 크게 늘려 결을 성기게 하고, 안쪽 칸(목록·오른쪽)은 거의 민짜로.
-      '--tex-chrome': u(stoneTex), '--tex-chrome-size': '560px',
-      '--tex-panel': 'none',
-      '--tex-paper': u(parchmentTex), '--tex-paper-size': '420px', '--tex-paper-opacity': '0.4',
-      // 장식 층
-      // ── 그려진 틀 (키트) ───────────────────────────────────────────
-      // 칸을 '카드'로 세우고 그 자리에 틀을 앉힌다. 여백 없이 틀만 얹으면
-      // 선이 글자 위를 지나간다 — 지난번 실패가 그것이었다.
-      // 창 바깥 틀은 뺐다. 가장 바깥이라 머리말 띠·상태바·칸 틀과 전부
-      // 겹쳤고, 금테가 세 겹으로 쌓이니 눈이 아팠다.
-      '--shell-pad': '6px', '--panel-gap': '4px', '--frame-pad': '9px',
-      '--panel-radius': '3px',
-      // 옆 칸들은 가는 틀, 본문만 제대로 된 틀 — 넷을 같은 두께로 두르면
-      // 액자 넷이 나란히 선 꼴이라 어디가 본체인지 알 수 없다.
-      ...kit('frame', 'f-inset.png'), '--frame-w': '11px',
-      ...kit('frame-ed', 'f-panel.png'), '--frame-ed-w': '14px',
-      ...kit('paper', 'f-paper.png'), '--paperimg-bw': '15px',
-      // 보통 줄과 마우스 올린 줄은 맨 글자로 둔다 — 시안도 그렇다.
-      // 줄마다 금테를 두르면 목록이 아니라 단추 더미가 된다.
-      ...kit('row-active', 'b-row-active.png'), '--row-bw': '10px',
-      ...kit('tab-active', 'b-tab-active.png'), '--tabimg-bw': '9px',
-      ...kit('btn', 'b-btn.png'),
-      ...kit('btn-hover', 'b-btn-hover.png'),
-      ...kit('btn-primary', 'b-btn-primary.png'), '--btnimg-bw': '7px',
-      ...kit('select', 'b-select.png'),
-      ...kit('bar-bottom', 's-bar-bottom.png'), '--barimg-bw': '5px 24px',
+      '--header-h': '61px', '--status-h': '48px', '--rail-w': '72px', '--rail-btn': '48px', '--rail-gap': '10px', '--rail-pad': '12px 0 12px',
+      '--row-fs': '18px', '--row-pad': '1px 2px', '--sl-pad': '6px 12px', '--nb-fs': '18px', '--tree-fs': '17.5px',
+      '--row-sub-fs': '15px', '--row-sub-gap': '4px',
+      '--title-fs': '32px', '--status-fs': '17.5px', '--tab-fs': '16.5px',
+      '--title-font': "'Noto Serif KR', Georgia, serif",
+      '--paper-font': "'Noto Serif KR', Georgia, serif", '--paper-fs': '17.5px', '--paper-weight': '400', '--paper-well': '#14110d',
+      // 제목 아래 저장 시각·오른쪽 목차도 기준은 한 치수 크다.
+      '--saved-fs': '15px', '--toc-fs': '17px', '--toc-pad': '6px 10px',
+      // ── 그려진 키트 v1 (design/theme-assets/raw/fantasy-reference-kit-v1) ──
+      // 목표 화면을 18구역으로 나눠 받은 에셋이다. 자를 자리(9등분)는
+      // 그쪽 manifest.json 값을 kit.json 에 옮겨 두었으므로 그대로 읽는다.
+      // 칸 바탕은 이제 틀 그림이 **속까지** 칠한다(fill) — 따로 질감을
+      // 깔면 두 겹이 돼 결이 어긋난다.
+      '--tex-chrome': `url(${assetUrl('k-stone-tile.png')})`,
+      '--tex-chrome-size': '620px', '--tex-chrome-blend': 'normal',
+      '--tex-panel': `url(${assetUrl('k-stone-tile.png')})`,
+      '--tex-panel-size': '620px', '--tex-panel-blend': 'normal',
+      '--tex-paper': 'none',
+      '--shell-pad': '6px', '--panel-gap': '2px', '--frame-pad': '10px 4px', '--frame-ed-pad': '4px',
+      '--panel-radius': '0px',
+      // 칸 틀 — 옆 칸과 본문에 같은 틀을 쓴다(기준도 그렇다)
+      ...kit('frame', 'k-panel-frame.png'), '--frame-w': '10px',
+      ...kit('frame-ed', 'k-panel-frame.png'), '--frame-ed-w': '10px',
+      // 레일 기둥과 그 안 단추 명판
+      '--railimg-bw': '0',
+      ...kit('railbtn-hover', 'k-rail-button-hover.png'),
+      ...kit('railbtn-active', 'k-rail-button-active.png'), '--railbtn-bw': '4px',
+      // 고른 줄 · 탭 · 단추
+      ...kit('row-active', 'k-row-active.png'), '--row-bw': '5px 10px',
+      ...kit('tab-active', 'k-tab-active.png'), '--tabimg-bw': '10px 15px',
+      '--lntab-active-img': 'none', '--lntab-bw': '1px 1px 0', '--tab-sep': '#33291b',
+      '--row-divider': 'rgba(120,96,58,0.22)',
+      ...kit('btn', 'k-button-default.png'),
+      ...kit('btn-hover', 'k-button-default.png'),
+      ...kit('btn-primary', 'k-button-primary.png'), '--btnimg-bw': '7px 10px',
+      // 가로 띠 — 머리말 · 제목줄 · 도구줄 · 관련페이지 · 상태바 · 구역머리
+      '--head-bw': '0 0 1px 0', '--head-line': '#3a2e1e',
+      '--toolbar-bw': '0 0 1px 0', '--toolbar-line': '#3a2e1e',
+      '--relimg-bw': '0',
+      ...kit('bar-bottom', 'k-status-bar.png'), '--barimg-bw': '14px 20px',
+      '--secbar-bw': '0 0 1px 0', '--secbar-line': '#3a2e1e',
+      '--head-pad': '10px 18px', '--head-actions-gap': '7px', '--save-ind': 'none',
+      '--toolbar-pad': '0px 8px',
+      // 종이 — 그려 받은 양피지 한 장 + 줄 + 네 귀퉁이 꺾쇠
+      '--paper-layers': [
+        `url(${assetUrl('pc-tl.png')}) left 4px top 4px/38px no-repeat`,
+        `url(${assetUrl('pc-tr.png')}) right 4px top 4px/38px no-repeat`,
+        `url(${assetUrl('pc-bl.png')}) left 4px bottom 4px/38px no-repeat`,
+        `url(${assetUrl('pc-br.png')}) right 4px bottom 4px/38px no-repeat`,
+        // 양피지를 칸보다 조금 크게 깔아 찢긴 둘레는 대부분 밖으로 밀어낸다
+        `url(${assetUrl('k-paper-sheet.png')}) center/107% 107% no-repeat`,
+      ].join(', '),
+      '--paper-lines': `url(${assetUrl('k-paper-lines.png')})`,
+      '--paper-lines-size': '100% 704px',
       // 조각 장식
-      '--crest-mode': 'block', '--crest-src': `url(${assetUrl('o-rail-top.png')})`,
-      // 아이콘 — 이번 판은 **선**이라 작은 크기에서도 선명하다
+      '--crest-mode': 'block', '--crest-src': `url(${assetUrl('k-rail-crest.png')})`,
+      '--finial-mode': 'block', '--finial-src': `url(${assetUrl('k-panel-finial.png')})`,
+      '--finial-w': '40px', '--finial-h': '116px', '--finial-bottom': '14px', '--finial-op': '0.5',
+      '--crest-size': '34px', '--crest-gap': '10px',
+      // 아이콘 — 받은 키트의 것으로 전부 갈아 끼운다
       ...kitIcons,
-      '--icon-mode': 'block', '--icon-orig': '0', '--icon-box': '20px',
-      '--icon-inset': '2px',
+      '--icon-mode': 'block', '--icon-orig': '0', '--icon-box': '26px',
+      '--icon-inset': '1px',
+      '--ui-design-w': '1647',
+      // 목표 화면에 맞춘 작은 글자들 — 목록 머리·NOTEBOOKS·템플릿/Trash, 그리고
+      // 글자 수 표시(목표엔 없다, 제목 자리를 먹어 제목이 잘렸다)
+      '--counts-display': 'none', '--plhead-fs': '19px', '--nblabel-fs': '14px',
+      '--nblabel-font': "Georgia, 'Noto Serif KR', serif", '--nblabel-track': '0.12em',
+      '--sl-fs': '19px', '--rptab-fs': '17.5px',
+      '--tb-fs': '16px', '--tb-btn-w': '34px', '--tb-btn-h': '30px',
+      '--btn-font': "Georgia, 'Noto Serif KR', serif", '--refadd-fs': '15px',
+      // 제목줄 두 줄 — 단추는 아랫줄 오른쪽에 붙어 제목과 겹치지 않는다
+      '--head-display': 'grid', '--title-wrap-display': 'contents',
+      '--foot-fs': '19px', '--foot-pad': '11px 12px', '--sl-icon': '24px', '--foot-icon': '24px',
+      // 레일과 사이드바의 경계 — 같은 돌결이 이어져 어디서 끊기는지 안 보였다.
+      '--rail-edge-line': '#6b5530', '--rail-edge-shadow': '1px 0 0 #050403, 4px 0 8px rgba(0,0,0,0.55)',
+      // 머리말 아랫선과 창 단추. 단추 자리를 새카만 덩어리로 칠하면 돌결 위에
+      // 검은 상자가 떠 보인다 — 돌의 평균색과 청동 기호로 맞춘다.
+      '--header-line': '#5a4628',
+      '--titlebar-bg': '#15130f', '--titlebar-ink': '#b8955a',
+      // 툴바 — 회색 기호가 금장과 따로 놀았다
+      '--tb-ink': '#c6b99f', '--sl-ink': '#e2d6bc', '--tb-ink-hover': '#ecd3a0', '--tb-sep': '#3e3220',
       // 아이콘 — 꽉 찬 금속 그림을 받아 써 봤는데, 22~26px 로 줄이면
       // 뭉개져 조잡해졌다(시안은 **가는 금색 선**이다). 선 아이콘에 금색과
       // 아래 그림자만 얹는 쪽이 시안에 가깝고 어떤 크기에서도 선명하다.
@@ -333,11 +387,24 @@ const ACCENTS = {
 export function syncTitleBar() {
   if (!window.lightnote?.setTitleBarColors) return
   const cs = getComputedStyle(document.documentElement)
-  const bg = cs.getPropertyValue('--chrome-bg').trim() || cs.getPropertyValue('--bg2').trim() || '#252526'
-  const fg = cs.getPropertyValue('--text').trim() || '#cccccc'
-  const h = parseFloat(cs.getPropertyValue('--header-h')) || 44
+  const bg = cs.getPropertyValue('--titlebar-bg').trim() || cs.getPropertyValue('--chrome-bg').trim() || cs.getPropertyValue('--bg2').trim() || '#252526'
+  const fg = cs.getPropertyValue('--titlebar-ink').trim() || cs.getPropertyValue('--text').trim() || '#cccccc'
+  // 창 단추는 운영체제가 그려서 CSS 배율이 안 먹는다 — 높이를 배율만큼 줄여 넘긴다
+  const z = parseFloat(cs.getPropertyValue('--ui-zoom')) || 1
+  const h = (parseFloat(cs.getPropertyValue('--header-h')) || 44) * z
   try { window.lightnote.setTitleBarColors(bg, fg, h) } catch { /* 지원 안 하면 그만 */ }
 }
+
+/** 창 비례 배율. 테마가 `--ui-design-w`(그 폭을 기준으로 그렸다)를 주면
+ *  창 폭 ÷ 그 폭 만큼 화면 전체를 줄인다(0.7~1). 안 주면 1. */
+export function applyUiZoom() {
+  const root = document.documentElement
+  const d = parseFloat(getComputedStyle(root).getPropertyValue('--ui-design-w')) || 0
+  const z = d > 0 ? Math.max(0.7, Math.min(1, window.innerWidth / d)) : 1
+  root.style.setProperty('--ui-zoom', String(Math.round(z * 1000) / 1000))
+  syncTitleBar()
+}
+if (typeof window !== 'undefined') window.addEventListener('resize', () => applyUiZoom())
 
 export function applyTheme(key: string) {
   const theme = THEMES[key as keyof typeof THEMES]
@@ -346,7 +413,7 @@ export function applyTheme(key: string) {
   ALL_THEME_VARS.forEach((k) => root.style.removeProperty(k))
   Object.entries(theme.vars as Record<string, string>).forEach(([k, v]) => root.style.setProperty(k, v))
   localStorage.setItem('lightnote-theme', key)
-  syncTitleBar()
+  applyUiZoom()
   // 노트 줄 간격이 바뀌었을 수 있다 — 본문 줄 높이를 다시 매기게 알린다.
   window.dispatchEvent(new CustomEvent('ln-theme-changed'))
 }

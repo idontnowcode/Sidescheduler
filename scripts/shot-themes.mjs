@@ -32,7 +32,7 @@ await ln.waitForTimeout(1200)
 // ── 보기용 노트 ─────────────────────────────────────────────────────────
 await ln.evaluate(async () => {
   const L = window.lightnote
-  const nb = await L.createNotebook('설비 업무', '#4c6ef5')
+  const nb = await L.createNotebook('설비 업무', '#2fb344')
   const sec = await L.createSection(nb.id, '진행 중', null)
   const p1 = await L.createPage(nb.id, sec.id, '3번 라인 소음 개선')
   await L.savePage({
@@ -56,8 +56,9 @@ await ln.evaluate(async () => {
     await L.savePage({ notebookId: nb.id, sectionId: sec.id, pageId: p.id, title: t,
       delta: { ops: [{ insert: t + ' 내용\n' }] } })
   }
-  await L.inboxNew('나중에 분류할 메모')
-  await L.favoriteToggle(p1.id)
+  // 기준 시안과 **같은 상태**로 맞춘다 — 즐겨찾기도 인박스 메모도 없는 화면이다.
+  // 상태가 다르면 디자인이 아니라 '지금 무엇이 들어 있는가'를 견주게 된다.
+  await L.createNotebook('기록장', '#2fb344')
 })
 
 await ln.reload()
@@ -69,6 +70,11 @@ await ln.locator('.sec-header', { hasText: '진행 중' }).first().click()
 await ln.waitForTimeout(900)
 await ln.locator('.page-item', { hasText: '3번 라인 소음 개선' }).first().click()
 await ln.waitForTimeout(1600)
+// 기준 시안은 왼쪽 트리가 **접힌** 상태다. 펼친 채로 찍으면 디자인이
+// 아니라 '지금 무엇을 열어 뒀는가'를 견주게 된다 — 페이지는 열어 둔 채
+// 트리만 도로 접는다.
+await ln.locator('.nb-header', { hasText: '설비 업무' }).first().click()
+await ln.waitForTimeout(900)
 
 // 설정 화면에서 **실제로 눌러** 바꾼다 — 사용자가 가는 길과 같은 길이라야
 // 그 길이 막혀 있는 것도 같이 드러난다.
@@ -80,7 +86,13 @@ const THEMES = [
   ['dark', 'Dark'],   // 기존 테마가 그대로인지 확인용
 ]
 
-for (const [key, label] of THEMES) {
+// 한 테마만 손보는 동안 다섯 벌을 다 찍을 이유가 없다(한 번에 1분씩 든다).
+//   ONLY_THEME=fantasy node scripts/shot-themes.mjs
+const PICK = process.env.ONLY_THEME
+  ? THEMES.filter(([k]) => process.env.ONLY_THEME.split(',').includes(k))
+  : THEMES
+
+for (const [key, label] of PICK) {
   await ln.locator('.rail .icon-btn[title="Settings"]').click()
   await ln.waitForTimeout(700)
   await ln.locator('.theme-swatch', { hasText: label }).first().click()
@@ -88,6 +100,10 @@ for (const [key, label] of THEMES) {
   // Esc 는 덮개에 포커스가 있을 때만 먹는다 — 단추로 닫는다.
   await ln.locator('.modal-overlay button.btn-secondary', { hasText: 'Cancel' }).click()
   await ln.waitForTimeout(1100)
+  // 테스트로 띄우면 툴바가 펼쳐진 채로 뜬다(isTestRun). 기준 화면은 한 줄
+  // 이라, 펼친 채로 찍으면 본문이 두 줄만큼 아래로 밀려 비교가 어긋난다.
+  await ln.evaluate(() => document.querySelector('.ql-toolbar')?.classList.remove('ln-tb-open'))
+  await ln.waitForTimeout(400)
   const file = join(OUT, `${key}.png`)
   await ln.screenshot({ path: file })
   console.log(`  ${file}  —  ${label}`)

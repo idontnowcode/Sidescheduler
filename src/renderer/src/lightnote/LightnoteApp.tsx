@@ -67,11 +67,13 @@ export default function LightnoteApp() {
     if (v === 'planner' && tab) { setPlannerTab(tab); setPlannerDate(null) }
   }, [])
   // Resizable side panels (persisted).
-  const [leftW, setLeftW] = useState(() => Number(localStorage.getItem('ln-left-w')) || 220)
-  const [rightW, setRightW] = useState(() => Number(localStorage.getItem('ln-right-w')) || 280)
+  // 처음 켤 때의 칸 너비. 목록 칸이 210 이면 제목이 거의 다 잘려서
+  // "최근 편집"이 쓸모가 없었다. 세 칸 다 한 뼘씩 넓혔다.
+  const [leftW, setLeftW] = useState(() => Number(localStorage.getItem('ln-left-w')) || 320)
+  const [rightW, setRightW] = useState(() => Number(localStorage.getItem('ln-right-w')) || 255)
   // 페이지 리스트 칸 — 다섯 칸째라 자리를 많이 먹는다. 접을 수 있고, 접은
   // 상태와 너비는 기억한다.
-  const [listW, setListW] = useState(() => Number(localStorage.getItem('ln-pagelist-w')) || 210)
+  const [listW, setListW] = useState(() => Number(localStorage.getItem('ln-pagelist-w')) || 265)
   const [listHidden, setListHidden] = useState(() => localStorage.getItem('ln-pagelist-hidden') === '1')
   // 그 칸이 무엇을 줄 세우고 있는가. 기본은 지금 보고 있는 페이지의 폴더이고
   // (원노트처럼 옆 페이지가 같이 보인다), 왼쪽 맨 위에서 고르면 그 목록으로
@@ -96,14 +98,57 @@ export default function LightnoteApp() {
   useEffect(() => { localStorage.setItem('ln-pagelist-w', String(listW)) }, [listW])
   useEffect(() => { localStorage.setItem('ln-pagelist-hidden', listHidden ? '1' : '0') }, [listHidden])
 
+  // ── 창이 좁을 때 ─────────────────────────────────────────────────────
+  // 칸 너비는 저장된 값(사용자 취향)을 그대로 쓰지만, 창이 좁아지면 본문이
+  // 먼저 눌려 제목이 잘리고 단추가 화면 밖으로 밀린다. 저장값은 건드리지
+  // 않고 **그릴 때만** 줄인다 — 창을 다시 넓히면 원래 너비로 돌아온다.
+  // 줄이는 순서: 오른쪽 패널 → 페이지 목록 → (그래도 모자라면) 목록 접기.
+  const EDITOR_MIN = 500
+  // 창 비례 배율이 걸려 있으면 칸 너비(CSS px)와 비교할 폭도 배율로 나눈다
+  const uiZoom = () => parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--ui-zoom')) || 1
+  const [winW, setWinW] = useState(() => window.innerWidth / uiZoom())
+  useEffect(() => {
+    const onResize = () => setWinW(window.innerWidth / uiZoom())
+    window.addEventListener('resize', onResize)
+    // 테마를 바꾸면 배율도 바뀐다 — 처음 그릴 땐 배율이 걸리기 전이라 창이
+    // 좁은 줄 알고 패널을 줄여 버렸다. 테마가 걸린 뒤 다시 잰다.
+    window.addEventListener('ln-theme-changed', onResize)
+    return () => {
+      window.removeEventListener('resize', onResize)
+      window.removeEventListener('ln-theme-changed', onResize)
+    }
+  }, [])
+  let leftEff = leftW
+  let rightEff = rightW
+  let listEff = listW
+  let listSqueezed = false
+  {
+    const rail = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--rail-w')) || 44
+    const fixed = rail + EDITOR_MIN + 90
+    let over = fixed + leftEff + (listHidden ? 26 : listEff) + rightEff - winW
+    const take = (have: number, floor: number) => {
+      const cut = Math.min(Math.max(0, over), Math.max(0, have - floor))
+      over -= cut
+      return have - cut
+    }
+    rightEff = take(rightEff, 170)
+    leftEff = take(leftEff, 190)
+    if (!listHidden) listEff = take(listEff, 155)
+    if (over > 0 && !listHidden) listSqueezed = true
+  }
+  const listOff = listHidden || listSqueezed
+
   const startResize = useCallback((e: React.MouseEvent, kind: 'left' | 'list' | 'toc') => {
     e.preventDefault()
     const startX = e.clientX
     const startLeft = leftW, startRight = rightW, startList = listW
+    // 배율이 걸려 있으면 마우스 이동량(화면 px)을 칸 너비(CSS px)로 바꿔야 손을 따라온다
+    const z = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--ui-zoom')) || 1
     const onMove = (ev: MouseEvent) => {
-      if (kind === 'left') setLeftW(Math.max(160, Math.min(480, startLeft + (ev.clientX - startX))))
-      else if (kind === 'list') setListW(Math.max(150, Math.min(420, startList + (ev.clientX - startX))))
-      else setRightW(Math.max(200, Math.min(520, startRight - (ev.clientX - startX))))
+      const dx = (ev.clientX - startX) / z
+      if (kind === 'left') setLeftW(Math.max(160, Math.min(480, startLeft + dx)))
+      else if (kind === 'list') setListW(Math.max(150, Math.min(420, startList + dx)))
+      else setRightW(Math.max(200, Math.min(520, startRight - dx)))
     }
     const onUp = () => {
       document.removeEventListener('mousemove', onMove)
@@ -532,7 +577,7 @@ export default function LightnoteApp() {
   if (dataDir?.problem) return <DataDirBlocked problem={dataDir.problem} />
 
   return (
-    <div className="ln-root" style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
+    <div className="ln-root" style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh / var(--ui-zoom, 1))', overflow: 'hidden' }}>
       {conflicts.length > 0 && !conflictsHidden && (
         <div className="cc-bar">
           <span className="cc-text">
@@ -596,7 +641,7 @@ export default function LightnoteApp() {
             onQuickAdd={() => setQuickAdd(true)}
           />
         )}
-        <div className="ln-sidecol" style={{ width: leftW }}>
+        <div className="ln-sidecol" style={{ width: leftEff }}>
           {/* 노트북보다 먼저 오는 세 가지 — 둔 자리를 모를 때 찾는 길이다.
               아래에 두면 노트북이 몇 개만 늘어도 스크롤 밖으로 밀려난다. */}
           <SmartLists
@@ -607,7 +652,6 @@ export default function LightnoteApp() {
           <div style={{ flex: 1, minHeight: 0, display: 'flex' }}>
             <NotebookTree
               ref={treeRef}
-              width={leftW}
               selected={selected}
               onPageSelect={handlePageSelect}
               onSectionSelect={(nbId, secId, name) => {
@@ -623,7 +667,7 @@ export default function LightnoteApp() {
 
         {/* 카테고리와 본문 사이 — 즐겨찾기 · 최근 편집 · 인박스. 접으면
             얇은 띠만 남아, 다시 펴는 길이 사라지지 않는다. */}
-        {listHidden ? (
+        {listOff ? (
           <button className="pl-reopen" title="페이지 목록 펴기" onClick={() => setListHidden(false)}>
             <span className="pl-reopen-mark">›</span>
             <span className="pl-reopen-label">페이지 목록</span>
@@ -631,7 +675,7 @@ export default function LightnoteApp() {
         ) : (
           <>
             <PageList
-              width={listW}
+              width={listEff}
               source={listSource}
               activePageId={selected.pageId}
               refreshKey={`${woRefresh}:${favTick}`}
@@ -696,7 +740,7 @@ export default function LightnoteApp() {
           <>
             <div className="ln-resizer" onMouseDown={(e) => startResize(e, 'toc')} title="너비 조절" />
             <RightPanel
-              width={rightW}
+              width={rightEff}
               hasWork={hasWork}
               refCount={refs.length}
               showRefsKey={showRefsKey}

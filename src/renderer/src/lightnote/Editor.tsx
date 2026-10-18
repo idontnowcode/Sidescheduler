@@ -2335,15 +2335,15 @@ const Editor = forwardRef<EditorHandle, Props>(({ isFavorite, onToggleFavorite, 
 
         {/* Related pages (page ↔ page links) — visually distinct from event/task links */}
         {currentPage && (
-          <div style={{ borderTop: '1px solid var(--border)', padding: '8px 16px', flexShrink: 0, background: 'var(--bg)' }}>
+          <div className="ln-related" style={{ borderTop: '1px solid var(--border)', padding: 'var(--rel-pad, 8px 16px)', flexShrink: 0, background: 'var(--rel-bg, var(--bg))' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
-              <span style={{ fontSize: '11px', fontWeight: 600, color: '#7c6ff0', letterSpacing: '0.05em', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <span style={{ fontSize: 'var(--rel-fs, 11px)', fontWeight: 600, color: 'var(--rel-ink, #7c6ff0)', fontFamily: 'var(--title-font, inherit)', letterSpacing: '0.05em', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '4px' }}>
                 🔗 Related pages ({relatedPages.length})
               </span>
               <button
                 type="button"
                 onClick={openPagePicker}
-                style={{ fontSize: '11px', padding: '2px 8px', borderRadius: '6px', border: '1px solid #7c6ff0', color: '#7c6ff0', background: 'transparent', cursor: 'pointer' }}
+                style={{ fontSize: 'var(--rel-btn-fs, 11px)', fontFamily: 'var(--btn-font, inherit)', padding: 'var(--rel-btn-pad, 2px 8px)', borderRadius: '6px', border: '1px solid var(--rel-edge, var(--rel-ink, #7c6ff0))', color: 'var(--rel-ink, #7c6ff0)', background: 'transparent', cursor: 'pointer' }}
               >
                 + Link a page
               </button>
@@ -2353,7 +2353,7 @@ const Editor = forwardRef<EditorHandle, Props>(({ isFavorite, onToggleFavorite, 
                 {relatedPages.map(p => (
                   <span
                     key={p.pageId}
-                    style={{ fontSize: '12px', padding: '2px 4px 2px 8px', borderRadius: '8px', background: 'rgba(124,111,240,0.12)', color: '#6a5de0', border: '1px solid rgba(124,111,240,0.35)', display: 'flex', alignItems: 'center', gap: '4px' }}
+                    style={{ fontSize: '12px', padding: '2px 4px 2px 8px', borderRadius: '8px', background: 'var(--rel-soft, rgba(124,111,240,0.12))', color: 'var(--rel-ink, #6a5de0)', border: '1px solid var(--rel-edge, rgba(124,111,240,0.35))', display: 'flex', alignItems: 'center', gap: '4px' }}
                   >
                     <button
                       type="button"
@@ -2367,7 +2367,7 @@ const Editor = forwardRef<EditorHandle, Props>(({ isFavorite, onToggleFavorite, 
                       type="button"
                       onClick={() => unlinkPage(p)}
                       title="Remove link"
-                      style={{ background: 'none', border: 'none', color: '#6a5de0', cursor: 'pointer', padding: '0 2px', fontSize: '13px', lineHeight: 1 }}
+                      style={{ background: 'none', border: 'none', color: 'var(--rel-ink, #6a5de0)', cursor: 'pointer', padding: '0 2px', fontSize: '13px', lineHeight: 1 }}
                     >
                       ×
                     </button>

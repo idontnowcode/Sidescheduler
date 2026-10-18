@@ -1,0 +1,242 @@
+{
+  "name": "fantasy-reference-kit-v1",
+  "version": 1,
+  "assetCount": 57,
+  "sourceCount": 25,
+  "assets": {
+    "panel-frame.png": {
+      "width": 768,
+      "height": 1536,
+      "slice": [
+        96,
+        72,
+        96,
+        72
+      ]
+    },
+    "rail-shell.png": {
+      "width": 384,
+      "height": 1536,
+      "slice": [
+        96,
+        96,
+        96,
+        96
+      ]
+    },
+    "stone-tile.png": {
+      "width": 1024,
+      "height": 1024
+    },
+    "paper-sheet.png": {
+      "width": 1024,
+      "height": 1024
+    },
+    "paper-lines.png": {
+      "width": 1024,
+      "height": 1024
+    },
+    "paper-corner-tl.png": {
+      "width": 512,
+      "height": 512
+    },
+    "header-search-shell.png": {
+      "width": 1536,
+      "height": 192,
+      "slice": [
+        48,
+        92,
+        48,
+        92
+      ]
+    },
+    "status-bar.png": {
+      "width": 1536,
+      "height": 128,
+      "slice": [
+        38,
+        54,
+        38,
+        54
+      ]
+    },
+    "footer-related.png": {
+      "width": 1024,
+      "height": 160,
+      "slice": [
+        44,
+        58,
+        44,
+        58
+      ]
+    },
+    "editor-title-strip.png": {
+      "width": 1024,
+      "height": 192,
+      "slice": [
+        40,
+        60,
+        40,
+        60
+      ]
+    },
+    "editor-toolbar-strip.png": {
+      "width": 1024,
+      "height": 128,
+      "slice": [
+        24,
+        46,
+        24,
+        46
+      ]
+    },
+    "row-active.png": {
+      "width": 512,
+      "height": 160,
+      "slice": [
+        34,
+        50,
+        34,
+        50
+      ]
+    },
+    "tab-active.png": {
+      "width": 384,
+      "height": 160,
+      "slice": [
+        34,
+        50,
+        34,
+        50
+      ]
+    },
+    "button-default.png": {
+      "width": 384,
+      "height": 128,
+      "slice": [
+        30,
+        42,
+        30,
+        42
+      ]
+    },
+    "button-primary.png": {
+      "width": 384,
+      "height": 128,
+      "slice": [
+        30,
+        42,
+        30,
+        42
+      ]
+    },
+    "badge.png": {
+      "width": 128,
+      "height": 128
+    },
+    "divider-h.png": {
+      "width": 512,
+      "height": 48
+    },
+    "section-bar.png": {
+      "width": 768,
+      "height": 128,
+      "slice": [
+        28,
+        46,
+        28,
+        46
+      ]
+    },
+    "rail-button-hover.png": {
+      "width": 256,
+      "height": 256,
+      "slice": [
+        48,
+        48,
+        48,
+        48
+      ]
+    },
+    "rail-button-active.png": {
+      "width": 256,
+      "height": 256,
+      "slice": [
+        48,
+        48,
+        48,
+        48
+      ]
+    },
+    "rail-crest.png": {
+      "width": 256,
+      "height": 256
+    },
+    "panel-finial.png": {
+      "width": 128,
+      "height": 384
+    },
+    "paper-corner-compact.png": {
+      "width": 384,
+      "height": 384
+    },
+    "rail-icons-atlas.png": {
+      "width": 1024,
+      "height": 1024
+    },
+    "state-icons-atlas.png": {
+      "width": 1024,
+      "height": 1024
+    }
+  },
+  "railIcons": [
+    "icon-rail-search.png",
+    "icon-rail-note.png",
+    "icon-rail-work.png",
+    "icon-rail-workflow.png",
+    "icon-rail-chat.png",
+    "icon-rail-sticky.png",
+    "icon-rail-ai.png",
+    "icon-rail-calendar.png",
+    "icon-rail-grid.png",
+    "icon-rail-plus.png",
+    "icon-rail-help.png",
+    "icon-rail-gear.png",
+    "icon-rail-star.png",
+    "icon-rail-folder.png",
+    "icon-rail-inbox.png",
+    "icon-rail-link.png"
+  ],
+  "stateIcons": [
+    "icon-star-off.png",
+    "icon-star-on.png",
+    "icon-folder.png",
+    "icon-folder-open.png",
+    "icon-clock.png",
+    "icon-inbox.png",
+    "icon-trash.png",
+    "icon-link.png",
+    "icon-check-off.png",
+    "icon-check-on.png",
+    "icon-pin-off.png",
+    "icon-pin-on.png",
+    "icon-caret-left.png",
+    "icon-caret-right.png",
+    "icon-close.png",
+    "icon-more.png"
+  ],
+  "statePairs": [
+    [
+      "icon-star-off.png",
+      "icon-star-on.png"
+    ],
+    [
+      "icon-check-off.png",
+      "icon-check-on.png"
+    ],
+    [
+      "icon-pin-off.png",
+      "icon-pin-on.png"
+    ]
+  ]
+}

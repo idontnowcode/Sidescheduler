@@ -25,7 +25,10 @@ const CROPS = [
   ['아래 띠', 0, 935, 760, 56],
 ]
 
-const SCALE = 1.35   // 자잘한 차이를 보려고 확대해서 그린다
+// 어긋난 자리만 집어 보려면 CROPS_JSON 으로 자리를 바꿔 준다.
+if (process.env.CROPS_JSON) { CROPS.length = 0; CROPS.push(...JSON.parse(process.env.CROPS_JSON)) }
+
+const SCALE = Number(process.env.SCALE || 1.35)   // 자잘한 차이를 보려고 확대해서 그린다
 
 app.whenReady().then(async () => {
   const toUrl = (p) => 'file:///' + p.replace(/\\/g, '/').replace(/ /g, '%20')

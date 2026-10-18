@@ -384,3 +384,190 @@ Flat front view. 256x128
 9등분 규칙(①)이 가장 까다롭습니다. **테두리 두께가 사방 다르거나 가운데에
 무늬가 들어오면** 그 장은 못 씁니다. 받은 뒤 제가 바로 재서 알려 드릴 테니,
 몇 장은 다시 뽑게 될 수 있습니다. 한 번에 다 나오지 않는 게 보통입니다.
+
+---
+
+# 2차 — 싱크로율 86.3%에서 **남은 것은 전부 에셋**입니다
+
+기준(`design/mockups/REFERENCE-fantasy.webp`)과의 싱크로율을 `sync-score.js`로
+재면서 80.5% → 86.3%까지 올렸습니다. 여기까지는 자리·크기·색조를 **숫자로**
+맞춘 것이고, 남은 차이는 값으로 못 줄입니다. 조각을 늘이거나 밝기를 바꾸는
+것으로는 **그려진 금테·베벨·장식**이 생기지 않기 때문입니다.
+
+아래 11장이 그것입니다. 각 항목의 `프롬프트`를 그대로 넣어 주세요.
+
+## 공통 규칙 (다시)
+
+- **크기**: 적힌 픽셀을 지켜 주세요. 9등분 자리를 그 크기 기준으로 잡아 둡니다.
+- **배경**: 장식(ornament)은 **순수 검정**, 명판·단추는 배경 없이 **화면 꽉 채워서**.
+- **금지**: 글자, 로고, 워터마크, 그림자(바깥), 원근, 비스듬한 각도.
+- **정면**: 전부 정면에서 평평하게 본 모습(flat, straight-on, orthographic).
+
+---
+
+## A. 편집기 제목줄 명판 — `s-plate-head.png` (1024×180)
+
+**왜**: 지금은 가로 띠 한가운데를 오려 쓰고 있어 **금선 두 줄**뿐입니다.
+기준은 **겹 금테 + 네 귀퉁이 장식**이 있는 석판입니다. 조각을 늘여 쓰므로
+가운데는 균일해야 합니다. (9등분 자리: 위아래 26, 좌우 120)
+
+```
+A dark fantasy game UI horizontal nameplate panel, seen perfectly flat
+and straight-on. A long rectangular slab of near-black charcoal stone
+with faint cracks, framed by a double bronze-gold border: a thicker
+outer bevelled rail and a thin inner hairline, with a narrow dark groove
+between them. Small ornate gold filigree flourishes in each of the four
+corners only. The central area is a plain, even dark stone with no
+pattern, no gradient and no highlight, so it can be stretched. Muted
+antique gold, not shiny yellow. No text, no icons, no outer shadow,
+no perspective. The panel fills the entire image edge to edge.
+```
+
+## B. 도구줄 명판 — `s-plate-tool.png` (1024×140)
+
+**왜**: 제목줄보다 한 단 낮고 수수해야 하는데 지금은 같은 그림을 어둡게만 했습니다.
+
+```
+A dark fantasy game UI toolbar strip, perfectly flat and straight-on.
+A long low rectangular band of very dark charcoal stone, slightly
+lighter than pitch black, with a single thin bronze-gold hairline along
+the top edge and another along the bottom edge. No corner ornaments.
+The centre is plain even stone, no pattern, no gradient. Subdued,
+recessive, meant to sit under a more decorated title bar. No text,
+no icons, no outer shadow. Fills the whole image edge to edge.
+```
+
+## C. 보통 단추 — `b-btn.png` / `b-btn-hover.png` (384×128)
+
+**왜**: 지금은 1px 선 테두리라 기준의 **두꺼운 금 베벨**과 완전히 다릅니다.
+(9등분 자리: 사방 28)
+
+```
+A single dark fantasy game UI button, flat and straight-on, filling the
+whole image. A rounded rectangle with a thick bevelled antique-gold
+frame about 5 pixels wide that catches light on its upper edge and goes
+dark on its lower edge, giving it real depth. The inside is deep
+near-black stone with a soft inner shadow just inside the frame. The
+four corners are slightly clipped and reinforced with a small gold stud.
+Plain, even interior with no pattern so it can be stretched. No text,
+no icons, no glow, no outer shadow, no perspective.
+```
+
+`b-btn-hover.png`: 같은 프롬프트 + `The gold frame is brighter and warmer,
+as if lit, and the interior is slightly lighter.`
+
+## D. 강조 단추(AI Organize) — `b-btn-primary.png` (384×128)
+
+```
+A single dark fantasy game UI primary button, flat and straight-on,
+filling the whole image. A rounded rectangle with a thick bevelled
+bright-gold frame about 5 pixels wide. The inside is a deep oxblood
+crimson that is darker at the bottom and slightly lit at the top, with a
+soft inner shadow under the frame. A faint warm glow hugs the outside of
+the gold frame. Plain even interior, no pattern. No text, no icons,
+no perspective.
+```
+
+## E. 머리말 왼쪽 문장(紋章) — `o-header-crest.png` (320×200, 배경 검정)
+
+**왜**: 기준은 로고 왼쪽에 고딕 아치형 장식이 있고 우리는 **빈 검정**입니다.
+싱크로율 지도에서 좌상단이 계속 어긋나는 원인입니다.
+
+```
+An ornate dark-fantasy heraldic corner ornament on a pure solid black
+background, flat and straight-on. A gothic pointed-arch motif built from
+interlaced antique-gold filigree over dark iron, with small rivets and a
+central vertical spine. It occupies the left portion of the frame and
+fades out toward the right. Muted aged gold, no bright yellow.
+No text, no gems, no glow, no shadow.
+```
+
+## F. 오른쪽 위 붉은 보석 — `o-gem.png` (160×160, 배경 검정)
+
+```
+A small dark-fantasy ornament on a pure solid black background, flat and
+straight-on: a faceted deep-red ruby cabochon set in an antique-gold
+claw mount with two short gold wings sweeping out to the sides. The ruby
+has a soft inner light. Muted aged gold. No text, no shadow, no glow
+beyond the stone itself.
+```
+
+## G. 창 네 귀퉁이 장식 — `o-corner.png` (256×256, 배경 검정)
+
+**왜**: 기준은 창 네 모서리와 각 칸 모서리에 꺾쇠 장식이 있습니다.
+**왼쪽 위 한 장만** 그려 주세요 — 나머지 셋은 뒤집어 씁니다.
+
+```
+A dark-fantasy top-left corner bracket ornament on a pure solid black
+background, flat and straight-on. Interlaced antique-gold filigree over
+dark iron forming an L-shaped corner piece: two straight rails meeting
+at the corner, with a small rosette at the join and tapering scrollwork
+running a short way along each rail before fading out. Muted aged gold.
+No text, no gems, no shadow, no glow.
+```
+
+## H. 아래 상태 띠 — `s-plate-foot.png` (1024×120)
+
+**왜**: 지금은 붉은 선 두 줄 사이가 새카맣습니다. 기준은 **가득 찬 검붉은 가죽 띠**입니다.
+
+```
+A dark fantasy game UI status bar, flat and straight-on, filling the
+whole image. A long horizontal band of deep oxblood-red leather with a
+subtle worn grain, slightly darker at the top and bottom edges, bounded
+by a thin antique-gold hairline above and below. The centre is an even
+leather surface with no pattern so it can be stretched. No text,
+no icons, no shadow.
+```
+
+## I. 종이 — `paper-sheet.png` (1200×1200, 배경 검정)
+
+**왜**: 지금 종이 둘레는 제가 코드로 구운 것(`bake-paper-mask.js`)이라
+결이 기계적입니다. 기준은 실제로 찢어져 섬유가 일어난 양피지입니다.
+
+```
+A single sheet of very old parchment photographed flat from directly
+above, centred, filling most of the frame, on a pure solid black
+background. Warm pale tan-cream colour with soft mottled stains and
+faint fibre texture, slightly lighter in the middle. All four edges are
+irregular and hand-torn, with uneven bumps, small notches and a few
+loose fibres, and the outermost band of every edge is scorched dark
+brown, deepest at the four corners, fading smoothly into clean parchment
+within. No text, no writing, no ruled lines, no border, no frame,
+no drop shadow, no curling. Flat even lighting.
+```
+
+## J. 단추 안 아이콘 3종 — `icon-pdf.png` · `icon-clock.png` · `icon-sparkle.png` (각 128×128, 배경 검정)
+
+**왜**: 기준의 단추 안 아이콘은 **금빛 입체 글리프**이고 우리는 흐린 선입니다.
+
+```
+Three separate images, each on a pure solid black background, flat and
+straight-on, a single centred icon drawn in muted antique gold with a
+slight bevel so it reads as engraved metal, about 2.5 pixels of stroke,
+filling about 70% of the frame:
+  1) a sheet of paper with a folded top-right corner and three short
+     lines of writing
+  2) a round clock face with an outer ring and two hands
+  3) a four-pointed sparkle with a smaller sparkle beside it
+No text, no colour other than gold, no glow, no shadow.
+```
+
+## K. 레일 가로 구분 장식 — `o-rail-divider.png` (96×40, 배경 검정)
+
+```
+A small dark-fantasy divider ornament on a pure solid black background,
+flat and straight-on: a short horizontal antique-gold rule that tapers
+to points at both ends, with a tiny diamond at its centre.
+No text, no shadow, no glow.
+```
+
+---
+
+## 받으면 할 일 (제가 합니다)
+
+1. `check-kit.js`로 9등분 가능 여부·배경 순도 검사
+2. 검정 배경을 알파로 빼고(`pack-kit.js`) 자를 자리 자동 측정 → `kit.json`
+3. 테마 토큰 교체 → `ref-fantasy.mjs` → `sync-score.js`로 전후 비교
+
+**이 11장이 들어가면 싱크로율은 90% 이상으로 갑니다.** 지금 남은 어긋남이
+전부 "그려진 장식이 없어서" 생기는 자리이기 때문입니다.

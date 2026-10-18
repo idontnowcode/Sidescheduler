@@ -92,7 +92,7 @@ const TrashPanel = forwardRef<TrashPanelHandle, Props>(({ onOpenPage, onChanged 
     <div className="trash-panel">
       <div className="trash-header" onClick={toggleOpen}>
         <span className={`trash-arrow${open ? ' open' : ''}`}>▶</span>
-        <span className="trash-node-icon">🗑</span>
+        <span className="trash-node-icon foot-icon" data-icon="trash"><span className="foot-glyph">🗑</span></span>
         <span className="trash-title">Trash{loaded && roots.length ? ` (${roots.length})` : ''}</span>
       </div>
       {open && (

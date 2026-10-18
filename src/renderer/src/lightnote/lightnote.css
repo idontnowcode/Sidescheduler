@@ -73,6 +73,8 @@
   --logo-weight: 600;
   --logo-size: 14px;
   --logo-tracking: 0.3px;
+  --header-pad: 0 12px;
+  --header-gap: 8px;
 
   /* 질감 — 회색조 한 벌을 색 위에 섞는다. 꺼 두는 게 기본. */
   /* 어두운 면(레일·사이드바·헤더·상태바)은 **더하기**(screen)로 결을 얹는다.
@@ -114,14 +116,16 @@ html, body {
 .app-header {
   height: var(--header-h);
   background-color: var(--chrome-bg);
-  background-image: var(--tex-chrome);
-  background-size: var(--tex-chrome-size);
-  background-blend-mode: var(--tex-chrome-blend);
-  border-bottom: 1px solid var(--border);
+  background-image: var(--header-orn, none), var(--tex-chrome);
+  background-size: var(--header-orn-size, 0 0), var(--tex-chrome-size);
+  background-position: var(--header-orn-pos, 0 0), 0 0;
+  background-repeat: no-repeat, repeat;
+  background-blend-mode: normal, var(--tex-chrome-blend);
+  border-bottom: 1px solid var(--header-line, var(--border));
   display: flex;
   align-items: center;
-  padding: 0 12px;
-  gap: 8px;
+  padding: var(--header-pad, 0 12px);
+  gap: var(--header-gap, 8px);
   -webkit-app-region: drag;
   flex-shrink: 0;
 }
@@ -144,7 +148,7 @@ html, body {
 /* ── Main layout ─────────────────────────────── */
 .main-layout {
   display: flex;
-  height: calc(100vh - var(--header-h) - var(--status-h));
+  height: calc(100vh / var(--ui-zoom, 1) - var(--header-h) - var(--status-h));
   overflow: hidden;
   /* 칸을 '카드'로 세울 자리. 기본은 0 이라 다른 테마는 지금 그대로 맞붙는다.
      틀 그림을 쓰는 테마만 값을 채워서 칸 사이를 띄우고 가장자리를 비운다.
@@ -239,7 +243,11 @@ html, body {
 .ln-sidebar {
   width: var(--sidebar-w);
   min-width: var(--sidebar-w);
-  background: var(--bg2);
+  /* 돌결은 다른 칸과 같은 것을 쓴다 — 여기만 민짜면 혼자 떠 보인다. */
+  background-color: var(--bg2);
+  background-image: var(--tex-panel);
+  background-size: var(--tex-panel-size);
+  background-blend-mode: var(--tex-panel-blend);
   border-right: 1px solid var(--border);
   display: flex;
   flex-direction: column;
@@ -253,7 +261,8 @@ html, body {
   flex-shrink: 0;
 }
 .sidebar-label {
-  font-size: 11px;
+  font-family: var(--nblabel-font, inherit); letter-spacing: var(--nblabel-track, normal);
+  font-size: var(--nblabel-fs, 11px);
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.8px;
@@ -278,7 +287,12 @@ html, body {
   background-size: var(--tex-chrome-size);
   background-blend-mode: var(--tex-chrome-blend);
   border-right: 1px solid var(--edge-gold, transparent);
+  /* 안쪽 트리가 경계를 넘으면 칸 사이 간격을 덮는다 — 넘치면 칸에서 자른다 */
+  overflow: hidden;
 }
+/* 트리는 바깥 칸 너비를 따른다. 최소폭(220px)을 따로 갖고 있으면 칸을
+   220보다 좁힐 때만 경계를 넘어 간격이 사라지고, 넓히면 다시 생겼다. */
+.ln-sidecol .ln-sidebar { width: auto; min-width: 0; flex: 1; }
 .notebook-tree {
   flex: 1;
   overflow-y: auto;
@@ -390,7 +404,7 @@ html, body {
 .ql-editor .ln-fold-hidden { display: none; }
 
 /* User-selectable editor font (Settings → Editor font). */
-.ql-editor { font-family: var(--ln-font, 'Inter', system-ui, sans-serif); }
+.ql-editor { font-family: var(--ln-font, var(--paper-font, 'Inter', system-ui, sans-serif)); }
 
 /* Quill size picker — numeric px labels (Word / HWP / CKEditor style)
    Each item is labelled with its raw number; the preview item is rendered
@@ -398,6 +412,8 @@ html, body {
    covers 6..150px so the custom-input row at the bottom can apply any
    value in that range. */
 .ql-snow .ql-picker.ql-size { width: 56px; }
+.ql-toolbar.ql-snow .ql-picker { font-size: var(--tb-fs, 14px); }
+.ql-toolbar.ql-snow button { width: var(--tb-btn-w, 28px); height: var(--tb-btn-h, 24px); }
 .ql-snow .ql-picker.ql-size .ql-picker-options { max-height: 320px; overflow-y: auto; }
 .ql-snow .ql-picker.ql-size .ql-picker-label::before,
 .ql-snow .ql-picker.ql-size .ql-picker-item::before { content: attr(data-value); }
@@ -476,6 +492,7 @@ html, body {
 .ql-editor li.ql-toc-2::before { background: #69db7c; }
 .ql-editor li.ql-toc-3::before { background: #ffa94d; }
 /* Matching level dots in the TOC panel. */
+.toc-item { font-size: var(--toc-fs, inherit); }
 .toc-item.toc-l1::before { content: ''; display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #4dabf7; margin-right: 6px; vertical-align: middle; }
 .toc-item.toc-l2::before { content: ''; display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #69db7c; margin-right: 6px; vertical-align: middle; }
 .toc-item.toc-l3::before { content: ''; display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #ffa94d; margin-right: 6px; vertical-align: middle; }
@@ -487,7 +504,7 @@ html, body {
 
 /* Consistent toolbar layout: flex row, vertically centred, even spacing, with a
    subtle shadowed vertical divider between groups (fixes the "jagged" feel). */
-.ql-toolbar.ql-snow { display: flex; flex-wrap: wrap; align-items: center; row-gap: 4px; padding: 5px 8px; }
+.ql-toolbar.ql-snow { display: flex; flex-wrap: wrap; align-items: center; row-gap: 4px; padding: var(--toolbar-pad, 5px 8px); }
 
 /* ── 접힌 툴바 ───────────────────────────────────────────────────────────
    서른 몇 개가 두 줄로 깔려 있으면 본문보다 툴바가 먼저 눈에 들어온다.
@@ -506,7 +523,7 @@ html, body {
 .ql-toolbar.ql-snow .ql-formats {
   display: inline-flex; align-items: center; gap: 1px; height: 26px;
   margin: 0 8px 0 0; padding-right: 8px;
-  border-right: 1px solid var(--border);
+  border-right: 1px solid var(--tb-sep, var(--border));
   box-shadow: 1px 0 0 rgba(0, 0, 0, 0.18);
 }
 .ql-toolbar.ql-snow .ql-formats:last-child { margin-right: 0; padding-right: 0; border-right: none; box-shadow: none; }
@@ -655,15 +672,15 @@ html, body {
   container-type: inline-size;
   display: flex;
   align-items: center;
-  padding: 8px 20px;
+  padding: var(--head-pad, 8px 20px);
   border-bottom: 1px solid var(--border);
   gap: 12px;
   flex-shrink: 0;
 }
 /* 제목 + 그 아래 저장 시각을 한 덩어리로 */
-.page-title-wrap { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.page-title-wrap { flex: 1; min-width: var(--title-min, 0); display: flex; flex-direction: column; gap: 1px; }
 .page-saved-at {
-  font-size: 10.5px; color: var(--text-dim); padding-left: 1px;
+  font-size: var(--saved-fs, 10.5px); color: var(--text-dim); padding-left: 1px;
   /* 한 줄로 못 적으면 줄여서 끊는다 — 감싸게 두면 "오늘 오전 03:12에 저장됨"
      이 네 줄이 되면서 제목줄만 혼자 높아진다(칸이 하나 늘어 좁아진 뒤로). */
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
@@ -679,12 +696,26 @@ html, body {
   font-family: var(--title-font, inherit);
   font-weight: 600;
   user-select: text;
+  text-overflow: ellipsis;
 }
 .page-title-input::placeholder { color: var(--text-dim); }
+/* 두 줄 제목줄 — 테마가 --head-display: grid 를 주면 켜진다.
+   윗줄은 제목이 폭 전체를 쓰고, 아랫줄은 저장 시각(왼쪽)과 단추(오른쪽).
+   단추가 아랫줄에 붙어 있어 제목이 길어져도 겹치지 않는다. */
+.editor-header { display: var(--head-display, flex);
+  grid-template-columns: auto minmax(0, 1fr) auto; row-gap: 2px; }
+.page-title-wrap { display: var(--title-wrap-display, flex); }
+.editor-header > .page-fav { grid-column: 1; grid-row: 1 / span 2; align-self: start; margin-top: 8px; }
+.editor-header .page-title-input { grid-column: 2 / 4; grid-row: 1; min-width: 0; }
+.editor-header .page-saved-at { grid-column: 2; grid-row: 2; align-self: center; }
+.editor-header > .editor-header-right { grid-column: 3; grid-row: 2; justify-self: end; align-self: end; }
+.editor-header > .ln-find-bar { grid-column: 1 / -1; }
+/* 단추 글꼴 — 목표 화면은 세리프 */
+.ln-ver-btn, .organize-btn, .ref-add { font-family: var(--btn-font, inherit); }
 .editor-header-right {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--head-actions-gap, 10px);
   flex-shrink: 0;
   min-width: 0;
 }
@@ -698,13 +729,19 @@ html, body {
 @container (max-width: 520px) {
   .editor-header-right .save-indicator { display: none; }
 }
+/* 본문 칸이 좁아지면 단추부터 줄인다 — 제목이 먼저 잘리면 안 된다. */
+@container (max-width: 640px) {
+  .editor-header-right { gap: 4px; }
+  .editor-header-right .ln-ver-btn,
+  .editor-header-right .organize-btn { padding: 4px 6px; font-size: 11px; }
+}
 .organize-btn {
-  padding: 4px 12px;
+  padding: var(--btn-pad, 4px 12px);
   border-radius: 6px;
   border: 1px solid var(--accent);
   background: transparent;
   color: var(--accent);
-  font-size: 12px;
+  font-size: var(--btn-fs, 12px);
   cursor: pointer;
   transition: background 0.15s, color 0.15s;
   white-space: nowrap;
@@ -712,6 +749,8 @@ html, body {
 .organize-btn:hover { background: var(--accent); color: #fff; }
 .organize-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 .save-indicator {
+  /* 테마가 숨길 수 있게 — 제목 아래 '…에 저장됨'과 같은 말을 두 번 하는 꼴이다 */
+  display: var(--save-ind, inline);
   font-size: 11px;
   color: var(--text-dim);
   white-space: nowrap;
@@ -727,6 +766,8 @@ html, body {
   flex-direction: column;
   overflow: hidden;
   user-select: text;
+  /* 종이가 놓인 바닥. 기준에서는 여기가 새카맣지 않고 따뜻한 돌빛이다. */
+  background: var(--paper-well, transparent);
 }
 .ql-toolbar.ql-snow {
   background: var(--toolbar-bg);
@@ -736,13 +777,13 @@ html, body {
   padding: 6px 16px;
   flex-shrink: 0;
 }
-.ql-toolbar.ql-snow .ql-stroke { stroke: var(--text-dim) !important; }
-.ql-toolbar.ql-snow .ql-fill { fill: var(--text-dim) !important; }
+.ql-toolbar.ql-snow .ql-stroke { stroke: var(--tb-ink, var(--text-dim)) !important; }
+.ql-toolbar.ql-snow .ql-fill { fill: var(--tb-ink, var(--text-dim)) !important; }
 .ql-toolbar.ql-snow .ql-picker-label { color: var(--text-dim) !important; }
 .ql-toolbar.ql-snow button:hover .ql-stroke,
-.ql-toolbar.ql-snow .ql-active .ql-stroke { stroke: var(--text) !important; }
+.ql-toolbar.ql-snow .ql-active .ql-stroke { stroke: var(--tb-ink-hover, var(--text)) !important; }
 .ql-toolbar.ql-snow button:hover .ql-fill,
-.ql-toolbar.ql-snow .ql-active .ql-fill { fill: var(--text) !important; }
+.ql-toolbar.ql-snow .ql-active .ql-fill { fill: var(--tb-ink-hover, var(--text)) !important; }
 /* 본문 종이 한 장. 바탕색·결·그림자는 여기, 줄/모눈은 글과 같이
    스크롤해야 하므로 .ql-editor 쪽에 둔다. */
 .ql-container.ql-snow {
@@ -777,11 +818,15 @@ html, body {
   overflow-y: auto;
   padding: var(--paper-pad-y, 20px) var(--paper-pad-x, 40px);
   color: var(--paper-ink);
+  font-weight: var(--paper-weight, 400);
   position: relative;
   z-index: 2;
   /* 줄·모눈. local 이어야 글을 내릴 때 줄도 같이 내려간다 — scroll(기본)이면
      줄만 제자리에 붙어 있어 글자와 어긋난 채로 흘러간다. */
   background-image: var(--paper-lines);
+  /* 그려 받은 줄 그림을 쓸 때는 줄 간격에 맞춰 크기를 정해 준다
+     (원본 1024px 에 줄 16개 = 64px 간격). */
+  background-size: var(--paper-lines-size, auto);
   background-attachment: local;
   /* Unitless so each line's height tracks its OWN font size: shrink the text
      and the row shrinks with it (previously a fixed 1.7 × 14px base kept rows
@@ -1226,7 +1271,7 @@ sup.citation:hover { background: var(--accent-hover); }
 
 /* ── Trash panel (pinned at the bottom of the notebook tree) ─────────────── */
 .trash-panel { flex-shrink: 0; border-top: 1px solid var(--border); background: var(--bg2); max-height: 45%; display: flex; flex-direction: column; }
-.trash-header { display: flex; align-items: center; gap: 5px; padding: 7px 10px; cursor: pointer; font-size: 12px; color: var(--text-dim); user-select: none; }
+.trash-header { display: flex; align-items: center; gap: 5px; padding: var(--foot-pad, 7px 10px); cursor: pointer; font-size: var(--foot-fs, 12px); color: var(--text-dim); user-select: none; }
 .trash-header:hover { background: var(--bg3); color: var(--text); }
 .trash-arrow { display: inline-block; width: 10px; font-size: 9px; transition: transform 0.12s; color: var(--text-dim); cursor: pointer; }
 .trash-arrow.open { transform: rotate(90deg); }
@@ -1254,7 +1299,7 @@ sup.citation:hover { background: var(--accent-hover); }
 /* ── Trash viewer (read-only page preview overlaying the editor area) ────── */
 /* Templates management panel — same layout as .trash-* above. */
 .tpl-panel { flex-shrink: 0; border-top: 1px solid var(--border); background: var(--bg2); max-height: 35%; display: flex; flex-direction: column; }
-.tpl-header { display: flex; align-items: center; gap: 5px; padding: 7px 10px; cursor: pointer; font-size: 12px; color: var(--text-dim); user-select: none; background: none; border: none; width: 100%; text-align: left; }
+.tpl-header { display: flex; align-items: center; gap: 5px; padding: var(--foot-pad, 7px 10px); cursor: pointer; font-size: var(--foot-fs, 12px); color: var(--text-dim); user-select: none; background: none; border: none; width: 100%; text-align: left; }
 .tpl-header:hover { background: var(--bg3); color: var(--text); }
 .tpl-arrow { display: inline-block; width: 10px; font-size: 9px; transition: transform 0.12s; color: var(--text-dim); }
 .tpl-arrow.open { transform: rotate(90deg); }
@@ -1286,9 +1331,9 @@ sup.citation:hover { background: var(--accent-hover); }
 .trash-viewer-body .ql-editor { color: var(--text); }
 
 /* ── Header search ──────────────────────────────────────────────────────── */
-.ln-search { position: relative; flex: 1; max-width: 460px; margin: 0 8px; display: flex; align-items: center; -webkit-app-region: no-drag; }
+.ln-search { position: relative; flex: 1; max-width: var(--search-max, 460px); margin: 0 8px; display: flex; align-items: center; -webkit-app-region: no-drag; }
 .ln-search-icon {
-  position: absolute; left: 9px; display: flex; opacity: 0.55;
+  position: absolute; left: var(--search-icon-left, 9px); display: flex; opacity: var(--search-icon-op, 0.55);
   color: var(--text-dim); pointer-events: none;
 }
 .ln-search-input {
@@ -1318,11 +1363,11 @@ sup.citation:hover { background: var(--accent-hover); }
 .toc-body::-webkit-scrollbar { width: 4px; }
 .toc-body::-webkit-scrollbar-thumb { background: var(--bg4); border-radius: 2px; }
 .toc-empty { font-size: 11px; color: var(--text-dim); padding: 10px 8px; line-height: 1.5; }
-.toc-item { display: block; width: 100%; text-align: left; border: none; background: none; cursor: pointer; color: var(--text-dim); font-size: 12px; padding: 4px 8px; border-radius: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.toc-item { display: block; width: 100%; text-align: left; border: none; background: none; cursor: pointer; color: var(--text-dim); font-size: var(--toc-fs, 12px); padding: var(--toc-pad, 4px 8px); border-radius: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .toc-item:hover { background: var(--bg3); color: var(--text); }
 .toc-l1 { font-weight: 600; color: var(--text); }
-.toc-l2 { font-size: 12px; }
-.toc-l3 { font-size: 11px; }
+.toc-l2 { font-size: var(--toc-fs, 12px); }
+.toc-l3 { font-size: calc(var(--toc-fs, 12px) - 1px); }
 .toc-rail { width: 30px; flex-shrink: 0; border-left: 1px solid var(--border); background: var(--bg2); display: flex; flex-direction: column; align-items: center; gap: 8px; padding-top: 10px; cursor: pointer; }
 .toc-rail:hover { background: var(--bg3); }
 .toc-rail-icon { font-size: 14px; color: var(--text-dim); }
@@ -1536,11 +1581,15 @@ sup.citation:hover { background: var(--accent-hover); }
 .ln-find-btn:hover { border-color: var(--accent); color: var(--accent); }
 
 /* 글자 수/단어 수 표시 + 서식 복사 버튼의 "장전됨" 상태 */
-.ln-counts { font-size: 11px; color: var(--text-dim); white-space: nowrap; margin-right: 8px; }
+.ln-counts { display: var(--counts-display, inline); font-size: 11px; color: var(--text-dim); white-space: nowrap; margin-right: 8px; }
 .ql-toolbar button.ql-format-painter.ln-painter-armed { background: var(--accent); border-radius: 4px; }
 
 /* Draggable dividers to resize the left tree / right TOC panels. */
-.ln-resizer { flex: 0 0 5px; width: 5px; cursor: col-resize; background: transparent; position: relative; z-index: 5; }
+.ln-resizer { flex: 0 0 5px; width: 5px; cursor: col-resize; background: transparent; position: relative; z-index: 5;
+  /* 손잡이는 경계 위에 겹쳐 놓기만 한다. 자리를 차지하면 칸 사이가
+     '칸 간격 + 5px' 이 되어 테마마다 제각각이었다. 앞뒤 칸 간격(gap)과
+     제 폭을 음수 여백으로 되돌려, 칸 사이는 언제나 --panel-gap 이 된다. */
+  margin: 0 calc((-5px - var(--panel-gap, 0px)) / 2); }
 .ln-resizer:hover, .ln-resizer:active { background: var(--accent); opacity: 0.5; }
 
 /* Brief highlight when jumping to a heading from the TOC. */
@@ -2129,7 +2178,7 @@ button.ql-text-to-table, button.ql-table-to-text { width: 30px !important; }
   border: 1px solid transparent; border-bottom: none;
   border-radius: var(--tab-radius);
   background: transparent; color: var(--text-dim);
-  font-size: var(--tab-fs, 12px); cursor: pointer;
+  font-size: var(--rptab-fs, var(--tab-fs, 12px)); cursor: pointer;
 }
 .rp-tab:hover { background: var(--bg3); color: var(--text); }
 .rp-tab.active {
@@ -2486,13 +2535,14 @@ button.wo-kind:hover { color: var(--text); background: var(--bg3); }
    버튼을 여기로 옮겼다. 옆 앱(빠른 추가·오늘·대시보드)도 같이 둔다. */
 .rail {
   width: var(--rail-w); flex-shrink: 0;
-  display: flex; flex-direction: column; align-items: center; gap: 2px;
-  padding: 8px 0 10px;
+  display: flex; flex-direction: column; align-items: center; gap: var(--rail-gap, 2px);
+  padding: var(--rail-pad, 8px 0 10px);
   background-color: var(--rail-bg);
   background-image: var(--tex-chrome);
   background-size: var(--tex-chrome-size);
   background-blend-mode: var(--tex-chrome-blend);
-  border-right: 1px solid var(--border);
+  border-right: 1px solid var(--rail-edge-line, var(--border));
+  box-shadow: var(--rail-edge-shadow, none);
   /* 창을 낮게 줄이면 아래쪽(도움말·설정)이 잘린다 — 잘리느니 밀려 올라가게. */
   overflow-y: auto; scrollbar-width: none;
 }
@@ -2541,7 +2591,7 @@ button.wo-kind:hover { color: var(--text); background: var(--bg3); }
 /* 버튼 바 맨 위 문장 (시안의 나침반 자리) */
 .rail::before {
   content: ''; display: var(--crest-mode, none); flex-shrink: 0;
-  width: 22px; height: 22px; margin: 0 0 6px;
+  width: var(--crest-size, 22px); height: var(--crest-size, 22px); margin: 0 0 var(--crest-gap, 6px);
   background: var(--crest-src, none) center / contain no-repeat;
 }
 .rail-sep {
@@ -2576,7 +2626,7 @@ button.wo-kind:hover { color: var(--text); background: var(--bg3); }
 /* 머리말 — 지금 무엇을 줄 세우고 있는지. 폴더면 폴더 이름이 온다. */
 .pl-head-icon { flex-shrink: 0; font-size: 12px; line-height: 1; }
 .pl-head-name {
-  flex: 1; min-width: 0; font-size: 12.5px; font-weight: 600; color: var(--text);
+  flex: 1; min-width: 0; font-size: var(--plhead-fs, 12.5px); font-weight: 600; color: var(--text);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .pl-head-n { flex-shrink: 0; font-size: 10.5px; color: var(--text-dim); }
@@ -2631,7 +2681,7 @@ button.wo-kind:hover { color: var(--text); background: var(--bg3); }
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 /* 어디 있는 페이지인지 — 제목만 같은 노트가 흔해서 이게 없으면 못 고른다. */
-.pl-row-sub { display: flex; gap: 6px; font-size: 10px; color: var(--text-dim); margin-top: 1px; }
+.pl-row-sub { display: flex; gap: 6px; font-size: var(--row-sub-fs, 10px); color: var(--text-dim); margin-top: var(--row-sub-gap, 1px); }
 .pl-row-where { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pl-row-when { flex-shrink: 0; }
 
@@ -2681,8 +2731,8 @@ button.wo-kind:hover { color: var(--text); background: var(--bg3); }
 }
 .sl-row {
   display: flex; align-items: center; gap: 8px;
-  padding: var(--row-pad, 5px 8px); border: none; background: none; border-radius: 7px;
-  cursor: pointer; color: var(--text-dim); text-align: left;
+  padding: var(--sl-pad, var(--row-pad, 5px 8px)); border: none; background: none; border-radius: 7px;
+  cursor: pointer; color: var(--sl-ink, var(--text-dim)); text-align: left;
 }
 .sl-row:hover { background: var(--bg3); color: var(--text); }
 .sl-row.active {
@@ -2691,7 +2741,8 @@ button.wo-kind:hover { color: var(--text); background: var(--bg3); }
   border: 1px solid var(--sel-border, transparent);
 }
 .sl-icon { flex-shrink: 0; display: flex; }
-.sl-label { flex: 1; min-width: 0; font-size: var(--row-fs, 12.5px); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sl-icon[data-icon] { width: var(--sl-icon, auto); height: var(--sl-icon, auto); }
+.sl-label { flex: 1; min-width: 0; font-size: var(--sl-fs, var(--row-fs, 12.5px)); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sl-count { flex-shrink: 0; font-size: 10.5px; color: var(--text-dim); }
 /* 인박스 숫자만 눈에 띄게 — 쌓이면 치워야 하는 곳이다. */
 .sl-count.hot {
@@ -2745,6 +2796,11 @@ button.wo-kind:hover { color: var(--text); background: var(--bg3); }
 [data-icon="star"] { --icon-src: var(--i-star); }
 [data-icon="clock"] { --icon-src: var(--i-clock); }
 [data-icon="inbox"] { --icon-src: var(--i-inbox); }
+[data-icon="trash"] { --icon-src: var(--i-trash); }
+/* 템플릿 · Trash 줄 — 테마가 아이콘을 주면 이모지를 감추고 그림을 앉힌다 */
+.foot-icon { display: inline-flex; align-items: center; justify-content: center;
+  width: var(--foot-icon, auto); height: var(--foot-icon, auto); }
+.foot-glyph { opacity: var(--icon-orig, 1); }
 
 /* ── 패널 금장 틀 ──────────────────────────────────────────────────────
    border-image 9등분: 모서리는 그대로 두고 변만 늘인다. 칸이 늘어나도
@@ -2753,6 +2809,10 @@ button.wo-kind:hover { color: var(--text); background: var(--bg3); }
 /* 화면 전체 글꼴. 지금까지 로고와 제목만 세리프로 바꿨는데, 시안은
    사이드바·목록·본문까지 전부 명조다. 그게 가장 크게 달라 보이는 점이었다. */
 .ln-root { font-family: var(--ui-font, inherit); }
+/* 창 비례 배율. 고정 픽셀로 맞춘 테마(--ui-design-w)는 그 폭을 기준으로 그렸으므로,
+   창이 좁으면 화면 전체를 같은 비율로 줄인다 — 글자만 줄이면 비례가 깨진다.
+   Electron 의 페이지 확대(setZoomFactor)는 출처가 같은 다른 창까지 커져서 못 쓴다. */
+.ln-root { zoom: var(--ui-zoom, 1); width: calc(100vw / var(--ui-zoom, 1)); }
 .ln-root, .ln-sidecol, .pl-col, .ln-editor-col, .rp-panel { position: relative; }
 /* 테두리를 얹기만 하면 선과 모서리 장식이 글자 위로 올라온다. 칸 안쪽에
    그만큼 여백을 줘서 내용이 테두리 **안쪽**에 앉게 한다. */
@@ -2762,11 +2822,16 @@ button.wo-kind:hover { color: var(--text); background: var(--bg3); }
   border-radius: var(--panel-radius, 0);
 }
 /* 본문 칸은 탭 줄과 편집기를 함께 담는다 — 카드 하나로 묶어야 틀이 맞는다 */
-.ln-editor-col { display: flex; flex-direction: column; flex: 1; min-width: 0; position: relative; }
+/* 본문 칸은 틀이 얇아 여백도 따로 준다 — 옆 칸과 같이 주면 종이가 밀린다. */
+.ln-editor-col {
+  display: flex; flex-direction: column; flex: 1; min-width: 0; position: relative;
+  padding: var(--frame-ed-pad, var(--frame-pad, 0));
+}
 .ln-root::after, .ln-sidecol::after, .pl-col::after,
 .ln-editor-col::after, .rp-panel::after {
   content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 40;
-  border: var(--frame-w, 0) solid transparent;
+  border-style: solid; border-color: transparent;
+  border-width: var(--frame-w, 0);
   border-image: var(--frame-img, none) var(--frame-slice, 0) stretch;
   /* 변의 가는 금선. 9등분 그림의 변을 26px 로 눌러 넣으면 선이 1px 아래로
      찌그러져 사라진다. 선은 여기서 긋고 그림은 모서리만 맡는다. */
@@ -2818,7 +2883,9 @@ button.wo-kind:hover { color: var(--text); background: var(--bg3); }
 .pl-row, .page-item, .sl-row {
   border-style: solid; border-color: transparent;
   border-image: var(--row-img, none) var(--row-slice, 0) fill stretch;
-  border-width: var(--row-img-bw, 0);
+  /* 고른 줄만 명판 두께만큼 테두리가 붙으면 글자가 그만큼 밀린다.
+     안 고른 줄도 같은 두께의 투명한 테두리를 미리 둔다. */
+  border-width: var(--row-bw, var(--row-img-bw, 0));
 }
 .pl-row:hover, .page-item:hover, .sl-row:hover { border-image-source: var(--row-hover-img, var(--row-img, none)); }
 /* 고른 줄만 명판 */
@@ -2839,14 +2906,23 @@ button.wo-kind:hover { color: var(--text); background: var(--bg3); }
   border-image-source: var(--tab-active-img, var(--tab-img, none));
   border-image-slice: var(--tab-active-slice, var(--tab-slice, 0)) fill;
 }
+.ln-tab.active {
+  border-width: var(--lntab-bw, var(--tabimg-bw, 0));
+  border-image-source: var(--lntab-active-img, var(--tab-active-img, var(--tab-img, none)));
+}
+/* 탭 사이 가는 세로선 */
+.ln-tab + .ln-tab { border-left-color: var(--tab-sep, transparent); }
+/* 페이지 목록 줄 사이 가는 구분선 */
+.pl-row { box-shadow: inset 0 -1px 0 var(--row-divider, transparent); }
 
 /* 단추 */
-.ln-ver-btn, .pl-capture-btn, .btn-secondary {
+.ref-add { font-size: var(--refadd-fs, 12px); }
+.ln-ver-btn, .pl-capture-btn, .btn-secondary, .ref-add {
   border-style: solid; border-color: transparent;
   border-width: var(--btnimg-bw, 0);
   border-image: var(--btn-img, none) var(--btn-slice, 0) fill stretch;
 }
-.ln-ver-btn:hover, .pl-capture-btn:hover, .btn-secondary:hover { border-image-source: var(--btn-hover-img, var(--btn-img, none)); }
+.ln-ver-btn:hover, .pl-capture-btn:hover, .btn-secondary:hover, .ref-add:hover { border-image-source: var(--btn-hover-img, var(--btn-img, none)); }
 .organize-btn, .btn-primary {
   border-style: solid; border-color: transparent;
   border-width: var(--btnimg-bw, 0);
@@ -2854,20 +2930,63 @@ button.wo-kind:hover { color: var(--text); background: var(--bg3); }
 }
 
 /* 입력칸 · 드롭다운 */
+.ln-search-input { border-color: var(--search-border, var(--border)) !important; }
 .ln-search-input, .pl-capture-in {
-  border-style: solid; border-color: transparent;
-  border-width: var(--fieldimg-bw, 0);
+  border-style: solid; border-color: var(--border);
+  border-width: var(--fieldimg-bw, 1px);
   border-image: var(--field-img, none) var(--field-slice, 0) fill stretch;
 }
 .ql-snow .ql-picker-label {
   border-image: var(--select-img, none) var(--select-slice, 0) fill stretch;
 }
 
+/* 오른쪽 패널 아래 가운데 장식 — 기준에는 있고 우리는 비어 있었다. */
+.rp-panel::before {
+  content: ''; display: var(--finial-mode, none);
+  position: absolute; left: 50%; bottom: var(--finial-bottom, 26px);
+  transform: translateX(-50%);
+  width: var(--finial-w, 34px); height: var(--finial-h, 102px);
+  background: var(--finial-src, none) center / contain no-repeat;
+  pointer-events: none; z-index: 1; opacity: var(--finial-op, 1);
+}
+
+/* 레일 단추 — 기준은 호버·선택 때 **명판**이 깔린다(색만 바뀌지 않는다).
+   .rail-btn.active 가 앞쪽에서 border 짧은표기를 쓰므로 여기서 길게 덮는다. */
+.rail-btn {
+  border-style: solid; border-color: transparent;
+  border-width: var(--railbtn-bw, 0);
+}
+.rail-btn:hover {
+  border-image: var(--railbtn-hover-img, none) var(--railbtn-hover-slice, 0) fill stretch;
+}
+.rail-btn.active {
+  border-width: var(--railbtn-bw, 1px);
+  border-image: var(--railbtn-active-img, none) var(--railbtn-active-slice, 0) fill stretch;
+}
+
+/* 관련 페이지 띠 · 구역 머리(노트북·폴더·목록 머리) */
+.ln-related {
+  border-style: solid; border-color: transparent;
+  border-width: var(--relimg-bw, 0);
+  border-image: var(--rel-img, none) var(--rel-slice, 0) fill stretch;
+}
+.pl-head {
+  border-style: solid; border-color: var(--secbar-line, var(--border));
+  border-width: var(--secbar-bw, 0 0 1px 0);
+  border-image: var(--secbar-img, none) var(--secbar-slice, 0) fill stretch;
+}
+
 /* 띠 — 머리말 · 아래 띠 · 서식 도구 줄 (가로로만 늘어난다) */
 .app-header {
   border-style: solid; border-color: transparent;
   border-width: var(--bartop-bw, 0);
-  border-image: var(--bar-top-img, none) var(--bar-top-slice, 0) fill stretch;
+  border-image: var(--bar-top-img, none) var(--bar-top-slice, 0) stretch;
+}
+/* 제목줄도 기준에서는 액자에 앉은 명판이다 — 민짜 검정이 아니다. */
+.editor-header {
+  border-style: solid; border-color: var(--head-line, var(--border));
+  border-width: var(--head-bw, 0 0 1px 0);
+  border-image: var(--head-img, none) var(--head-slice, 0) fill stretch;
 }
 .status-bar {
   border-style: solid; border-color: transparent;
@@ -2875,8 +2994,8 @@ button.wo-kind:hover { color: var(--text); background: var(--bg3); }
   border-image: var(--bar-bottom-img, none) var(--bar-bottom-slice, 0) fill stretch;
 }
 .ql-toolbar.ql-snow {
-  border-style: solid !important; border-color: transparent !important;
-  border-width: var(--toolbar-bw, 0) !important;
+  border-style: solid !important; border-color: var(--toolbar-line, var(--border)) !important;
+  border-width: var(--toolbar-bw, 1px 0) !important;
   border-image: var(--toolbar-img, none) var(--toolbar-slice, 0) fill stretch !important;
 }
 
@@ -2890,8 +3009,10 @@ button.wo-kind:hover { color: var(--text); background: var(--bg3); }
 /* 본문 종이 — Quill 이 테두리를 박아 두어 !important 로 되돌린다.
    단축 `border` 로 쓰면 border-image 까지 초기화되므로 쪼개 쓴다. */
 .ql-container.ql-snow {
-  border-width: var(--paperimg-bw, 0) !important;
+  border-width: var(--paper-edge-w, var(--paperimg-bw, 0)) !important;
   border-style: solid !important;
   border-color: transparent !important;
-  border-image: var(--paper-img, none) var(--paper-slice, 0) stretch !important;
+  border-image: var(--paper-edge-img, var(--paper-img, none))
+                var(--paper-edge-slice, var(--paper-slice, 0))
+                var(--paper-edge-repeat, stretch) !important;
 }
