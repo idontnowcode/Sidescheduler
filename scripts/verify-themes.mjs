@@ -63,7 +63,7 @@ const EXPECT = {
   leather: { h: 56, st: 34, rail: 58, search: 34, listGap: [2, 40] },
   field: { h: 56, st: 34, rail: 58, search: 34, listGap: [100, 999] },
   library: { h: 56, st: 34, rail: 58, search: 34, listGap: [100, 999] },
-  fantasy: { h: 62, st: 38, rail: 66, search: 38, listGap: [-5, 40] },
+  fantasy: { h: 58, st: 34, rail: 54, search: 38, listGap: [-5, 40] },
 }
 
 for (const [key, label] of [['leather', '가죽 서재'], ['field', '현장 노트'],
@@ -102,8 +102,7 @@ for (const [key, label] of [['leather', '가죽 서재'], ['field', '현장 노�
       // 판타지 테마가 더 쓰는 층
       frameOn: getComputedStyle(document.querySelector('.ln-sidebar'), '::after').borderImageSource,
       railIcon: getComputedStyle(document.querySelector('.rail-btn'), '::before').backgroundImage,
-      treeIconSize: cs('.sec-icon').fontSize,
-      paperLayers: root.getPropertyValue('--paper-layers').trim().slice(0, 18),
+      uiFont: cs('.ln-root').fontFamily,
     }
   })
 
@@ -134,12 +133,11 @@ for (const [key, label] of [['leather', '가죽 서재'], ['field', '현장 노�
   ok('버튼 바도', m.railW === E.rail, `${m.railW}px`)
   ok('검색칸도', m.searchH === E.search, `${m.searchH}px`)
   if (key === 'fantasy') {
-    // 장식 층은 이 테마만 쓴다
-    ok('패널에 금장 틀이 둘린다', m.frameOn.includes('url('), m.frameOn.slice(0, 30))
-    ok('버튼 바 아이콘이 금속 그림으로 바뀐다', m.railIcon.includes('url('), m.railIcon.slice(0, 30))
-    ok('트리 이모지는 숨는다 (그림이 대신 선다)', m.treeIconSize === '0px', m.treeIconSize)
-    ok('종이 네 귀퉁이에 금색 눈금이 있다',
-      m.paperLayers.startsWith('linear-gradient'), m.paperLayers)
+    // 테두리 장식은 뺐다 — 칸을 '여백 있는 카드'로 다시 짜지 않은 채
+    // 얹으니 선이 글자 위를 지나갔다. 다시 켤 때까지 꺼져 있어야 한다.
+    ok('패널에 떠도는 테두리 선이 없다', m.frameOn === 'none', m.frameOn.slice(0, 30))
+    ok('화면 전체 글꼴이 명조로 바뀐다', /Georgia|Myeongjo|Batang/.test(m.uiFont), m.uiFont.slice(0, 40))
+    ok('아이콘은 선 그대로 두고 금색만 입힌다', m.railIcon === 'none', m.railIcon.slice(0, 20))
   }
   ok('돋보기가 이모지가 아니라 선으로 그린 아이콘', m.searchIconIsSvg)
 }

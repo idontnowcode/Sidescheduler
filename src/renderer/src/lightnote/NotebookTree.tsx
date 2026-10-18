@@ -92,6 +92,19 @@ function findSection(sections: Section[], id: string): Section | undefined {
   return undefined
 }
 
+// 트리 아이콘. 이모지(📁 📄)는 글꼴이 그리는 그림이라 색을 못 바꾸고,
+// 테마마다 혼자 튄다. 레일·사이드바와 같은 선 아이콘으로 맞춘다.
+const TI = {
+  width: 14, height: 14, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor',
+  strokeWidth: 1.7, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const,
+}
+const TreeIcons = {
+  folder: <svg {...TI}><path d="M3 7.5a2 2 0 0 1 2-2h4l2 2.5h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /></svg>,
+  folderOpen: <svg {...TI}><path d="M3 7.5a2 2 0 0 1 2-2h4l2 2.5h8a2 2 0 0 1 2 2v1H3z" /><path d="M3 11h18l-2.2 8.2a1 1 0 0 1-1 .8H6.2a1 1 0 0 1-1-.8z" /></svg>,
+  page: <svg {...TI}><path d="M6 3.5h8L18.5 8v12.5H6z" /><path d="M13.5 3.5V8h4.5" /></svg>,
+  work: <svg {...TI}><rect x="4.5" y="3.5" width="15" height="17" rx="2" /><path d="M9 3.5h6v3H9z" /><line x1="8" y1="11" x2="16" y2="11" /><line x1="8" y1="15" x2="13" y2="15" /></svg>,
+}
+
 const NotebookTree = forwardRef<TreeHandle, Props>(({ selected, onPageSelect, onSectionSelect, onEditorClear, onTrashOpen, width }, ref) => {
   const trashRef = useRef<TrashPanelHandle>(null)
   const [notebooks, setNotebooks] = useState<Notebook[]>([])
@@ -769,7 +782,7 @@ const NotebookTree = forwardRef<TreeHandle, Props>(({ selected, onPageSelect, on
           {/* 이모지는 글꼴이 그리는 그림이라 색을 못 바꾼다. 판타지 테마는
               data-icon 을 보고 금색 그림으로 덮어쓴다(그때 글자는 0px). */}
           <span className="sec-icon" data-icon={hasChildren ? 'folder' : 'folder-open'}>
-            {hasChildren ? '📁' : '📂'}</span>
+            {hasChildren ? TreeIcons.folder : TreeIcons.folderOpen}</span>
           <span className="sec-name">{sec.name}</span>
           <button className="icon-btn-sm sec-add-btn" title="Add page"
             onClick={e => { e.stopPropagation(); createPageIn(nbId, sec.id, nbName, sec.name) }}>+</button>
@@ -828,7 +841,7 @@ const NotebookTree = forwardRef<TreeHandle, Props>(({ selected, onPageSelect, on
               >
                 <span className="page-icon" data-icon={workPageIds.has(page.id) ? 'action' : 'note'}
                   title={workPageIds.has(page.id) ? '업무로 등록됨' : undefined}>
-                  {workPageIds.has(page.id) ? '📋' : '📄'}
+                  {workPageIds.has(page.id) ? TreeIcons.work : TreeIcons.page}
                 </span>
                 <span className="page-name">{page.title}</span>
               </div>
@@ -874,7 +887,9 @@ const NotebookTree = forwardRef<TreeHandle, Props>(({ selected, onPageSelect, on
       <div className="sidebar-top">
         <span className="sidebar-label">Notebooks</span>
         <button className="icon-btn-sm" data-icon="inbox" title="가져오기 (다른 PC에서 내보낸 .json)"
-          onClick={e => { e.stopPropagation(); handleImport() }}>📥</button>
+          onClick={e => { e.stopPropagation(); handleImport() }}>
+          <svg {...TI}><path d="M3.5 13.5h4l1.2 2.3h6.6l1.2-2.3h4" /><path d="M12 3.5v7m0 0 3-3m-3 3-3-3" /></svg>
+        </button>
         <button className="icon-btn-sm" title="New notebook"
           onClick={e => {
             e.stopPropagation()

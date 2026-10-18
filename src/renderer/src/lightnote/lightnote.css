@@ -2496,7 +2496,8 @@ button.wo-kind:hover { color: var(--text); background: var(--bg3); }
   border: none; background: none; border-radius: 9px;
   color: var(--text-dim); cursor: pointer; position: relative;
 }
-.rail-btn:hover { background: var(--bg3); color: var(--text); }
+.rail-btn { color: var(--rail-icon, var(--text-dim)); }
+.rail-btn:hover { background: var(--bg3); color: var(--rail-icon-hover, var(--text)); }
 /* 화면 고르기 — 칠한다. 한 번에 **하나만** 칠해진다. */
 .rail-btn.active {
   background: var(--rail-active-bg); color: var(--rail-active-fg);
@@ -2708,16 +2709,16 @@ button.wo-kind:hover { color: var(--text); background: var(--bg3); }
   background: var(--icon-src, none) center / contain no-repeat;
 }
 .rail-btn[data-icon] > svg, .sl-icon[data-icon] > svg { opacity: var(--icon-orig, 1); }
-/* 이모지는 색이 박힌 그림이라 color 로 못 지운다 — 글자 크기를 0 으로.
-   다만 그러면 칸 자체가 0 이 되어 덮어쓸 그림이 설 자리도 없어진다.
-   그래서 그림으로 바꿀 때는 칸 크기를 따로 준다. */
-.sec-icon { font-size: var(--icon-text-size, 12px); }
-.page-icon { font-size: var(--icon-text-size, 11px); }
-.sec-icon, .page-icon, .icon-btn-sm[data-icon], .sl-icon[data-icon] {
-  width: var(--icon-box, auto); height: var(--icon-box, auto);
-  display: inline-block; flex-shrink: 0;
+/* 아이콘 색·굵기·양각을 테마가 정한다. 선으로 그린 아이콘에 금색과
+   아래 그림자만 얹어도 금속 양각처럼 읽힌다 — 꽉 찬 금속 그림을 쓰면
+   작은 크기에서 뭉개져 오히려 조잡해진다. */
+[data-icon] svg, .rail-btn svg, .sl-icon svg {
+  stroke-width: var(--icon-sw, 1.7);
+  filter: var(--icon-filter, none);
 }
-.icon-btn-sm[data-icon] { font-size: var(--icon-text-size, inherit); padding: 0; }
+.sec-icon, .page-icon, .icon-btn-sm[data-icon], .sl-icon[data-icon] {
+  display: inline-flex; align-items: center; flex-shrink: 0;
+}
 
 /* 이름표 → 그림 연결. 테마가 --i-* 를 채우면 그 아이콘이 바뀐다. */
 [data-icon="search"] { --icon-src: var(--i-search); }
@@ -2742,7 +2743,13 @@ button.wo-kind:hover { color: var(--text); background: var(--bg3); }
    border-image 9등분: 모서리는 그대로 두고 변만 늘인다. 칸이 늘어나도
    장식이 찌그러지지 않는다. 덮개(::after)로 얹어서 칸이 원래 쓰던
    테두리를 건드리지 않는다. */
+/* 화면 전체 글꼴. 지금까지 로고와 제목만 세리프로 바꿨는데, 시안은
+   사이드바·목록·본문까지 전부 명조다. 그게 가장 크게 달라 보이는 점이었다. */
+.ln-root { font-family: var(--ui-font, inherit); }
 .ln-root, .ln-sidebar, .pl-col, .editor-area, .rp-panel { position: relative; }
+/* 테두리를 얹기만 하면 선과 모서리 장식이 글자 위로 올라온다. 칸 안쪽에
+   그만큼 여백을 줘서 내용이 테두리 **안쪽**에 앉게 한다. */
+.ln-sidebar, .pl-col, .editor-area, .rp-panel { padding: var(--frame-pad, 0); }
 .ln-root::after, .ln-sidebar::after, .pl-col::after,
 .editor-area::after, .rp-panel::after {
   content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 40;
