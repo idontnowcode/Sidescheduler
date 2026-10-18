@@ -8,6 +8,64 @@
 
 ---
 
+## 0. 받은 그림 검토 결과 (2026-10-18) — **다시 뽑을 것 1개, 추가 1개**
+
+7개 전부 검사했습니다. **5개는 그대로 씁니다.** 고칠 것만 적습니다.
+
+### 다시 뽑아 주세요 — `fantasy-stone.png`
+
+**금 간 자국이 없습니다.** 매끈한 미세 입자만 있습니다. 시안의 돌판은
+갈라진 금이 눈에 띄는데, 지금 것으로는 가죽 테마와 느낌이 비슷해집니다.
+
+프롬프트를 고쳤습니다 — "hairline"(머리카락처럼 가는)이라고 쓴 게 너무
+약했습니다. 금을 **또렷하게, 드문드문** 넣어 달라고 바꿨습니다.
+
+```
+A seamless tileable texture of dark cracked slate stone, top-down flat view,
+grayscale only, with CLEARLY VISIBLE dark cracks spreading across the surface
+like a broken stone slab, a few long branching cracks plus smaller ones,
+cracks are distinctly darker than the stone, even flat lighting with no
+highlights and no shadows, no vignette, no border, no text, no objects,
+1024x1024, the edges must wrap perfectly so it can be tiled without
+visible seams
+```
+
+### 하나만 더 — 인박스 아이콘
+
+아이콘 판 16개는 아주 잘 나왔는데, **인박스(받은 편지함) 아이콘이
+없습니다.** 왼쪽 맨 위 목록이 즐겨찾기 · 최근 편집 · **인박스** 셋이라
+하나가 빕니다. 별·시계는 있습니다.
+
+판을 통째로 다시 뽑으면 16개 전부 모양이 달라지니, **한 개짜리**로
+받는 게 낫습니다.
+
+```
+A single game UI icon of an inbox tray (a shallow open tray with a downward
+arrow above it), embossed polished gold metal on a pure black background,
+dark fantasy RPG interface style, centered with generous even padding,
+flat front view with no perspective and no cast shadow, no text, no frame,
+256x256
+```
+→ 파일 이름: `fantasy-icon-inbox.png`
+
+### 그대로 쓰는 것 5개
+
+| 파일 | 검사 결과 |
+|---|---|
+| `fantasy-parchment.png` | 회색조 ✓ 비네팅 0.0 ✓ 이음새 0.9~1.1배 ✓ |
+| `fantasy-corner.png` | 바탕 밝기 2.1(검정) ✓ 금색 100% ✓ 모양 ✓ |
+| `fantasy-corner-big.png` | 바탕 0.0 ✓ 금색 100% ✓ 더 화려함 ✓ |
+| `fantasy-crest.png` | 바탕 0.0 ✓ 대칭 ✓ |
+| `fantasy-paper-mask.png` | 검정 21% / 흰색 79% / **중간 회색 0%** ✓ |
+| `fantasy-icons.png` | 16개 다 있음 ✓ 빛 방향 같음 ✓ 바탕 검정 ✓ |
+
+### 둘 없이도 진행은 됩니다
+
+돌은 지금 것으로 일단 깔고, 인박스는 임시로 쪽지 아이콘을 쓰겠습니다.
+새로 받으면 파일만 바꿔 끼우면 됩니다 — 다시 만들 건 없습니다.
+
+---
+
 ## 1. 다시 센 결과 — 필수 5 + 권장 2
 
 | # | 파일 이름 | 무엇 | 크기 | 바탕 |
