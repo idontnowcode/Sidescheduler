@@ -72,9 +72,16 @@
   --logo-tracking: 0.3px;
 
   /* 질감 — 회색조 한 벌을 색 위에 섞는다. 꺼 두는 게 기본. */
+  /* 어두운 면(레일·사이드바·헤더·상태바)은 **더하기**(screen)로 결을 얹는다.
+     거의 검정인 바탕에서는 soft-light·multiply 가 다시 검정이 되어 결이
+     아예 안 보인다. 그래서 질감도 어두운 범위로 구워 두었다. */
   --tex-chrome: none;
   --tex-chrome-size: 256px;
-  --tex-chrome-blend: soft-light;
+  --tex-chrome-blend: screen;
+  /* 밝은 면(크림색 목록 칸·오른쪽 패널)은 반대로 곱하기라야 섬유가 비친다. */
+  --tex-panel: none;
+  --tex-panel-size: 256px;
+  --tex-panel-blend: multiply;
   --tex-paper: none;
   --tex-paper-size: 256px;
   --tex-paper-opacity: 0;
@@ -1269,7 +1276,13 @@ sup.citation:hover { background: var(--accent-hover); }
 /* ── Header search ──────────────────────────────────────────────────────── */
 .ln-search { position: relative; flex: 1; max-width: 460px; margin: 0 8px; display: flex; align-items: center; -webkit-app-region: no-drag; }
 .ln-search-icon { position: absolute; left: 9px; font-size: 11px; opacity: 0.6; pointer-events: none; }
-.ln-search-input { width: 100%; height: 26px; padding: 0 24px 0 26px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg); color: var(--text); font-size: 12px; outline: none; }
+.ln-search-input {
+  width: 100%; height: var(--search-h, 26px); padding: 0 24px 0 26px;
+  border-radius: var(--search-radius, 6px);
+  border: 1px solid var(--search-border, var(--border));
+  background: var(--search-bg, var(--bg));
+  color: var(--text); font-size: 12px; outline: none;
+}
 .ln-search-input:focus { border-color: var(--accent); }
 .ln-search-clear { position: absolute; right: 6px; border: none; background: none; color: var(--text-dim); cursor: pointer; font-size: 15px; line-height: 1; padding: 0 2px; }
 .ln-search-results { position: absolute; top: 30px; left: 0; right: 0; max-height: 60vh; overflow-y: auto; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 10px 30px rgba(0,0,0,0.35); z-index: 1000; padding: 4px; }
@@ -1556,8 +1569,8 @@ button.ql-text-to-table, button.ql-table-to-text { width: 30px !important; }
 .ln-tabbar {
   display: flex;
   align-items: stretch;
-  gap: 2px;
-  padding: 4px 6px 0;
+  gap: var(--tab-gap, 2px);
+  padding: var(--tab-strip-pad, 4px 6px 0);
   overflow-x: auto;
   overflow-y: hidden;
   scrollbar-width: thin;
@@ -1573,7 +1586,7 @@ button.ql-text-to-table, button.ql-table-to-text { width: 30px !important; }
   gap: 6px;
   max-width: 190px;
   min-width: 84px;
-  padding: 6px 6px 6px 10px;
+  padding: var(--tab-pad, 6px 6px 6px 10px);
   border: 1px solid transparent;
   border-bottom: none;
   border-radius: var(--tab-radius);
@@ -1587,10 +1600,13 @@ button.ql-text-to-table, button.ql-table-to-text { width: 30px !important; }
 .ln-tab:hover { background: var(--bg3); color: var(--text); }
 .ln-tab.active {
   background: var(--tab-active-bg);
-  color: var(--text);
-  border-color: var(--border);
-  /* 아래 테두리를 지워 본문과 이어 붙인 것처럼 보이게 */
-  box-shadow: 0 1px 0 0 var(--tab-active-bg);
+  color: var(--tab-active-fg, var(--text));
+  border-color: var(--tab-active-border, var(--border));
+  font-weight: var(--tab-active-weight, 400);
+  /* 아래 테두리를 지워 본문과 이어 붙인 것처럼 보이게, 위쪽엔 색 띠를
+     얹어 "집어 올린 서류철 탭"으로 읽히게 한다. */
+  box-shadow: 0 1px 0 0 var(--tab-active-bg),
+              inset 0 var(--tab-top-w, 0px) 0 0 var(--tab-top, transparent);
 }
 .ln-tab-name {
   overflow: hidden;
@@ -2079,20 +2095,20 @@ button.ql-text-to-table, button.ql-table-to-text { width: 30px !important; }
   width: 280px; flex-shrink: 0;
   border-left: 1px solid var(--border);
   background-color: var(--panel-bg);
-  background-image: var(--tex-chrome);
-  background-size: var(--tex-chrome-size);
-  background-blend-mode: var(--tex-chrome-blend);
+  background-image: var(--tex-panel);
+  background-size: var(--tex-panel-size);
+  background-blend-mode: var(--tex-panel-blend);
   display: flex; flex-direction: column;
   min-height: 0;
 }
 .rp-tabs {
-  display: flex; align-items: center; gap: 2px;
-  padding: 6px 6px 0;
+  display: flex; align-items: center; gap: var(--tab-gap, 2px);
+  padding: var(--tab-strip-pad, 6px 6px 0);
   border-bottom: 1px solid var(--border);
   flex: 0 0 auto;
 }
 .rp-tab {
-  padding: 6px 12px;
+  padding: var(--tab-pad, 6px 12px);
   border: 1px solid transparent; border-bottom: none;
   border-radius: var(--tab-radius);
   background: transparent; color: var(--text-dim);
@@ -2100,9 +2116,10 @@ button.ql-text-to-table, button.ql-table-to-text { width: 30px !important; }
 }
 .rp-tab:hover { background: var(--bg3); color: var(--text); }
 .rp-tab.active {
-  background: var(--tab-active-bg); color: var(--text);
-  border-color: var(--border); font-weight: 600;
-  box-shadow: 0 1px 0 0 var(--tab-active-bg);
+  background: var(--tab-active-bg); color: var(--tab-active-fg, var(--text));
+  border-color: var(--tab-active-border, var(--border)); font-weight: 600;
+  box-shadow: 0 1px 0 0 var(--tab-active-bg),
+              inset 0 var(--tab-top-w, 0px) 0 0 var(--tab-top, transparent);
 }
 .rp-dot { color: var(--accent); margin-left: 4px; font-size: 14px; line-height: 1; }
 .rp-spacer { flex: 1; }
@@ -2517,9 +2534,9 @@ button.wo-kind:hover { color: var(--text); background: var(--bg3); }
 .pl-col {
   flex-shrink: 0; min-width: 0; display: flex; flex-direction: column;
   background-color: var(--list-bg);
-  background-image: var(--tex-chrome);
-  background-size: var(--tex-chrome-size);
-  background-blend-mode: var(--tex-chrome-blend);
+  background-image: var(--tex-panel);
+  background-size: var(--tex-panel-size);
+  background-blend-mode: var(--tex-panel-blend);
   border-right: 1px solid var(--border);
 }
 .pl-head {
