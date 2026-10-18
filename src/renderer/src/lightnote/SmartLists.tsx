@@ -24,9 +24,9 @@ const Icons = {
 }
 
 const ITEMS = [
-  { kind: 'fav' as const, label: '즐겨찾기', icon: Icons.star, title: '별을 단 페이지만' },
-  { kind: 'recent' as const, label: '최근 편집', icon: Icons.clock, title: '고친 순서대로' },
-  { kind: 'inbox' as const, label: '인박스', icon: Icons.inbox, title: '먼저 적어두고 나중에 분류' },
+  { kind: 'fav' as const, id: 'star', label: '즐겨찾기', icon: Icons.star, title: '별을 단 페이지만' },
+  { kind: 'recent' as const, id: 'clock', label: '최근 편집', icon: Icons.clock, title: '고친 순서대로' },
+  { kind: 'inbox' as const, id: 'inbox', label: '인박스', icon: Icons.inbox, title: '먼저 적어두고 나중에 분류' },
 ]
 
 interface Props {
@@ -63,7 +63,7 @@ export default function SmartLists({ source, onPick, refreshKey }: Props) {
             aria-current={source.kind === it.kind}
             onClick={() => onPick(it.kind)}
           >
-            <span className="sl-icon">{it.icon}</span>
+            <span className="sl-icon" data-icon={it.id}>{it.icon}</span>
             <span className="sl-label">{it.label}</span>
             {/* 0일 때는 숫자를 지운다 — 치울 게 없다는 뜻이라, 0이 붙어 있으면
                 오히려 할 일이 있는 것처럼 읽힌다. */}

@@ -213,6 +213,29 @@ app.whenReady().then(async () => {
         .map(s => NAMES[s.i] + ' x' + s.ax + '-' + s.bx + ' y' + s.ay + '-' + s.by).join(' | '))
     }
 
+    // ── 6. 따로 받은 아이콘 한 개 (인박스) ──────────────────────────────
+    // 판을 다시 뽑으면 16개가 전부 달라지므로 빠진 것만 한 장으로 받는다.
+    {
+      const im = await load('fantasy-icon-inbox.png')
+      const W = im.naturalWidth, H = im.naturalHeight
+      const full = ctxOf(W, H); full.drawImage(im, 0, 0)
+      const d = full.getImageData(0, 0, W, H).data
+      const lum = (x, y) => { const i = (y*W + x)*4; return 0.299*d[i] + 0.587*d[i+1] + 0.114*d[i+2] }
+      let ax = 1e9, ay = 1e9, bx = -1, by = -1
+      for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+        if (lum(x, y) > 48) { if (x<ax) ax=x; if (x>bx) bx=x; if (y<ay) ay=y; if (y>by) by=y }
+      }
+      const BOX = 128, PAD = 12
+      const w = bx-ax+1, h = by-ay+1
+      const scale = (BOX - PAD*2) / Math.max(w, h)
+      const dw = Math.round(w*scale), dh = Math.round(h*scale)
+      const ctx = ctxOf(BOX, BOX); ctx.imageSmoothingQuality = 'high'
+      ctx.drawImage(im, ax, ay, w, h, (BOX-dw)/2, (BOX-dh)/2, dw, dh)
+      blackToAlpha(ctx, BOX, BOX)
+      outFiles['icon-inbox.png'] = { png: toPng(ctx.canvas) }
+      log.push('icon-inbox.png  128px  (원본 ' + w + 'x' + h + ')')
+    }
+
     return { log, files: Object.fromEntries(Object.entries(outFiles).map(([k, v]) => [k, v.png])) }
   })()`)
 

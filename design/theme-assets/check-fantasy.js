@@ -10,7 +10,8 @@ const path = require('path')
 const DIR = 'C:/Users/admin/Desktop/AI_Based_Projects/04_Daily_Sidebar_Planner/daily-sidebar-planner/.worktrees/lightnote-integration/design/theme-assets/raw'
 
 const TILES = ['fantasy-stone.png', 'fantasy-parchment.png']
-const ORNAMENTS = ['fantasy-corner.png', 'fantasy-corner-big.png', 'fantasy-crest.png', 'fantasy-icons.png']
+const ORNAMENTS = ['fantasy-corner.png', 'fantasy-corner-big.png', 'fantasy-crest.png', 'fantasy-icons.png',
+  'fantasy-icon-inbox.png']
 const MASKS = ['fantasy-paper-mask.png']
 
 function load(f) {

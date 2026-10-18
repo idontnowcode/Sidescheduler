@@ -619,6 +619,7 @@ html, body {
 .page-item.selected {
   background: var(--sel-bg); color: var(--sel-text);
   box-shadow: inset var(--sel-edge-w) 0 0 0 var(--sel-edge);
+  border: 1px solid var(--sel-border, transparent);
 }
 /* Drop indicator when reordering pages (drag a page above/below another). */
 .page-item.drop-before { box-shadow: inset 0 3px 0 -1px #7c6ff0; }
@@ -763,7 +764,7 @@ html, body {
 .ql-editor {
   height: 100%;
   overflow-y: auto;
-  padding: var(--paper-pad-y, 20px) 40px;
+  padding: var(--paper-pad-y, 20px) var(--paper-pad-x, 40px);
   color: var(--paper-ink);
   position: relative;
   z-index: 2;
@@ -2492,12 +2493,14 @@ button.wo-kind:hover { color: var(--text); background: var(--bg3); }
 }
 .rail-btn:hover { background: var(--bg3); color: var(--text); }
 /* 화면 고르기 — 칠한다. 한 번에 **하나만** 칠해진다. */
-.rail-btn.active { background: var(--rail-active-bg); color: var(--rail-active-fg); }
-/* 켜져 있는 것을 왼쪽 막대로도 알린다 — 색만으로는 훑을 때 안 잡힌다. */
-.rail-btn.active::before {
-  content: ''; position: absolute; left: -7px; top: 7px; bottom: 7px;
-  width: 3px; border-radius: 0 2px 2px 0; background: var(--rail-edge);
+.rail-btn.active {
+  background: var(--rail-active-bg); color: var(--rail-active-fg);
+  border: 1px solid var(--sel-border, transparent);
 }
+/* 켜져 있는 것을 왼쪽 막대로도 알린다 — 색만으로는 훑을 때 안 잡힌다.
+   ::before 가 아니라 그림자로 그린다. 테마가 아이콘을 그림으로 갈아 끼울 때
+   그 자리를 쓰기 때문에, 막대가 차지하고 있으면 눌린 단추만 아이콘이 사라진다. */
+.rail-btn.active { box-shadow: inset 3px 0 0 0 var(--rail-edge); }
 /* 그 밖의 버튼은 칠하지 않는다. 켜고 끄는 AI만 오른쪽 위에 작은 점으로
    알린다 — 같은 모양으로 칠해 버리면 "여러 개가 눌려 있는" 것처럼 보인다. */
 .rail-btn.act.on { color: var(--accent); }
@@ -2592,6 +2595,7 @@ button.wo-kind:hover { color: var(--text); background: var(--bg3); }
 .pl-row:hover { background: var(--bg3); }
 .pl-row.active {
   background: var(--sel-bg); color: var(--sel-text);
+  border: 1px solid var(--sel-border, transparent);
   border-left-color: var(--sel-edge, var(--accent));
   border-left-width: max(2px, var(--sel-edge-w));
 }
@@ -2665,6 +2669,7 @@ button.wo-kind:hover { color: var(--text); background: var(--bg3); }
 .sl-row.active {
   background: var(--sel-bg); color: var(--sel-text);
   box-shadow: inset var(--sel-edge-w) 0 0 0 var(--sel-edge);
+  border: 1px solid var(--sel-border, transparent);
 }
 .sl-icon { flex-shrink: 0; display: flex; }
 .sl-label { flex: 1; min-width: 0; font-size: var(--row-fs, 12.5px); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -2677,3 +2682,95 @@ button.wo-kind:hover { color: var(--text); background: var(--bg3); }
   line-height: 18px; text-align: center; font-size: 10.5px;
 }
 .sl-row.active .sl-count { color: inherit; }
+
+/* ══ 판타지 테마가 더 쓰는 층 ═══════════════════════════════════════════
+   값이 비어 있으면 아무것도 그리지 않는다 — 다른 테마는 영향이 없다. */
+
+/* ── 아이콘 갈아 끼우기 ────────────────────────────────────────────────
+   테마가 아이콘을 **그림**으로 바꿔 끼운다. 선으로 그린 아이콘은 금속
+   양각 느낌이 안 나고, 트리의 이모지는 색을 못 바꾼다. 원래 것은 지우지
+   않고 위에 덮는다(테마를 되돌리면 그대로 돌아온다). */
+[data-icon] { position: relative; }
+[data-icon]::before {
+  content: ''; display: var(--icon-mode, none);
+  position: absolute; inset: var(--icon-inset, 1px);
+  background: var(--icon-src, none) center / contain no-repeat;
+}
+.rail-btn[data-icon] > svg, .sl-icon[data-icon] > svg { opacity: var(--icon-orig, 1); }
+/* 이모지는 색이 박힌 그림이라 color 로 못 지운다 — 글자 크기를 0 으로.
+   다만 그러면 칸 자체가 0 이 되어 덮어쓸 그림이 설 자리도 없어진다.
+   그래서 그림으로 바꿀 때는 칸 크기를 따로 준다. */
+.sec-icon { font-size: var(--icon-text-size, 12px); }
+.page-icon { font-size: var(--icon-text-size, 11px); }
+.sec-icon, .page-icon, .icon-btn-sm[data-icon] {
+  width: var(--icon-box, auto); height: var(--icon-box, auto);
+  display: inline-block; flex-shrink: 0;
+}
+.icon-btn-sm[data-icon] { font-size: var(--icon-text-size, inherit); padding: 0; }
+
+/* 이름표 → 그림 연결. 테마가 --i-* 를 채우면 그 아이콘이 바뀐다. */
+[data-icon="search"] { --icon-src: var(--i-search); }
+[data-icon="note"] { --icon-src: var(--i-note); }
+[data-icon="work"] { --icon-src: var(--i-work); }
+[data-icon="action"] { --icon-src: var(--i-action); }
+[data-icon="journal"] { --icon-src: var(--i-journal); }
+[data-icon="sticky"] { --icon-src: var(--i-sticky); }
+[data-icon="ai"] { --icon-src: var(--i-ai); }
+[data-icon="plus"] { --icon-src: var(--i-plus); }
+[data-icon="today"] { --icon-src: var(--i-today); }
+[data-icon="grid"] { --icon-src: var(--i-grid); }
+[data-icon="help"] { --icon-src: var(--i-help); }
+[data-icon="gear"] { --icon-src: var(--i-gear); }
+[data-icon="folder-open"] { --icon-src: var(--i-folder-open); }
+[data-icon="folder"] { --icon-src: var(--i-folder); }
+[data-icon="star"] { --icon-src: var(--i-star); }
+[data-icon="clock"] { --icon-src: var(--i-clock); }
+[data-icon="inbox"] { --icon-src: var(--i-inbox); }
+
+/* ── 패널 금장 틀 ──────────────────────────────────────────────────────
+   border-image 9등분: 모서리는 그대로 두고 변만 늘인다. 칸이 늘어나도
+   장식이 찌그러지지 않는다. 덮개(::after)로 얹어서 칸이 원래 쓰던
+   테두리를 건드리지 않는다. */
+.ln-root, .ln-sidebar, .pl-col, .editor-area, .rp-panel { position: relative; }
+.ln-root::after, .ln-sidebar::after, .pl-col::after,
+.editor-area::after, .rp-panel::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 40;
+  border: var(--frame-w, 0) solid transparent;
+  border-image: var(--frame-img, none) var(--frame-slice, 0) stretch;
+  /* 변의 가는 금선. 9등분 그림의 변을 26px 로 눌러 넣으면 선이 1px 아래로
+     찌그러져 사라진다. 선은 여기서 긋고 그림은 모서리만 맡는다. */
+  box-shadow: inset 0 0 0 1px var(--frame-line, transparent);
+}
+/* 창 바깥은 더 큰 장식으로 */
+.ln-root::after {
+  position: fixed;
+  border-width: var(--frame-win-w, 0);
+  border-image: var(--frame-win-img, none) var(--frame-win-slice, 0) stretch;
+  z-index: 200;
+}
+/* 버튼 바는 틀 대신 금색 선 한 줄 (틀을 두르면 아이콘 설 자리가 없다) */
+.rail { box-shadow: inset -1px 0 0 var(--rail-edge-line, transparent); }
+
+/* 칸막이 가운데 문장 */
+.sl-wrap { position: relative; }
+.sl-wrap::after {
+  content: ''; display: var(--crest-mode, none);
+  position: absolute; left: 50%; bottom: -8px; width: 16px; height: 16px;
+  transform: translateX(-50%);
+  background: var(--crest-src, none) center / contain no-repeat;
+}
+
+/* ── 종이 ──────────────────────────────────────────────────────────────
+   가장자리를 찢긴 모양으로 오려 낸다. 글은 안쪽 여백 안에 있어서 안 잘린다. */
+.ql-container.ql-snow {
+  -webkit-mask-image: var(--paper-mask, none);
+  -webkit-mask-size: 100% 100%;
+  -webkit-mask-repeat: no-repeat;
+}
+/* 종이 네 귀퉁이의 금색 꺾쇠 */
+.quill-wrapper::after {
+  content: ''; position: absolute; pointer-events: none; z-index: 3;
+  inset: var(--paper-inset, 0);
+  border: var(--paper-frame-w, 0) solid transparent;
+  border-image: var(--paper-frame-img, none) var(--paper-frame-slice, 0) stretch;
+}

@@ -7,6 +7,7 @@
 @import '@fontsource/playfair-display/600.css';
 @import '@fontsource/libre-baskerville/700.css';
 @import '@fontsource/eb-garamond/600.css';
+@import '@fontsource/cinzel/600.css';
 
 @tailwind base;
 @tailwind components;

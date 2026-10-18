@@ -532,7 +532,7 @@ export default function LightnoteApp() {
   if (dataDir?.problem) return <DataDirBlocked problem={dataDir.problem} />
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
+    <div className="ln-root" style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
       {conflicts.length > 0 && !conflictsHidden && (
         <div className="cc-bar">
           <span className="cc-text">

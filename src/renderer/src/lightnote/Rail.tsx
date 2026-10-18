@@ -41,8 +41,9 @@ const Icons = {
 }
 
 /** 화면을 고르는 단추 — 하나만 켜진다(라디오). */
-function ViewBtn({ icon, label, title, active, badge, onClick }: {
-  icon: ReactNode; label: string; title: string; active: boolean
+function ViewBtn({ id, icon, label, title, active, badge, onClick }: {
+  /** 테마가 아이콘을 그림으로 바꿔 끼울 때 쓰는 이름 (판타지 테마) */
+  id: string; icon: ReactNode; label: string; title: string; active: boolean
   /** 아이콘 위에 얹는 숫자. 0이면 달지 않는다. */
   badge?: number
   onClick: () => void
@@ -50,6 +51,7 @@ function ViewBtn({ icon, label, title, active, badge, onClick }: {
   return (
     <button
       className={`rail-btn icon-btn${active ? ' active' : ''}`}
+      data-icon={id}
       role="tab" aria-selected={active}
       title={title} onClick={onClick}
     >
@@ -65,12 +67,13 @@ function ViewBtn({ icon, label, title, active, badge, onClick }: {
 }
 
 /** 그 자리에서 벌어지는 일 — 켜진 채로 남지 않는다(AI만 점으로 표시). */
-function ActBtn({ icon, label, title, on, onClick }: {
-  icon: ReactNode; label: string; title: string; on?: boolean; onClick: () => void
+function ActBtn({ id, icon, label, title, on, onClick }: {
+  id: string; icon: ReactNode; label: string; title: string; on?: boolean; onClick: () => void
 }) {
   return (
     <button
       className={`rail-btn icon-btn act${on ? ' on' : ''}`}
+      data-icon={id}
       aria-pressed={on === undefined ? undefined : on}
       title={title} onClick={onClick}
     >
@@ -99,42 +102,42 @@ export default function Rail(p: Props) {
   const planner = p.view === 'planner'
   return (
     <nav className="rail" aria-label="바로 가기">
-      <ActBtn icon={Icons.search} label="검색" title="검색 (Ctrl+F 는 AI, 여기는 노트 검색)" onClick={p.onSearch} />
+      <ActBtn id="search" icon={Icons.search} label="검색" title="검색 (Ctrl+F 는 AI, 여기는 노트 검색)" onClick={p.onSearch} />
 
       <div className="rail-sep" />
 
-      <ViewBtn icon={Icons.note} label="노트" title="노트 — 쓰던 페이지로 돌아가기"
+      <ViewBtn id="note" icon={Icons.note} label="노트" title="노트 — 쓰던 페이지로 돌아가기"
         active={p.view === 'note'} onClick={() => p.onView('note')} />
       {/* 업무(프로젝트)와 액션은 보는 때가 다르다. 업무는 "무엇을 들고
           있나"를 훑을 때, 액션은 "오늘 뭘 해야 하나"를 볼 때다. 한 화면에
           모드로 묶여 있으면 뒤엣것을 보려고 늘 한 번 더 눌러야 했다. */}
-      <ViewBtn icon={Icons.work} label="업무" title="업무 — 들고 있는 일(프로젝트)과 진행률"
+      <ViewBtn id="work" icon={Icons.work} label="업무" title="업무 — 들고 있는 일(프로젝트)과 진행률"
         active={p.view === 'work'} onClick={() => p.onView('work')} />
-      <ViewBtn icon={Icons.action} label="액션" badge={p.actionDue}
+      <ViewBtn id="action" icon={Icons.action} label="액션" badge={p.actionDue}
         title={p.actionDue > 0 ? `액션 — 오늘까지 마감 ${p.actionDue}건` : '액션 — 업무마다의 다음 할 일'}
         active={p.view === 'action'} onClick={() => p.onView('action')} />
-      <ViewBtn icon={Icons.journal} label="기록장" title="기록장 — 날짜별로 자동 정리되는 짧은 기록"
+      <ViewBtn id="journal" icon={Icons.journal} label="기록장" title="기록장 — 날짜별로 자동 정리되는 짧은 기록"
         active={p.view === 'journal'} onClick={() => p.onView('journal')} />
-      <ActBtn icon={Icons.sticky} label="스티커"
+      <ActBtn id="sticky" icon={Icons.sticky} label="스티커"
         title="스티커 메모 — 바탕화면에 붙여두는 작은 창 (새 노트로 만들어집니다)"
         onClick={p.onSticky} />
-      <ActBtn icon={Icons.ai} label="AI" title="AI Assistant (Ctrl+F)" on={p.aiOpen} onClick={p.onAi} />
+      <ActBtn id="ai" icon={Icons.ai} label="AI" title="AI Assistant (Ctrl+F)" on={p.aiOpen} onClick={p.onAi} />
 
       {/* 일정 — 창을 따로 띄우지 않고 이 창 가운데 칸에 그대로 연다. 노트를
           보다가 일정으로 건너가는 길이 한 칸에 모이는 게 이 바의 쓸모다. */}
       <div className="rail-sep" />
-      <ViewBtn icon={Icons.today} label="오늘" title="오늘 일정"
+      <ViewBtn id="today" icon={Icons.today} label="오늘" title="오늘 일정"
         active={planner && p.plannerTab === 'today'} onClick={() => p.onView('planner', 'today')} />
-      <ViewBtn icon={Icons.grid} label="대시보드" title="대시보드 — 주·월·할 일·집중"
+      <ViewBtn id="grid" icon={Icons.grid} label="대시보드" title="대시보드 — 주·월·할 일·집중"
         active={planner && p.plannerTab !== 'today' && p.plannerTab !== 'help'}
         onClick={() => p.onView('planner', 'week')} />
-      <ActBtn icon={Icons.plus} label="빠른 추가" title="빠른 추가 (Ctrl+K) — 일정·할 일을 한 줄로"
+      <ActBtn id="plus" icon={Icons.plus} label="빠른 추가" title="빠른 추가 (Ctrl+K) — 일정·할 일을 한 줄로"
         onClick={p.onQuickAdd} />
 
       <div className="rail-spacer" />
-      <ViewBtn icon={Icons.help} label="도움말" title="도움말"
+      <ViewBtn id="help" icon={Icons.help} label="도움말" title="도움말"
         active={planner && p.plannerTab === 'help'} onClick={() => p.onView('planner', 'help')} />
-      <ActBtn icon={Icons.gear} label="Settings" title="Settings" onClick={p.onSettings} />
+      <ActBtn id="gear" icon={Icons.gear} label="Settings" title="Settings" onClick={p.onSettings} />
     </nav>
   )
 }

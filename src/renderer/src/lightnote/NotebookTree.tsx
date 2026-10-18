@@ -766,7 +766,10 @@ const NotebookTree = forwardRef<TreeHandle, Props>(({ selected, onPageSelect, on
           }}
         >
           <span className={`sec-arrow${isOpen ? ' open' : ''}`}>▶</span>
-          <span className="sec-icon">{hasChildren ? '📁' : '📂'}</span>
+          {/* 이모지는 글꼴이 그리는 그림이라 색을 못 바꾼다. 판타지 테마는
+              data-icon 을 보고 금색 그림으로 덮어쓴다(그때 글자는 0px). */}
+          <span className="sec-icon" data-icon={hasChildren ? 'folder' : 'folder-open'}>
+            {hasChildren ? '📁' : '📂'}</span>
           <span className="sec-name">{sec.name}</span>
           <button className="icon-btn-sm sec-add-btn" title="Add page"
             onClick={e => { e.stopPropagation(); createPageIn(nbId, sec.id, nbName, sec.name) }}>+</button>
@@ -823,7 +826,8 @@ const NotebookTree = forwardRef<TreeHandle, Props>(({ selected, onPageSelect, on
                 }}
                 onContextMenu={e => showCtx(e, { type: 'page', notebookId: nbId, sectionId: sec.id, pageId: page.id })}
               >
-                <span className="page-icon" title={workPageIds.has(page.id) ? '업무로 등록됨' : undefined}>
+                <span className="page-icon" data-icon={workPageIds.has(page.id) ? 'action' : 'note'}
+                  title={workPageIds.has(page.id) ? '업무로 등록됨' : undefined}>
                   {workPageIds.has(page.id) ? '📋' : '📄'}
                 </span>
                 <span className="page-name">{page.title}</span>
@@ -869,7 +873,7 @@ const NotebookTree = forwardRef<TreeHandle, Props>(({ selected, onPageSelect, on
       )}
       <div className="sidebar-top">
         <span className="sidebar-label">Notebooks</span>
-        <button className="icon-btn-sm" title="가져오기 (다른 PC에서 내보낸 .json)"
+        <button className="icon-btn-sm" data-icon="inbox" title="가져오기 (다른 PC에서 내보낸 .json)"
           onClick={e => { e.stopPropagation(); handleImport() }}>📥</button>
         <button className="icon-btn-sm" title="New notebook"
           onClick={e => {

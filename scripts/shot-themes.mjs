@@ -76,6 +76,7 @@ const THEMES = [
   ['leather', '가죽 서재'],
   ['field', '현장 노트'],
   ['library', '고서재'],
+  ['fantasy', '고서 · 금장'],
   ['dark', 'Dark'],   // 기존 테마가 그대로인지 확인용
 ]
 
