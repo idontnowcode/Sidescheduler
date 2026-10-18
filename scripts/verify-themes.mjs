@@ -84,6 +84,12 @@ for (const [key, label] of [['leather', '가죽 서재'], ['field', '현장 노�
       texChrome: root.getPropertyValue('--tex-chrome').trim().slice(0, 14),
       selEdge: root.getPropertyValue('--sel-edge').trim(),
       hasTexFile: cs('.rail').backgroundImage.includes('url('),
+      headerH: Math.round(cs('.app-header').getBoundingClientRect?.().height
+        ?? document.querySelector('.app-header').getBoundingClientRect().height),
+      statusH: Math.round(document.querySelector('.status-bar').getBoundingClientRect().height),
+      railW: Math.round(document.querySelector('.rail').getBoundingClientRect().width),
+      searchH: Math.round(document.querySelector('.ln-search-input').getBoundingClientRect().height),
+      searchIconIsSvg: !!document.querySelector('.ln-search-icon svg'),
     }
   })
 
@@ -106,7 +112,29 @@ for (const [key, label] of [['leather', '가죽 서재'], ['field', '현장 노�
   // 줄 간격과 글줄 간격이 어긋나면 글이 줄 위에 앉지 않고 떠다닌다.
   ok('글줄 간격이 노트 줄 간격(25px)과 같다', m.rowGap === 25, `${m.rowGap}px (line-height ${m.lineH})`)
   ok('아래 띠가 테마 색이다', m.statusBg !== 'rgba(0, 0, 0, 0)', m.statusBg)
+  // 빽빽함 — 시안을 같은 크기로 찍어 재 보니 56 / 34 / 58 이었다.
+  // 색을 아무리 맞춰도 이게 다르면 "느낌이 다르다"가 된다.
+  ok('머리말이 시안만큼 널찍하다', m.headerH === 56, `${m.headerH}px`)
+  ok('아래 띠도', m.statusH === 34, `${m.statusH}px`)
+  ok('버튼 바도', m.railW === 58, `${m.railW}px`)
+  ok('검색칸도', m.searchH === 34, `${m.searchH}px`)
+  ok('돋보기가 이모지가 아니라 선으로 그린 아이콘', m.searchIconIsSvg)
 }
+
+// ── 창 조작 단추가 머리말 높이를 따라오는가 ──────────────────────────
+// 테마마다 머리말 높이가 다른데 단추 높이를 안 넘기면, 운영체제가 그리는
+// 단추만 옛 높이에 남아 띠 밖으로 삐져나온다.
+await app.evaluate(({ BrowserWindow }) => {
+  globalThis.__tb = []
+  for (const w of BrowserWindow.getAllWindows()) {
+    if (typeof w.setTitleBarOverlay !== 'function') continue
+    const orig = w.setTitleBarOverlay.bind(w)
+    w.setTitleBarOverlay = (o) => { globalThis.__tb.push(o); return orig(o) }
+  }
+})
+await pick('가죽 서재')
+const tb = await app.evaluate(() => globalThis.__tb || [])
+ok('단추 높이도 머리말(56)을 따라간다', tb.some((o) => o && o.height === 56), JSON.stringify(tb))
 
 // ── 되돌리기 ────────────────────────────────────────────────────────────
 // 테마를 바꿀 때 먼저 싹 지우지 않으면, 가죽이 넣어 둔 종이·질감·금테가

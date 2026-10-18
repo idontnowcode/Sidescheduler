@@ -896,11 +896,16 @@ const LIGHTNOTE_TITLEBAR = {
 }
 
 // 테마를 바꾸면 단추 색도 따라가야 한다(밝은 테마에 흰 단추는 안 보인다).
-ipcMain.on('lightnote:titlebar-colors', (e, { color, symbolColor }: { color: string; symbolColor: string }) => {
+// 테마마다 머리말 높이가 다르다(가죽·고서재는 더 널찍하다). 높이를 안
+// 넘기면 운영체제가 그리는 단추만 옛 높이에 남아 띠 밖으로 삐져나온다.
+ipcMain.on('lightnote:titlebar-colors', (e, { color, symbolColor, height }:
+  { color: string; symbolColor: string; height?: number }) => {
   const win = BrowserWindow.fromWebContents(e.sender)
   if (!win || win.isDestroyed()) return
+  const h = Number.isFinite(height) && height! >= 28 && height! <= 90
+    ? Math.round(height!) : LIGHTNOTE_HEADER_H
   try {
-    win.setTitleBarOverlay({ color, symbolColor, height: LIGHTNOTE_HEADER_H })
+    win.setTitleBarOverlay({ color, symbolColor, height: h })
   } catch { /* 이 플랫폼에 오버레이가 없으면 그냥 둔다 */ }
 })
 

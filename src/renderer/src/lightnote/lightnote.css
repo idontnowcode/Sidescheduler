@@ -335,7 +335,7 @@ html, body {
 }
 .nb-name {
   flex: 1;
-  font-size: 13px;
+  font-size: var(--nb-fs, 13px);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -589,7 +589,7 @@ html, body {
 .sec-icon { font-size: 12px; }
 .sec-name {
   flex: 1;
-  font-size: 12px;
+  font-size: var(--tree-fs, 12px);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -665,7 +665,7 @@ html, body {
   border: none;
   outline: none;
   color: var(--text);
-  font-size: 18px;
+  font-size: var(--title-fs, 18px);
   font-weight: 600;
   user-select: text;
 }
@@ -1064,7 +1064,7 @@ sup.citation:hover { background: var(--accent-hover); }
   display: flex;
   align-items: center;
   padding: 0 12px;
-  font-size: 11px;
+  font-size: var(--status-fs, 11px);
   color: var(--status-fg);
   flex-shrink: 0;
 }
@@ -1275,13 +1275,16 @@ sup.citation:hover { background: var(--accent-hover); }
 
 /* ── Header search ──────────────────────────────────────────────────────── */
 .ln-search { position: relative; flex: 1; max-width: 460px; margin: 0 8px; display: flex; align-items: center; -webkit-app-region: no-drag; }
-.ln-search-icon { position: absolute; left: 9px; font-size: 11px; opacity: 0.6; pointer-events: none; }
+.ln-search-icon {
+  position: absolute; left: 9px; display: flex; opacity: 0.55;
+  color: var(--text-dim); pointer-events: none;
+}
 .ln-search-input {
   width: 100%; height: var(--search-h, 26px); padding: 0 24px 0 26px;
   border-radius: var(--search-radius, 6px);
   border: 1px solid var(--search-border, var(--border));
   background: var(--search-bg, var(--bg));
-  color: var(--text); font-size: 12px; outline: none;
+  color: var(--text); font-size: var(--search-fs, 12px); outline: none;
 }
 .ln-search-input:focus { border-color: var(--accent); }
 .ln-search-clear { position: absolute; right: 6px; border: none; background: none; color: var(--text-dim); cursor: pointer; font-size: 15px; line-height: 1; padding: 0 2px; }
@@ -1483,7 +1486,7 @@ sup.citation:hover { background: var(--accent-hover); }
 .ql-editor a[href^="lnfile://"]:hover { border-color: var(--accent); color: var(--accent); }
 
 /* 페이지 버전 기록 */
-.ln-ver-btn { font-size: 12px; padding: 5px 10px; border-radius: 8px; border: 1px solid var(--border); background: transparent; color: var(--text-dim); cursor: pointer; white-space: nowrap; }
+.ln-ver-btn { font-size: var(--btn-fs, 12px); padding: var(--btn-pad, 5px 10px); border-radius: 8px; border: 1px solid var(--border); background: transparent; color: var(--text-dim); cursor: pointer; white-space: nowrap; }
 .ln-ver-btn:hover { border-color: var(--accent); color: var(--accent); }
 .ln-ver-box { width: 720px; max-width: 92vw; }
 .ln-ver-hint { font-size: 11px; color: var(--text-dim); margin: -4px 0 10px; }
@@ -1608,6 +1611,7 @@ button.ql-text-to-table, button.ql-table-to-text { width: 30px !important; }
   box-shadow: 0 1px 0 0 var(--tab-active-bg),
               inset 0 var(--tab-top-w, 0px) 0 0 var(--tab-top, transparent);
 }
+.ln-tab { font-size: var(--tab-fs, 12.5px); }
 .ln-tab-name {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2112,7 +2116,7 @@ button.ql-text-to-table, button.ql-table-to-text { width: 30px !important; }
   border: 1px solid transparent; border-bottom: none;
   border-radius: var(--tab-radius);
   background: transparent; color: var(--text-dim);
-  font-size: 12px; cursor: pointer;
+  font-size: var(--tab-fs, 12px); cursor: pointer;
 }
 .rp-tab:hover { background: var(--bg3); color: var(--text); }
 .rp-tab.active {
@@ -2481,7 +2485,7 @@ button.wo-kind:hover { color: var(--text); background: var(--bg3); }
 }
 .rail::-webkit-scrollbar { width: 0; }
 .rail-btn {
-  width: 34px; height: 34px; flex-shrink: 0;
+  width: var(--rail-btn, 34px); height: var(--rail-btn, 34px); flex-shrink: 0;
   display: flex; align-items: center; justify-content: center;
   border: none; background: none; border-radius: 9px;
   color: var(--text-dim); cursor: pointer; position: relative;
@@ -2518,7 +2522,11 @@ button.wo-kind:hover { color: var(--text); background: var(--bg3); }
   border: 1.5px solid var(--bg2);
 }
 .rail-btn.active .rail-badge { border-color: color-mix(in srgb, var(--accent) 22%, var(--bg2)); }
-.rail-sep { width: 22px; height: 1px; background: var(--border); margin: 6px 0; flex-shrink: 0; }
+.rail-sep {
+  width: var(--rail-sep-w, 22px); height: 1px;
+  background: var(--rail-sep, var(--border));
+  margin: var(--rail-sep-m, 6px) 0; flex-shrink: 0;
+}
 .rail-spacer { flex: 1; min-height: 8px; }
 
 /* 창 조작 단추(최소화·최대화·닫기)가 헤더 오른쪽에 얹히므로 그만큼 비운다.
@@ -2596,7 +2604,7 @@ button.wo-kind:hover { color: var(--text); background: var(--bg3); }
 .pl-star.on { color: #f5a623; }
 .pl-row-main { flex: 1; min-width: 0; }
 .pl-row-title {
-  font-size: 12.5px; color: var(--text);
+  font-size: var(--row-fs, 12.5px); color: var(--text);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 /* 어디 있는 페이지인지 — 제목만 같은 노트가 흔해서 이게 없으면 못 고른다. */
@@ -2650,7 +2658,7 @@ button.wo-kind:hover { color: var(--text); background: var(--bg3); }
 }
 .sl-row {
   display: flex; align-items: center; gap: 8px;
-  padding: 5px 8px; border: none; background: none; border-radius: 7px;
+  padding: var(--row-pad, 5px 8px); border: none; background: none; border-radius: 7px;
   cursor: pointer; color: var(--text-dim); text-align: left;
 }
 .sl-row:hover { background: var(--bg3); color: var(--text); }
@@ -2659,12 +2667,13 @@ button.wo-kind:hover { color: var(--text); background: var(--bg3); }
   box-shadow: inset var(--sel-edge-w) 0 0 0 var(--sel-edge);
 }
 .sl-icon { flex-shrink: 0; display: flex; }
-.sl-label { flex: 1; min-width: 0; font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sl-label { flex: 1; min-width: 0; font-size: var(--row-fs, 12.5px); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sl-count { flex-shrink: 0; font-size: 10.5px; color: var(--text-dim); }
 /* 인박스 숫자만 눈에 띄게 — 쌓이면 치워야 하는 곳이다. */
 .sl-count.hot {
-  color: var(--accent); font-weight: 600;
-  background: color-mix(in srgb, var(--accent) 18%, transparent);
-  border-radius: 999px; padding: 0 6px; line-height: 16px;
+  color: var(--badge-fg, var(--accent)); font-weight: 700;
+  background: var(--badge-bg, color-mix(in srgb, var(--accent) 18%, transparent));
+  border-radius: 999px; min-width: 18px; height: 18px; padding: 0 5px;
+  line-height: 18px; text-align: center; font-size: 10.5px;
 }
 .sl-row.active .sl-count { color: inherit; }

@@ -279,7 +279,7 @@ declare global {
       /** 테스트 격리로 띄웠는지 (화면 기본값을 펴 두는 데만 쓴다) */
       isTestRun?: boolean
       /** 창 조작 단추(최소화·최대화·닫기)의 색을 테마에 맞춘다 */
-      setTitleBarColors: (color: string, symbolColor: string) => void
+      setTitleBarColors: (color: string, symbolColor: string, height?: number) => void
       /** 옆 앱(플래너) 열기 — 맨 왼쪽 버튼 바에서 쓴다 */
       planner: {
         openPalette: () => void

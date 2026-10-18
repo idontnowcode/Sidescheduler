@@ -20,6 +20,13 @@ await win.waitForFunction(() => !!window.electronAPI, null, { timeout: 15000 })
 await win.evaluate(() => window.electronAPI.lightnoteOpen())
 const ln = await app.waitForEvent('window', { predicate: (w) => w.url().includes('#lightnote'), timeout: 15000 })
 await ln.waitForFunction(() => !!window.lightnote, null, { timeout: 10000 })
+// 시안 PNG와 **같은 크기**로 찍는다. 크기가 다르면 조각을 겹쳐 볼 때
+// 배율 때문에 없는 차이가 생기고 있는 차이는 묻힌다.
+await app.evaluate(({ BrowserWindow }) => {
+  for (const w of BrowserWindow.getAllWindows()) {
+    if (w.webContents.getURL().includes('#lightnote')) w.setContentSize(1587, 991)
+  }
+})
 await ln.waitForTimeout(1200)
 
 // ── 보기용 노트 ─────────────────────────────────────────────────────────

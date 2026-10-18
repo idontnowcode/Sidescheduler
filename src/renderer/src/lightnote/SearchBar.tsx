@@ -55,7 +55,14 @@ export default function SearchBar({ onOpen }: Props) {
 
   return (
     <div className="ln-search" ref={boxRef}>
-      <span className="ln-search-icon">🔍</span>
+      {/* 이모지 돋보기는 글꼴마다 모양이 달라 화면에서 혼자 튄다. 선으로
+          그린 아이콘이라야 레일의 다른 아이콘들과 같은 집안으로 보인다. */}
+      <span className="ln-search-icon" aria-hidden="true">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          strokeWidth="2" strokeLinecap="round">
+          <circle cx="11" cy="11" r="7" /><line x1="16.5" y1="16.5" x2="21" y2="21" />
+        </svg>
+      </span>
       <input
         className="ln-search-input"
         placeholder="검색  (여러 단어는 공백/쉼표/마침표로 구분 · AND)"

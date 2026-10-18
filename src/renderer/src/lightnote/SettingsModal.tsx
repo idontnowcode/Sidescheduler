@@ -52,16 +52,26 @@ const THEMES = {
       '--paper-inset': '14px 24px 18px', '--paper-radius': '4px',
       '--tabbar-bg': '#1c1c1a', '--tab-active-bg': '#3c1a1a', '--tab-radius': '9px 9px 0 0',
       '--status-bg': '#3c1315', '--status-fg': 'rgba(246,236,226,0.9)',
+      // 빽빽함도 시안을 재서 맞췄다. 같은 1587x991 로 찍어 견주니 시안이
+      // 머리말 56 · 아래 띠 34 · 버튼 바 58 인데 우리는 44 · 24 · 48 이었다.
+      // 색을 아무리 맞춰도 이게 다르면 "느낌이 다르다"가 된다.
+      '--header-h': '56px', '--status-h': '34px', '--rail-w': '58px', '--rail-btn': '40px',
+      '--row-fs': '13.5px', '--row-pad': '7px 9px', '--nb-fs': '14px', '--tree-fs': '13px',
+      '--title-fs': '24px', '--status-fs': '12.5px', '--tab-fs': '13.5px',
       '--logo-font': "'Playfair Display', Georgia, serif",
-      '--logo-ink': '#f3ead7', '--logo-weight': '600', '--logo-size': '17px', '--logo-tracking': '0.01em',
+      '--logo-ink': '#f3ead7', '--logo-weight': '600', '--logo-size': '19px', '--logo-tracking': '0.01em',
       '--tex-chrome': u(leatherDark), '--tex-chrome-size': '200px',
       '--tex-panel': u(leatherDark), '--tex-panel-size': '200px', '--tex-panel-blend': 'screen',
       '--tex-paper': u(paperTex), '--tex-paper-size': '280px', '--tex-paper-opacity': '0.35',
       '--tab-gap': '3px', '--tab-strip-pad': '6px 8px 0', '--tab-pad': '8px 8px 8px 12px',
       '--tab-top': '#8f2f3c', '--tab-top-w': '2px',
       '--tab-active-fg': '#f6e7d8', '--tab-active-border': '#4a2326', '--tab-active-weight': '600',
-      '--search-h': '28px', '--search-radius': '8px',
+      '--search-h': '34px', '--search-radius': '9px',
+      '--search-fs': '13.5px', '--btn-fs': '13px', '--btn-pad': '6px 12px',
+      '--rail-sep-w': '26px', '--rail-sep-m': '9px',
+
       '--search-bg': '#121110', '--search-border': '#3a2f2c',
+      '--badge-bg': '#9e2b36', '--badge-fg': '#fff', '--rail-sep': '#3a2f2c',
     },
   },
 
@@ -89,16 +99,26 @@ const THEMES = {
       '--paper-inset': '14px 24px 18px', '--paper-radius': '3px',
       '--tabbar-bg': '#cdcac4', '--tab-active-bg': '#eceade', '--tab-radius': '9px 9px 0 0',
       '--status-bg': '#142c43', '--status-fg': 'rgba(255,255,255,0.88)',
+      // 빽빽함도 시안을 재서 맞췄다. 같은 1587x991 로 찍어 견주니 시안이
+      // 머리말 56 · 아래 띠 34 · 버튼 바 58 인데 우리는 44 · 24 · 48 이었다.
+      // 색을 아무리 맞춰도 이게 다르면 "느낌이 다르다"가 된다.
+      '--header-h': '56px', '--status-h': '34px', '--rail-w': '58px', '--rail-btn': '40px',
+      '--row-fs': '13.5px', '--row-pad': '7px 9px', '--nb-fs': '14px', '--tree-fs': '13px',
+      '--title-fs': '24px', '--status-fs': '12.5px', '--tab-fs': '13.5px',
       '--logo-font': "'Libre Baskerville', Georgia, serif",
-      '--logo-ink': '#ffffff', '--logo-weight': '700', '--logo-size': '15px', '--logo-tracking': '0.01em',
+      '--logo-ink': '#ffffff', '--logo-weight': '700', '--logo-size': '17px', '--logo-tracking': '0.01em',
       '--tex-chrome': u(clothDark), '--tex-chrome-size': '180px',
       '--tex-panel': u(clothLight), '--tex-panel-size': '180px',
       '--tex-paper': u(paperTex), '--tex-paper-size': '280px', '--tex-paper-opacity': '0.30',
       '--tab-gap': '3px', '--tab-strip-pad': '6px 8px 0', '--tab-pad': '8px 8px 8px 12px',
       '--tab-top': '#e8590c', '--tab-top-w': '2px',
       '--tab-active-border': '#b9b4a8', '--tab-active-weight': '600',
-      '--search-h': '28px', '--search-radius': '8px',
+      '--search-h': '34px', '--search-radius': '9px',
+      '--search-fs': '13.5px', '--btn-fs': '13px', '--btn-pad': '6px 12px',
+      '--rail-sep-w': '26px', '--rail-sep-m': '9px',
+
       '--search-bg': '#0f2336', '--search-border': '#2d4a63',
+      '--badge-bg': '#e8590c', '--badge-fg': '#fff', '--rail-sep': '#2d4a63',
     },
   },
 
@@ -127,8 +147,14 @@ const THEMES = {
       '--paper-inset': '14px 24px 18px', '--paper-radius': '4px',
       '--tabbar-bg': '#cdba9c', '--tab-active-bg': '#eee1cb', '--tab-radius': '9px 9px 0 0',
       '--status-bg': '#5b2325', '--status-fg': 'rgba(240,232,214,0.92)',
+      // 빽빽함도 시안을 재서 맞췄다. 같은 1587x991 로 찍어 견주니 시안이
+      // 머리말 56 · 아래 띠 34 · 버튼 바 58 인데 우리는 44 · 24 · 48 이었다.
+      // 색을 아무리 맞춰도 이게 다르면 "느낌이 다르다"가 된다.
+      '--header-h': '56px', '--status-h': '34px', '--rail-w': '58px', '--rail-btn': '40px',
+      '--row-fs': '13.5px', '--row-pad': '7px 9px', '--nb-fs': '14px', '--tree-fs': '13px',
+      '--title-fs': '24px', '--status-fs': '12.5px', '--tab-fs': '13.5px',
       '--logo-font': "'EB Garamond', Georgia, serif",
-      '--logo-ink': '#e8c97a', '--logo-weight': '600', '--logo-size': '18px', '--logo-tracking': '0.02em',
+      '--logo-ink': '#e8c97a', '--logo-weight': '600', '--logo-size': '20px', '--logo-tracking': '0.02em',
       '--edge-gold': '#8a7340',
       '--tex-chrome': u(clothDark), '--tex-chrome-size': '180px',
       '--tex-panel': u(clothLight), '--tex-panel-size': '180px',
@@ -136,8 +162,12 @@ const THEMES = {
       '--tab-gap': '3px', '--tab-strip-pad': '6px 8px 0', '--tab-pad': '8px 8px 8px 12px',
       '--tab-top': '#c9a227', '--tab-top-w': '2px',
       '--tab-active-border': '#bda77f', '--tab-active-weight': '600',
-      '--search-h': '28px', '--search-radius': '8px',
+      '--search-h': '34px', '--search-radius': '9px',
+      '--search-fs': '13.5px', '--btn-fs': '13px', '--btn-pad': '6px 12px',
+      '--rail-sep-w': '26px', '--rail-sep-m': '9px',
+
       '--search-bg': '#1a261b', '--search-border': '#3d5240',
+      '--badge-bg': '#c9a227', '--badge-fg': '#1d2a1e', '--rail-sep': '#3d5240',
     },
   },
 }
@@ -168,7 +198,8 @@ export function syncTitleBar() {
   const cs = getComputedStyle(document.documentElement)
   const bg = cs.getPropertyValue('--chrome-bg').trim() || cs.getPropertyValue('--bg2').trim() || '#252526'
   const fg = cs.getPropertyValue('--text').trim() || '#cccccc'
-  try { window.lightnote.setTitleBarColors(bg, fg) } catch { /* 지원 안 하면 그만 */ }
+  const h = parseFloat(cs.getPropertyValue('--header-h')) || 44
+  try { window.lightnote.setTitleBarColors(bg, fg, h) } catch { /* 지원 안 하면 그만 */ }
 }
 
 export function applyTheme(key: string) {

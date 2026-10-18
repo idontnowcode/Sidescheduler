@@ -138,8 +138,8 @@ contextBridge.exposeInMainWorld('lightnote', {
   workObjectList: () => ipcRenderer.invoke('lightnote:work-object:list'),
   // 창 제목 표시줄을 앱 헤더와 합쳤다. 창 조작 단추(최소화·최대화·닫기)는
   // 운영체제가 그 줄 위에 그려 주므로, 테마가 바뀌면 색만 맞춰 주면 된다.
-  setTitleBarColors: (color, symbolColor) =>
-    ipcRenderer.send('lightnote:titlebar-colors', { color, symbolColor }),
+  setTitleBarColors: (color, symbolColor, height) =>
+    ipcRenderer.send('lightnote:titlebar-colors', { color, symbolColor, height }),
 
   // 옆 앱들(플래너) 열기. LightNote는 늘 DSP 안에서 도는 창이라
   // ("독립 실행"은 사이드바만 숨긴 것) 이 길은 항상 열려 있다.
