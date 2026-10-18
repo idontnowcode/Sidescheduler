@@ -1,0 +1,64 @@
+<!doctype html><meta charset="utf-8">
+<!-- 레일 아이콘을 금색 양각처럼 보이게 CSS/SVG 만으로 어디까지 되나.
+     그림을 받아야 하는지 아닌지가 여기서 갈린다. -->
+<style>
+  body { margin:0; background:#12110e; color:#9a917f; font:12px Inter,system-ui,sans-serif; padding:16px 20px }
+  h2 { font-size:12px; font-weight:600; color:#c8b893; margin:18px 0 8px; letter-spacing:.04em }
+  .row { display:flex; gap:18px; align-items:center; padding:10px 14px; background:#15140f;
+         border:1px solid #2a2720; border-radius:8px; width:max-content }
+  svg { width:34px; height:34px; display:block }
+  .flat path, .flat line, .flat circle, .flat rect, .flat polyline {
+    stroke:#8a8070; fill:none; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round }
+  /* A — 금색 선 + 굵게 */
+  .gold path, .gold line, .gold circle, .gold rect, .gold polyline {
+    stroke:url(#g); fill:none; stroke-width:2.1; stroke-linecap:round; stroke-linejoin:round }
+  /* B — 금색 + 양각(아래 어두운 그림자 + 위 밝은 선) */
+  .bevel path, .bevel line, .bevel circle, .bevel rect, .bevel polyline {
+    stroke:url(#g); fill:none; stroke-width:2.3; stroke-linecap:round; stroke-linejoin:round;
+    filter:url(#emboss) }
+  /* C — 두껍게 채운 금속 느낌 */
+  .solid path, .solid line, .solid circle, .solid rect, .solid polyline {
+    stroke:url(#g2); fill:none; stroke-width:3; stroke-linecap:round; stroke-linejoin:round;
+    filter:url(#emboss2) }
+</style>
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f8e3b0"/><stop offset="45%" stop-color="#d9b877"/>
+      <stop offset="100%" stop-color="#8d6c36"/>
+    </linearGradient>
+    <linearGradient id="g2" x1="0" y1="0" x2="0.2" y2="1">
+      <stop offset="0" stop-color="#fff3d2"/><stop offset="35%" stop-color="#e3c58a"/>
+      <stop offset="70%" stop-color="#a98347"/><stop offset="100%" stop-color="#6d5024"/>
+    </linearGradient>
+    <filter id="emboss" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="1.2" stdDeviation="0.4" flood-color="#000" flood-opacity=".85"/>
+    </filter>
+    <filter id="emboss2" x="-40%" y="-40%" width="180%" height="180%">
+      <feDropShadow dx="0" dy="1.4" stdDeviation="0.5" flood-color="#000" flood-opacity=".9"/>
+      <feDropShadow dx="0" dy="-0.7" stdDeviation="0.2" flood-color="#fff6dd" flood-opacity=".35"/>
+    </filter>
+  </defs>
+</svg>
+
+<div id="out"></div>
+<script>
+  // 지금 앱이 쓰는 레일 아이콘 그대로
+  const P = {
+    note: '<path d="M6 3.5h8.5L19 8v12.5H6z"/><path d="M14 3.5V8h4.5"/><line x1="9" y1="12.5" x2="16" y2="12.5"/><line x1="9" y1="16" x2="14" y2="16"/>',
+    work: '<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8.5 7V5.5A1.5 1.5 0 0 1 10 4h4a1.5 1.5 0 0 1 1.5 1.5V7"/><line x1="3" y1="12" x2="21" y2="12"/>',
+    action: '<path d="M4 7.2l2 2 3.2-3.4"/><path d="M4 16.2l2 2 3.2-3.4"/><line x1="12.5" y1="7.5" x2="20.5" y2="7.5"/><line x1="12.5" y1="16.5" x2="20.5" y2="16.5"/>',
+    journal: '<path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/><line x1="8.5" y1="10" x2="15.5" y2="10"/><line x1="8.5" y1="13.5" x2="13" y2="13.5"/>',
+    sticky: '<path d="M4 4.5h15.5v9.5L14 19.5H4z"/><path d="M19.5 14H14v5.5"/>',
+    ai: '<path d="M12 3.5l1.9 4.6 4.6 1.9-4.6 1.9L12 16.5l-1.9-4.6L5.5 10l4.6-1.9z"/><circle cx="18" cy="18" r="2"/>',
+    today: '<rect x="3.5" y="5" width="17" height="15.5" rx="2"/><line x1="3.5" y1="9.5" x2="20.5" y2="9.5"/><line x1="8" y1="3" x2="8" y2="6.5"/><line x1="16" y1="3" x2="16" y2="6.5"/>',
+    grid: '<rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.5"/>',
+  }
+  const styles = [['flat','지금 (평평한 선)'],['gold','A — 금색 그라데이션'],['bevel','B — 금색 + 아래 그림자'],['solid','C — 굵게 + 위아래 양각']]
+  const out = document.getElementById('out')
+  for (const [cls, label] of styles) {
+    const icons = Object.values(P).map(d =>
+      `<svg viewBox="0 0 24 24" class="${cls}">${d}</svg>`).join('')
+    out.insertAdjacentHTML('beforeend', `<h2>${label}</h2><div class="row">${icons}</div>`)
+  }
+</script>
