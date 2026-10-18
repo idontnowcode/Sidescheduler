@@ -57,6 +57,30 @@ app.whenReady().then(async () => {
     const SHEETS = ${JSON.stringify(SHEETS)}
     const log = [], files = {}, kit = {}
 
+    /** 금색을 **산화된 청동**으로 낮춘다.
+     *  받은 그림의 금은 반짝이는 순금이라 화면에 깔면 장난감처럼 보인다.
+     *  디아블로풍은 대부분 검은 철이고 모서리에만 청동 하이라이트가 남는다.
+     *  화면에서 filter 로 눌러도 되지만 그러면 글자까지 같이 어두워져서,
+     *  **구울 때** 그림에 박아 넣는다. */
+    function tone(ctx, w, h, bright, sat) {
+      const d = ctx.getImageData(0, 0, w, h), p = d.data
+      for (let i = 0; i < p.length; i += 4) {
+        if (p[i+3] === 0) continue
+        const L = 0.299*p[i] + 0.587*p[i+1] + 0.114*p[i+2]
+        for (let k = 0; k < 3; k++) {
+          p[i+k] = Math.max(0, Math.min(255, Math.round((L + (p[i+k] - L) * sat) * bright)))
+        }
+      }
+      ctx.putImageData(d, 0, 0)
+    }
+    // 자리마다 낮추는 정도가 다르다 — 넓게 깔리는 틀일수록 더 죽인다.
+    const TONE = (f) =>
+      f.startsWith('f-') ? [0.62, 0.70]
+        : f.startsWith('s-') ? [0.70, 0.75]
+          : f.startsWith('o-') ? [0.72, 0.78]
+            : f === 'b-btn-primary.png' ? [0.86, 0.90]
+              : f.startsWith('b-') ? [0.74, 0.80] : [1, 1]
+
     const load = (f) => new Promise((res, rej) => {
       const im = new Image(); im.onload = () => res(im); im.onerror = () => rej(new Error(f))
       im.src = 'file:///' + SRC + '/' + f
@@ -190,6 +214,8 @@ app.whenReady().then(async () => {
       const w = im.naturalWidth, h = im.naturalHeight
       const ctx = ctxOf(w, h); ctx.drawImage(im, 0, 0)
       if (bg === 'black') keyBlack(ctx, w, h); else keyMagenta(ctx, w, h)
+      const [br, sa] = TONE(file)
+      if (br !== 1 || sa !== 1) tone(ctx, w, h, br, sa)
       files[file] = png(ctx.canvas)
       // 끝에서 끝까지 이어지는 선은 '빈 자리'가 없어 잴 수가 없다 —
       // 잰 값이 그림 절반(254)으로 나온다. 이 셋만 손으로 정한다.
@@ -231,6 +257,7 @@ app.whenReady().then(async () => {
         const ic = ctxOf(BOX, BOX); ic.imageSmoothingQuality = 'high'
         ic.drawImage(im, sx[0], sy[0], bw, bh, (BOX-dw)/2, (BOX-dh)/2, dw, dh)
         keyBlack(ic, BOX, BOX)
+        tone(ic, BOX, BOX, 0.88, 0.88)   // 아이콘은 살짝만
         files['icon-' + names[r*n+c] + '.png'] = png(ic.canvas)
         made++
       }

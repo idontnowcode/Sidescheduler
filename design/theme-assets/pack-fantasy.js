@@ -152,89 +152,9 @@ app.whenReady().then(async () => {
       log.push('paper-mask.png  512px')
     }
 
-    // ── 5. 아이콘 판 자르기 ─────────────────────────────────────────────
-    // 격자에 딱 맞게 그려 주지 않는다(가운데가 칸마다 20px씩 어긋난다).
-    // 칸 언저리를 넉넉히 보고 **실제 그려진 자리**를 찾아 잘라, 크기를
-    // 고르게 맞춘다. 안 그러면 아이콘마다 크기가 들쭉날쭉해진다.
-    {
-      const NAMES = ${JSON.stringify(ICON_NAMES)}
-      const im = await load('fantasy-icons.png')
-      const W = im.naturalWidth, H = im.naturalHeight
-      const full = ctxOf(W, H); full.drawImage(im, 0, 0)
-      const d = full.getImageData(0, 0, W, H).data
-      const lum = (x, y) => { const i = (y*W + x)*4; return 0.299*d[i] + 0.587*d[i+1] + 0.114*d[i+2] }
-      const cw = W / 4, ch = H / 4
-      const sizes = []
-      for (let r = 0; r < 4; r++) for (let c = 0; c < 4; c++) {
-        // 칸 경계를 **넘어가지 않는다**. 10px 만 넓혀 봤더니 아래 줄 아이콘의
-        // 윗부분이 딸려 들어와(help·gear 가 246px) 그 둘만 작게 그려졌다.
-        // 칸 안쪽으로 조금 더 들어가서 본다. 아이콘은 칸 안에 여백을 두고
-        // 그려져 있지만, 옆 칸 아이콘의 끄트머리가 경계에 한두 줄 걸친다
-        // (톱니바퀴 칸 바닥에 아래 줄 시계의 윗부분이 들어와 있었다).
-        const IN = 8
-        const x0 = Math.round(c*cw) + IN, x1 = Math.round((c+1)*cw) - IN
-        const y0 = Math.round(r*ch) + IN, y1 = Math.round((r+1)*ch) - IN
-        // 줄·칸마다 '밝은 점이 몇 개인가'를 세고, 가장 많은 줄의 3% 에도
-        // 못 미치는 바깥 줄은 버린다. 옆 칸 아이콘이 한 줄 걸쳐 들어오거나
-        // 빛 번짐이 묻어도 상자가 부풀지 않는다.
-        const rows = new Array(y1 - y0).fill(0), cols = new Array(x1 - x0).fill(0)
-        for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) {
-          if (lum(x, y) > 48) { rows[y - y0]++; cols[x - x0]++ }
-        }
-        const span = (arr, base) => {
-          const peak = Math.max(...arr); if (peak === 0) return null
-          const th = Math.max(1, peak * 0.03)
-          let a = 0; while (a < arr.length && arr[a] < th) a++
-          let b = arr.length - 1; while (b > a && arr[b] < th) b--
-          return [base + a, base + b]
-        }
-        const sy = span(rows, y0), sx = span(cols, x0)
-        const ax = sx ? sx[0] : 1e9, bx = sx ? sx[1] : -1
-        const ay = sy ? sy[0] : 1e9, by = sy ? sy[1] : -1
-        const i = r*4 + c
-        if (bx < 0) { log.push('!! ' + NAMES[i] + ' 칸이 비었다'); continue }
-        sizes.push({ i, ax, ay, bx, by, w: bx-ax+1, h: by-ay+1 })
-      }
-      // 아이콘마다 **같은 크기**로 맞춘다. 그림의 원래 크기를 그대로 두면
-      // 별은 크고 반짝임은 작아서, 버튼 바에 세웠을 때 줄이 안 맞아 보인다.
-      const BOX = 128, PAD = 12
-      for (const s of sizes) {
-        const scale = (BOX - PAD*2) / Math.max(s.w, s.h)
-        const dw = Math.round(s.w * scale), dh = Math.round(s.h * scale)
-        const ctx = ctxOf(BOX, BOX)
-        ctx.imageSmoothingQuality = 'high'
-        ctx.drawImage(im, s.ax, s.ay, s.w, s.h, (BOX-dw)/2, (BOX-dh)/2, dw, dh)
-        blackToAlpha(ctx, BOX, BOX)
-        outFiles['icon-' + NAMES[s.i] + '.png'] = { png: toPng(ctx.canvas) }
-      }
-      log.push('아이콘 ' + sizes.length + '개  128px  (전부 같은 크기로 맞춤)')
-      log.push('칸별 크기: ' + sizes.map(s => NAMES[s.i] + ' ' + s.w + 'x' + s.h).join(', '))
-      log.push('상자 좌표: ' + sizes.filter(s => Math.max(s.w, s.h) > 200)
-        .map(s => NAMES[s.i] + ' x' + s.ax + '-' + s.bx + ' y' + s.ay + '-' + s.by).join(' | '))
-    }
-
-    // ── 6. 따로 받은 아이콘 한 개 (인박스) ──────────────────────────────
-    // 판을 다시 뽑으면 16개가 전부 달라지므로 빠진 것만 한 장으로 받는다.
-    {
-      const im = await load('fantasy-icon-inbox.png')
-      const W = im.naturalWidth, H = im.naturalHeight
-      const full = ctxOf(W, H); full.drawImage(im, 0, 0)
-      const d = full.getImageData(0, 0, W, H).data
-      const lum = (x, y) => { const i = (y*W + x)*4; return 0.299*d[i] + 0.587*d[i+1] + 0.114*d[i+2] }
-      let ax = 1e9, ay = 1e9, bx = -1, by = -1
-      for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-        if (lum(x, y) > 48) { if (x<ax) ax=x; if (x>bx) bx=x; if (y<ay) ay=y; if (y>by) by=y }
-      }
-      const BOX = 128, PAD = 12
-      const w = bx-ax+1, h = by-ay+1
-      const scale = (BOX - PAD*2) / Math.max(w, h)
-      const dw = Math.round(w*scale), dh = Math.round(h*scale)
-      const ctx = ctxOf(BOX, BOX); ctx.imageSmoothingQuality = 'high'
-      ctx.drawImage(im, ax, ay, w, h, (BOX-dw)/2, (BOX-dh)/2, dw, dh)
-      blackToAlpha(ctx, BOX, BOX)
-      outFiles['icon-inbox.png'] = { png: toPng(ctx.canvas) }
-      log.push('icon-inbox.png  128px  (원본 ' + w + 'x' + h + ')')
-    }
+    // 아이콘은 여기서 굽지 않는다. 예전엔 옛 금속 판을 잘라 넣었는데,
+    // 이 파일을 나중에 한 번 더 돌리는 바람에 pack-kit.js 가 구워 둔
+    // **새 선 아이콘을 같은 이름으로 덮어썼다**. 아이콘은 pack-kit 전담.
 
     return { log, files: Object.fromEntries(Object.entries(outFiles).map(([k, v]) => [k, v.png])) }
   })()`)

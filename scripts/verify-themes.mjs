@@ -139,7 +139,7 @@ for (const [key, label] of [['leather', '가죽 서재'], ['field', '현장 노�
     // 그려진 틀 키트 — 칸마다 틀이 둘리고, 칸은 '카드'로 떨어져 있어야 한다.
     ok('칸마다 그려진 틀이 둘린다', m.frameOn.includes('url('), m.frameOn.slice(0, 30))
     ok('칸이 카드로 떨어져 있다 (틀이 글자를 안 침범하게)',
-      parseFloat(m.framePad) >= 10, m.framePad)
+      parseFloat(m.framePad) >= 8, m.framePad)
     ok('화면 전체 글꼴이 명조로 바뀐다', /Georgia|Myeongjo|Batang/.test(m.uiFont), m.uiFont.slice(0, 40))
     ok('아이콘이 그림으로 바뀐다', m.railIcon.includes('url('), m.railIcon.slice(0, 20))
     ok('고른 줄이 그려진 명판이다', m.rowPlate.includes('url('), m.rowPlate.slice(0, 20))

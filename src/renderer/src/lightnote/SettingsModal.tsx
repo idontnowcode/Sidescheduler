@@ -213,12 +213,12 @@ const THEMES = {
   fantasy: {
     label: '고서 · 금장',
     vars: {
-      '--bg': '#0e0d0b', '--bg2': '#15140f', '--bg3': '#211e18', '--bg4': '#2d2820',
-      '--border': '#3a3225', '--text': '#e7dcc2', '--text-dim': '#9b8e74',
-      '--accent': '#c89b4a', '--accent-hover': '#e0b464',
-      '--chrome-bg': '#0f0e0c', '--rail-bg': '#0c0b09',
+      '--bg': '#090806', '--bg2': '#100e0b', '--bg3': '#1b1813', '--bg4': '#271f17',
+      '--border': '#332a1e', '--text': '#ddd0b4', '--text-dim': '#8d8168',
+      '--accent': '#b4874e', '--accent-hover': '#cfa066',
+      '--chrome-bg': '#0d0b09', '--rail-bg': '#0a0907',
       '--chrome-ink': '#e9dcc0', '--chrome-ink-dim': '#9a8d72',
-      '--list-bg': '#100f0c', '--panel-bg': '#100f0c',
+      '--list-bg': '#0d0c0a', '--panel-bg': '#0d0c0a',
       '--editor-head-bg': '#0b0a09', '--toolbar-bg': '#0e0d0b',
       // 고른 줄은 "붉은 명판" — 그라데이션 + 금테
       '--sel-bg': 'linear-gradient(180deg, #65150f 0%, #43090a 100%)',
@@ -227,7 +227,7 @@ const THEMES = {
       '--sel-soft-bg': 'rgba(200,155,74,0.16)',
       '--rail-active-bg': 'linear-gradient(180deg, #5d130e 0%, #3a0806 100%)',
       '--rail-active-fg': '#ffe3bd', '--rail-edge': '#d9ab55',
-      '--paper-bg': '#ddc6a4', '--paper-ink': '#231a10', '--paper-ink-dim': '#5f5138',
+      '--paper-bg': '#c8aa78', '--paper-ink': '#211810', '--paper-ink-dim': '#584a33',
       '--paper-soft-bg': '#c0a480',
       '--paper-lines': ruled('rgba(90,62,28,0.11)'),
       '--paper-shadow': '0 0 0 1px rgba(0,0,0,0.55), 0 16px 40px rgba(0,0,0,0.6)',
@@ -266,26 +266,31 @@ const THEMES = {
       '--title-font': "'Cinzel', Georgia, serif",
       '--paper-fs': '15px',
       // 질감 — 돌은 어두운 면에 더하기(screen), 양피지는 곱하기
-      '--tex-chrome': u(stoneTex), '--tex-chrome-size': '240px',
-      '--tex-panel': u(stoneTex), '--tex-panel-size': '240px', '--tex-panel-blend': 'screen',
-      '--tex-paper': u(parchmentTex), '--tex-paper-size': '300px', '--tex-paper-opacity': '0.5',
+      // 돌 질감이 240px 로 잘게 반복돼 빈 패널에서 내용보다 먼저 보였다.
+      // 크게 늘려 결을 성기게 하고, 안쪽 칸(목록·오른쪽)은 거의 민짜로.
+      '--tex-chrome': u(stoneTex), '--tex-chrome-size': '560px',
+      '--tex-panel': 'none',
+      '--tex-paper': u(parchmentTex), '--tex-paper-size': '420px', '--tex-paper-opacity': '0.4',
       // 장식 층
       // ── 그려진 틀 (키트) ───────────────────────────────────────────
       // 칸을 '카드'로 세우고 그 자리에 틀을 앉힌다. 여백 없이 틀만 얹으면
       // 선이 글자 위를 지나간다 — 지난번 실패가 그것이었다.
       // 창 바깥 틀은 뺐다. 가장 바깥이라 머리말 띠·상태바·칸 틀과 전부
       // 겹쳤고, 금테가 세 겹으로 쌓이니 눈이 아팠다.
-      '--shell-pad': '8px', '--panel-gap': '8px', '--frame-pad': '14px',
-      '--panel-radius': '4px',
-      ...kit('frame', 'f-panel.png'), '--frame-w': '24px',
-      ...kit('paper', 'f-paper.png'), '--paperimg-bw': '34px',
+      '--shell-pad': '6px', '--panel-gap': '4px', '--frame-pad': '9px',
+      '--panel-radius': '3px',
+      // 옆 칸들은 가는 틀, 본문만 제대로 된 틀 — 넷을 같은 두께로 두르면
+      // 액자 넷이 나란히 선 꼴이라 어디가 본체인지 알 수 없다.
+      ...kit('frame', 'f-inset.png'), '--frame-w': '11px',
+      ...kit('frame-ed', 'f-panel.png'), '--frame-ed-w': '14px',
+      ...kit('paper', 'f-paper.png'), '--paperimg-bw': '15px',
       // 보통 줄과 마우스 올린 줄은 맨 글자로 둔다 — 시안도 그렇다.
       // 줄마다 금테를 두르면 목록이 아니라 단추 더미가 된다.
       ...kit('row-active', 'b-row-active.png'), '--row-bw': '10px',
-      ...kit('tab-active', 'b-tab-active.png'), '--tabimg-bw': '12px',
+      ...kit('tab-active', 'b-tab-active.png'), '--tabimg-bw': '9px',
       ...kit('btn', 'b-btn.png'),
       ...kit('btn-hover', 'b-btn-hover.png'),
-      ...kit('btn-primary', 'b-btn-primary.png'), '--btnimg-bw': '12px',
+      ...kit('btn-primary', 'b-btn-primary.png'), '--btnimg-bw': '7px',
       ...kit('select', 'b-select.png'),
       ...kit('bar-bottom', 's-bar-bottom.png'), '--barimg-bw': '5px 24px',
       // 조각 장식
