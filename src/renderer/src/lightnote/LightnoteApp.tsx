@@ -643,7 +643,9 @@ export default function LightnoteApp() {
           </>
         )}
 
-        <div style={{ flex: 1, minWidth: 0, position: 'relative', display: 'flex', flexDirection: 'column' }}>
+        {/* 탭 줄 + 편집기를 한 칸으로 묶는다. 틀 그림을 쓰는 테마가 이 칸
+            하나에 테두리를 두른다(탭과 본문이 따로 놀면 틀이 두 개가 된다). */}
+        <div className="ln-editor-col">
           {!trashNode && (
             <TabBar
               tabs={tabs}
