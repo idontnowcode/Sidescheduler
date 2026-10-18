@@ -1665,12 +1665,18 @@ const Editor = forwardRef<EditorHandle, Props>(({ isFavorite, onToggleFavorite, 
         if (hasBare) max = Math.max(max, base)
         return max || base
       }
+      // 노트 줄이 깔린 테마(가죽·현장·고서재)에서는 **줄 간격의 배수**로
+      // 올림한다. 진짜 줄공책이 그렇다 — 큰 글씨는 두 줄을 먹는다. 안 그러면
+      // 글줄이 한 줄씩 밀려 내려가며 줄 위에서 떠다닌다.
+      const rule = parseFloat(
+        getComputedStyle(document.documentElement).getPropertyValue('--paper-line-h')) || 0
       for (const b of blocks) {
         const targets = (b.tagName === 'OL' || b.tagName === 'UL')
           ? (Array.from(b.children).filter(x => x.tagName === 'LI') as HTMLElement[])
           : [b]
         for (const el of targets) {
-          const lh = Math.round(maxInlineSize(el, baseSize(el)) * 1.4)
+          const raw = maxInlineSize(el, baseSize(el)) * 1.4
+          const lh = rule > 0 ? Math.ceil(raw / rule) * rule : Math.round(raw)
           if (el.style.lineHeight !== `${lh}px`) el.style.lineHeight = `${lh}px`
         }
       }
@@ -1723,6 +1729,9 @@ const Editor = forwardRef<EditorHandle, Props>(({ isFavorite, onToggleFavorite, 
       if (img && img.isConnected) positionBoxOver(img)
       scheduleFolds()
     })
+    // 테마를 바꾸면 노트 줄 간격이 달라진다. 줄 높이는 글이 바뀔 때만 다시
+    // 매기므로, 바꾼 자리에서 한 번 더 돌려 줘야 글이 새 줄 위에 앉는다.
+    window.addEventListener('ln-theme-changed', scheduleFolds)
 
     // Ctrl+S save
     document.addEventListener('keydown', (e: KeyboardEvent) => {

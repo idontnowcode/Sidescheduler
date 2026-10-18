@@ -11,7 +11,11 @@
     "preview": "electron-vite preview"
   },
   "dependencies": {
+    "@fontsource/crimson-pro": "^5.3.0",
+    "@fontsource/eb-garamond": "^5.3.0",
     "@fontsource/inter": "^5.2.8",
+    "@fontsource/libre-baskerville": "^5.3.0",
+    "@fontsource/playfair-display": "^5.3.0",
     "@google/generative-ai": "^0.21.0",
     "quill": "^2.0.3",
     "quill-table-up": "^3.5.2",

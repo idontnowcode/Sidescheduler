@@ -1,0 +1,63 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>LightNote 로고 글꼴 후보</title>
+<!-- 시안의 "LightNote"는 진짜 글꼴이 아니라 이미지 생성기가 그린 글자다.
+     그와 분위기가 같은 **실제** 세리프 후보를 실제 크기로 나란히 둔다. -->
+<link rel="stylesheet" href="../../node_modules/@fontsource/eb-garamond/600.css">
+<link rel="stylesheet" href="../../node_modules/@fontsource/playfair-display/600.css">
+<link rel="stylesheet" href="../../node_modules/@fontsource/libre-baskerville/700.css">
+<link rel="stylesheet" href="../../node_modules/@fontsource/crimson-pro/600.css">
+<style>
+  body { margin: 0; font-family: Inter, system-ui, sans-serif; background: #111; color: #ddd; }
+  h1 { font-size: 13px; font-weight: 600; padding: 14px 18px 6px; color: #888; letter-spacing: .04em; }
+  .themes { display: flex; }
+  .theme { flex: 1; padding: 10px 0 18px; }
+  .swatch { padding: 6px 18px 2px; font-size: 10.5px; color: #999; letter-spacing: .05em; }
+  .bar { display: flex; align-items: center; gap: 10px; height: 44px; padding: 0 18px; }
+  .name { font-size: 14px; letter-spacing: .3px; }       /* 실제 헤더 크기 */
+  .big  { font-size: 30px; letter-spacing: .2px; padding: 2px 18px 10px; }
+  .tag  { font-size: 10px; color: #777; padding: 0 18px 2px; }
+  .f1 { font-family: 'EB Garamond', serif; font-weight: 600; }
+  .f2 { font-family: 'Playfair Display', serif; font-weight: 600; }
+  .f3 { font-family: 'Libre Baskerville', serif; font-weight: 700; }
+  .f4 { font-family: 'Crimson Pro', serif; font-weight: 600; }
+  .f5 { font-family: Georgia, 'Times New Roman', serif; font-weight: 600; }
+  .f0 { font-family: Inter, system-ui, sans-serif; font-weight: 600; }
+</style>
+
+<h1>후보 — 각 테마 바탕 위, 위는 실제 헤더 크기(14px) / 아래는 글자 모양 보기(30px)</h1>
+<div class="themes">
+  <div class="theme" style="background:#161514">
+    <div class="swatch">가죽 서재 · 바탕 #161514 · 글자 #fffff7</div>
+    <div id="A"></div>
+  </div>
+  <div class="theme" style="background:#152c42">
+    <div class="swatch">현장 노트 · 바탕 #152c42 · 글자 #ffffff</div>
+    <div id="B"></div>
+  </div>
+  <div class="theme" style="background:#243224">
+    <div class="swatch">고서재 · 바탕 #243224 · 글자 #fef2d2</div>
+    <div id="C"></div>
+  </div>
+</div>
+
+<script>
+  const FONTS = [
+    ['f1', 'EB Garamond 600', '올드스타일 · 가늘고 우아함'],
+    ['f2', 'Playfair Display 600', '획 대비 큼 · 장식적'],
+    ['f3', 'Libre Baskerville 700', '두껍고 단단함'],
+    ['f4', 'Crimson Pro 600', '책 본문체 · 차분함'],
+    ['f5', 'Georgia (시스템)', '설치 없이 바로 · 무난함'],
+    ['f0', 'Inter 600 (지금)', '지금 쓰는 것 — 비교용'],
+  ]
+  const INK = { A: '#fffff7', B: '#ffffff', C: '#fef2d2' }
+  for (const id of ['A', 'B', 'C']) {
+    const host = document.getElementById(id)
+    for (const [cls, label, note] of FONTS) {
+      host.insertAdjacentHTML('beforeend',
+        `<div class="tag">${label} — ${note}</div>
+         <div class="bar"><span class="name ${cls}" style="color:${INK[id]}">LightNote</span></div>
+         <div class="big ${cls}" style="color:${INK[id]}">LightNote</div>`)
+    }
+  }
+</script>

@@ -596,7 +596,7 @@ export default function LightnoteApp() {
             onQuickAdd={() => setQuickAdd(true)}
           />
         )}
-        <div style={{ width: leftW, minWidth: 0, flexShrink: 0, display: 'flex', flexDirection: 'column' }}>
+        <div className="ln-sidebar" style={{ width: leftW }}>
           {/* 노트북보다 먼저 오는 세 가지 — 둔 자리를 모를 때 찾는 길이다.
               아래에 두면 노트북이 몇 개만 늘어도 스크롤 밖으로 밀려난다. */}
           <SmartLists

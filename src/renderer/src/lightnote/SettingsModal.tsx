@@ -1,13 +1,134 @@
 import { useState, useEffect, useCallback } from 'react'
 import type { CustomFont, DataDirStatus } from './types'
+// 질감 넉 장. 회색조 한 벌로 세 테마를 다 쓴다 — 색은 CSS에서 섞는다.
+// 테마 값을 JS에서 넣으므로 url 문자열을 손으로 쓰면 안 된다. 묶음 도구가
+// 빌드할 때 경로를 바꾸기 때문에, import 로 받은 주소를 써야 찾아간다.
+import leatherTex from '../assets/textures/leather.jpg'
+import clothTex from '../assets/textures/cloth.jpg'
+import paperTex from '../assets/textures/paper.jpg'
+
+const u = (p: string) => `url(${p})`
+
+// 줄노트 / 모눈 — 이미지로 굽지 않고 그라데이션으로 그린다. 창 배율이
+// 바뀌어도 선명하고, 줄 간격을 글자 줄 높이에 맞춰 조절할 수 있다.
+const ruled = (c: string, gap = 25) =>
+  `repeating-linear-gradient(to bottom, transparent 0 ${gap - 1}px, ${c} ${gap - 1}px ${gap}px)`
+const grid = (c: string, gap = 20) =>
+  `repeating-linear-gradient(to bottom, transparent 0 ${gap - 1}px, ${c} ${gap - 1}px ${gap}px),`
+  + `repeating-linear-gradient(to right, transparent 0 ${gap - 1}px, ${c} ${gap - 1}px ${gap}px)`
 
 const THEMES = {
+
   dark:   { label: 'Dark',    vars: { '--bg':'#1e1e1e','--bg2':'#252526','--bg3':'#2d2d30','--bg4':'#3c3c3c','--border':'#3c3c3c','--text':'#cccccc','--text-dim':'#888888' } },
   light:  { label: 'Light',  vars: { '--bg':'#f5f5f5','--bg2':'#ffffff','--bg3':'#ebebeb','--bg4':'#d4d4d4','--border':'#d0d0d0','--text':'#1e1e1e','--text-dim':'#666666' } },
   sepia:  { label: 'Sepia',  vars: { '--bg':'#f4ead8','--bg2':'#fdf6e3','--bg3':'#ecddc0','--bg4':'#d9c49c','--border':'#d0b880','--text':'#4a3728','--text-dim':'#8a7260' } },
   oled:   { label: 'OLED',   vars: { '--bg':'#000000','--bg2':'#0a0a0a','--bg3':'#111111','--bg4':'#1a1a1a','--border':'#222222','--text':'#e0e0e0','--text-dim':'#555555' } },
   forest: { label: 'Forest', vars: { '--bg':'#1a2420','--bg2':'#1f2e29','--bg3':'#263832','--bg4':'#2f4840','--border':'#2f4840','--text':'#c5d8cc','--text-dim':'#6a8f7a' } },
+
+  // ── 시안 세 벌 ────────────────────────────────────────────────────────
+  // 색은 시안 PNG에서 직접 떠낸 값이다(design/theme-assets/TOKENS.md).
+  // 눈으로 고르면 "비슷한" 색이 되지, 같은 색이 되지 않는다.
+  leather: {
+    label: '가죽 서재',
+    vars: {
+      '--bg': '#1c1b1a', '--bg2': '#161514', '--bg3': '#262422', '--bg4': '#343130',
+      '--border': '#332f2c', '--text': '#e8e2d8', '--text-dim': '#9a8f84',
+      '--accent': '#a33341', '--accent-hover': '#bb4251',
+      '--chrome-bg': '#161514', '--rail-bg': '#141312',
+      '--list-bg': '#1c1b1a', '--panel-bg': '#1c1c1a',
+      '--editor-head-bg': '#1d1c1a', '--toolbar-bg': '#1d1c1a',
+      '--sel-bg': '#4b161b', '--sel-text': '#f6ece2',
+      '--sel-edge': '#a33341', '--sel-edge-w': '3px',
+      '--sel-soft-bg': '#2d1a1b',
+      '--rail-active-bg': '#45151a', '--rail-active-fg': '#f0d9c8', '--rail-edge': '#a33341',
+      '--paper-bg': '#ede3d6', '--paper-ink': '#2b2520', '--paper-ink-dim': '#6b5d50',
+      '--paper-soft-bg': '#e2d6c6',
+      '--paper-lines': ruled('rgba(70,50,35,0.14)'),
+      '--paper-line-h': '25px', '--paper-gap': '0px',
+      '--paper-head-gap': '0px', '--paper-pad-y': '25px',
+      '--paper-shadow': '0 0 0 1px rgba(0,0,0,0.5), 0 10px 28px rgba(0,0,0,0.45)',
+      '--paper-inset': '10px 16px 14px', '--paper-radius': '3px',
+      '--tabbar-bg': '#1c1c1a', '--tab-active-bg': '#3c1a1a', '--tab-radius': '9px 9px 0 0',
+      '--status-bg': '#3c1315', '--status-fg': 'rgba(246,236,226,0.9)',
+      '--logo-font': "'Playfair Display', Georgia, serif",
+      '--logo-ink': '#f3ead7', '--logo-weight': '600', '--logo-size': '17px', '--logo-tracking': '0.01em',
+      '--tex-chrome': u(leatherTex), '--tex-chrome-size': '220px', '--tex-chrome-blend': 'soft-light',
+      '--tex-paper': u(paperTex), '--tex-paper-size': '300px', '--tex-paper-opacity': '0.5',
+    },
+  },
+
+  field: {
+    label: '현장 노트',
+    vars: {
+      '--bg': '#e8e5dd', '--bg2': '#dedad3', '--bg3': '#d3cfc6', '--bg4': '#c3bfb5',
+      '--border': '#c2bdb2', '--text': '#1f2a35', '--text-dim': '#5d6b78',
+      '--accent': '#d35400', '--accent-hover': '#e8590c',
+      '--chrome-bg': '#152c42', '--rail-bg': '#14293e',
+      '--chrome-ink': '#dde6ee', '--chrome-ink-dim': '#8ba2b8',
+      '--list-bg': '#e5e2da', '--panel-bg': '#dedad3',
+      '--editor-head-bg': '#eae4db', '--toolbar-bg': '#e3ded4',
+      '--sel-bg': '#e8590c', '--sel-text': '#ffffff',
+      '--sel-edge': '#ffb380', '--sel-edge-w': '3px',
+      '--sel-soft-bg': 'rgba(232,89,12,0.14)',
+      '--rail-active-bg': '#e8590c', '--rail-active-fg': '#ffffff', '--rail-edge': '#ffb380',
+      '--paper-bg': '#eceade', '--paper-ink': '#1c2630', '--paper-ink-dim': '#5a6a78',
+      '--paper-soft-bg': '#e0ddcf',
+      '--paper-lines': grid('rgba(32,70,104,0.10)'),
+      '--paper-line-h': '25px', '--paper-gap': '0px',
+      '--paper-head-gap': '0px', '--paper-pad-y': '25px',
+      '--paper-margin': '#d94f4f', '--paper-margin-x': '30px',
+      '--paper-shadow': '0 0 0 1px rgba(21,44,66,0.18), 0 6px 18px rgba(21,44,66,0.12)',
+      '--paper-inset': '10px 16px 14px', '--paper-radius': '2px',
+      '--tabbar-bg': '#cdcac4', '--tab-active-bg': '#eceade', '--tab-radius': '9px 9px 0 0',
+      '--status-bg': '#142c43', '--status-fg': 'rgba(255,255,255,0.88)',
+      '--logo-font': "'Libre Baskerville', Georgia, serif",
+      '--logo-ink': '#ffffff', '--logo-weight': '700', '--logo-size': '15px', '--logo-tracking': '0.01em',
+      '--tex-chrome': u(clothTex), '--tex-chrome-size': '200px', '--tex-chrome-blend': 'soft-light',
+      '--tex-paper': u(paperTex), '--tex-paper-size': '300px', '--tex-paper-opacity': '0.35',
+    },
+  },
+
+  library: {
+    label: '고서재',
+    vars: {
+      '--bg': '#e9dcc4', '--bg2': '#e0d2b8', '--bg3': '#d7c7aa', '--bg4': '#c9b795',
+      '--border': '#c3ad85', '--text': '#2f2a20', '--text-dim': '#6d6450',
+      '--accent': '#9c7c1f', '--accent-hover': '#b8932c',
+      '--chrome-bg': '#243224', '--rail-bg': '#1d2a1e',
+      '--chrome-ink': '#dfe6d8', '--chrome-ink-dim': '#93a38f',
+      '--list-bg': '#ded1ba', '--panel-bg': '#e6dac4',
+      '--editor-head-bg': '#eee1cc', '--toolbar-bg': '#e8dbc3',
+      '--sel-bg': '#f3e8d2', '--sel-text': '#2f2a20',
+      '--sel-edge': '#c9a227', '--sel-edge-w': '3px',
+      '--sel-soft-bg': 'rgba(201,162,39,0.18)',
+      // 시안에서는 눌린 레일 단추만 청록(#2a6c82)인데, 금색 테마에 원본
+      // 스크린샷의 파랑이 남은 것으로 보여 금색으로 맞췄다.
+      '--rail-active-bg': '#c9a227', '--rail-active-fg': '#1d2a1e', '--rail-edge': '#e8c97a',
+      '--paper-bg': '#eee1cb', '--paper-ink': '#332c20', '--paper-ink-dim': '#6f6449',
+      '--paper-soft-bg': '#e4d5b8',
+      '--paper-lines': ruled('rgba(120,90,40,0.16)'),
+      '--paper-line-h': '25px', '--paper-gap': '0px',
+      '--paper-head-gap': '0px', '--paper-pad-y': '25px',
+      '--paper-shadow': '0 0 0 1px rgba(60,45,20,0.22), 0 8px 22px rgba(40,30,12,0.22)',
+      '--paper-inset': '10px 16px 14px', '--paper-radius': '3px',
+      '--tabbar-bg': '#cdba9c', '--tab-active-bg': '#eee1cb', '--tab-radius': '9px 9px 0 0',
+      '--status-bg': '#5b2325', '--status-fg': 'rgba(240,232,214,0.92)',
+      '--logo-font': "'EB Garamond', Georgia, serif",
+      '--logo-ink': '#e8c97a', '--logo-weight': '600', '--logo-size': '18px', '--logo-tracking': '0.02em',
+      '--edge-gold': '#8a7340',
+      '--tex-chrome': u(clothTex), '--tex-chrome-size': '200px', '--tex-chrome-blend': 'soft-light',
+      '--tex-paper': u(paperTex), '--tex-paper-size': '300px', '--tex-paper-opacity': '0.45',
+    },
+  },
 }
+
+// 어떤 테마든 건드릴 수 있는 토큰 전부. 테마를 바꿀 때 **먼저 싹 지운다** —
+// 안 지우면 가죽에서 Dark로 갔을 때 가죽이 넣어 둔 종이·질감·금테가 그대로
+// 남아, 끄지 못하는 찌꺼기가 된다.
+const ALL_THEME_VARS = [...new Set(
+  Object.values(THEMES).flatMap((t) => Object.keys(t.vars as Record<string, string>)),
+)]
+
 
 const ACCENTS = {
   blue:   { label: 'Blue',   color: '#0e7cff', hover: '#1a8cff' },
@@ -25,7 +146,7 @@ const ACCENTS = {
 export function syncTitleBar() {
   if (!window.lightnote?.setTitleBarColors) return
   const cs = getComputedStyle(document.documentElement)
-  const bg = cs.getPropertyValue('--bg2').trim() || '#252526'
+  const bg = cs.getPropertyValue('--chrome-bg').trim() || cs.getPropertyValue('--bg2').trim() || '#252526'
   const fg = cs.getPropertyValue('--text').trim() || '#cccccc'
   try { window.lightnote.setTitleBarColors(bg, fg) } catch { /* 지원 안 하면 그만 */ }
 }
@@ -34,9 +155,12 @@ export function applyTheme(key: string) {
   const theme = THEMES[key as keyof typeof THEMES]
   if (!theme) return
   const root = document.documentElement
-  Object.entries(theme.vars).forEach(([k, v]) => root.style.setProperty(k, v))
+  ALL_THEME_VARS.forEach((k) => root.style.removeProperty(k))
+  Object.entries(theme.vars as Record<string, string>).forEach(([k, v]) => root.style.setProperty(k, v))
   localStorage.setItem('lightnote-theme', key)
   syncTitleBar()
+  // 노트 줄 간격이 바뀌었을 수 있다 — 본문 줄 높이를 다시 매기게 알린다.
+  window.dispatchEvent(new CustomEvent('ln-theme-changed'))
 }
 
 export function applyAccent(key: string) {

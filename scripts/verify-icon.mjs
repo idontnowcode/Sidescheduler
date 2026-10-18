@@ -8,7 +8,7 @@ import { join } from 'node:path'
 const results = []
 const ok = (n, p, i = '') => { results.push(p); console.log(`${p ? 'PASS' : 'FAIL'}  ${n}${i ? '  ·  ' + i : ''}`) }
 
-const root = 'C:/Users/admin/Desktop/AI_Based_Projects/10_Daily_Sidebar_Planner/daily-sidebar-planner/.worktrees/lightnote-integration'
+const root = 'C:/Users/admin/Desktop/AI_Based_Projects/04_Daily_Sidebar_Planner/daily-sidebar-planner/.worktrees/lightnote-integration'
 ok('resources/icon.png exists', existsSync(join(root, 'resources/icon.png')))
 ok('resources/icon.ico exists', existsSync(join(root, 'resources/icon.ico')))
 
