@@ -550,6 +550,39 @@ const SWATCHES = [
 const Editor = forwardRef<EditorHandle, Props>(({ isFavorite, onToggleFavorite, onOpenSettings, onOpenPage, onHeadingsChange, onTitleChange, onPromote, refLabels, onRefOrderChange, onRefMarkerClick, onPromoteToRef }, ref) => {
   const [currentPage, setCurrentPage] = useState<{ notebookId: string; sectionId: string; pageId: string } | null>(null)
   const [titleValue, setTitleValue] = useState('')
+  // 제목이 칸보다 길면 '…'로 자르지 않고 글자를 줄여 다 보이게 한다. 칸 폭이
+  // 바뀌거나(창 크기·칸 끌기) 제목·테마가 바뀔 때마다 다시 잰다.
+  useEffect(() => {
+    const el = document.getElementById('ln-page-title') as HTMLInputElement | null
+    if (!el) return
+    const canvas = document.createElement('canvas')
+    const fit = () => {
+      el.style.fontSize = ''
+      const cs = getComputedStyle(el)
+      const base = parseFloat(cs.fontSize)
+      const minVar = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--title-fit-min'))
+      const min = minVar > 0 ? minVar : Math.round(base * 0.6)
+      const ctx = canvas.getContext('2d')
+      if (!ctx || !base) return
+      ctx.font = `${cs.fontWeight} ${base}px ${cs.fontFamily}`
+      const w = ctx.measureText(el.value || el.placeholder).width
+      const avail = el.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight) - 4
+      if (!(avail > 0 && w > avail)) return
+      let size = Math.max(min, Math.floor(base * avail / w * 10) / 10)
+      el.style.fontSize = `${size}px`
+      // 글자 사이 간격·커닝 때문에 추정이 몇 px 모자랄 수 있다 — 실제로 넘치면 더 줄인다
+      for (let i = 0; i < 24 && el.scrollWidth > el.clientWidth + 1 && size > min; i++) {
+        size = Math.max(min, size - 0.5)
+        el.style.fontSize = `${size}px`
+      }
+    }
+    fit()
+    const ro = new ResizeObserver(() => fit())
+    ro.observe(el)
+    window.addEventListener('ln-theme-changed', fit)
+    document.fonts?.ready.then(fit).catch(() => {})
+    return () => { ro.disconnect(); window.removeEventListener('ln-theme-changed', fit) }
+  }, [titleValue])
   const [saveState, setSaveState] = useState<SaveState>('saved')
   // 표 변환처럼 조용히 실패할 수 있는 동작의 짧은 안내 메시지.
   const [toast, setToast] = useState('')
@@ -2143,13 +2176,13 @@ const Editor = forwardRef<EditorHandle, Props>(({ isFavorite, onToggleFavorite, 
             {savedAtText && <span className="page-saved-at">{savedAtText}</span>}
           </div>
           <div className="editor-header-right">
-            <button className="ln-ver-btn" title="PDF로 내보내기" onClick={exportPdf}>🖨 PDF</button>
-            <button className="ln-ver-btn" title="버전 기록 — 이전 내용으로 되돌리기" onClick={openVersions}>🕘 버전</button>
+            <button className="ln-ver-btn" title="PDF로 내보내기" onClick={exportPdf}><span className="g-ico" data-g="pdf">🖨</span> PDF</button>
+            <button className="ln-ver-btn" title="버전 기록 — 이전 내용으로 되돌리기" onClick={openVersions}><span className="g-ico" data-g="clock">🕘</span> 버전</button>
             <button
               className="organize-btn"
               disabled={isOrganizing}
               onClick={handleOrganize}
-            >✨ AI Organize</button>
+            ><span className="g-ico" data-g="ai">✨</span> AI Organize</button>
             <span className="ln-counts" title="글자 수 / 단어 수">
               {counts.chars.toLocaleString()}자 · {counts.words.toLocaleString()}단어
             </span>
@@ -2235,13 +2268,13 @@ const Editor = forwardRef<EditorHandle, Props>(({ isFavorite, onToggleFavorite, 
                   width: '20px', height: '22px', padding: 0, lineHeight: '22px',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   border: 'none', borderRadius: '5px', cursor: 'pointer',
-                  background: c.folded ? 'rgba(124,111,240,0.14)' : 'transparent',
-                  color: c.folded ? '#7c6ff0' : 'var(--text-dim, #999)',
+                  background: c.folded ? 'color-mix(in srgb, var(--accent) 14%, transparent)' : 'transparent',
+                  color: c.folded ? 'var(--accent)' : 'var(--text-dim, #999)',
                   fontSize: '14px',
                   opacity: revealed ? 1 : 0,
                   transition: 'opacity 120ms',
                 }}
-                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(124,111,240,0.14)' }}
+                onMouseEnter={e => { e.currentTarget.style.background = 'color-mix(in srgb, var(--accent) 14%, transparent)' }}
                 onMouseLeave={e => { if (!c.folded) e.currentTarget.style.background = 'transparent' }}
               >
                 {c.folded ? '▸' : '▾'}
@@ -2254,7 +2287,7 @@ const Editor = forwardRef<EditorHandle, Props>(({ isFavorite, onToggleFavorite, 
               <div className="ln-img-ring" style={{
                 position: 'absolute', pointerEvents: 'none', zIndex: 5,
                 left: resizeBox.left, top: resizeBox.top, width: resizeBox.w, height: resizeBox.h,
-                border: '2px solid #7c6ff0', boxSizing: 'border-box', borderRadius: '2px',
+                border: '2px solid var(--accent)', boxSizing: 'border-box', borderRadius: '2px',
               }} />
               {/* SE corner resize handle */}
               <div
@@ -2262,7 +2295,7 @@ const Editor = forwardRef<EditorHandle, Props>(({ isFavorite, onToggleFavorite, 
                 style={{
                   position: 'absolute', zIndex: 6,
                   left: resizeBox.left + resizeBox.w - 7, top: resizeBox.top + resizeBox.h - 7,
-                  width: '14px', height: '14px', background: '#7c6ff0', border: '2px solid #fff',
+                  width: '14px', height: '14px', background: 'var(--accent)', border: '2px solid #fff',
                   borderRadius: '3px', cursor: 'nwse-resize', boxShadow: '0 1px 3px rgba(0,0,0,.4)',
                 }}
                 onMouseDown={(e) => {
@@ -2337,13 +2370,14 @@ const Editor = forwardRef<EditorHandle, Props>(({ isFavorite, onToggleFavorite, 
         {currentPage && (
           <div className="ln-related" style={{ borderTop: '1px solid var(--border)', padding: 'var(--rel-pad, 8px 16px)', flexShrink: 0, background: 'var(--rel-bg, var(--bg))' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
-              <span style={{ fontSize: 'var(--rel-fs, 11px)', fontWeight: 600, color: 'var(--rel-ink, #7c6ff0)', fontFamily: 'var(--title-font, inherit)', letterSpacing: '0.05em', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                🔗 Related pages ({relatedPages.length})
+              <span style={{ fontSize: 'var(--rel-fs, 11px)', fontWeight: 600, color: 'var(--rel-ink, var(--accent))', fontFamily: 'var(--title-font, inherit)', letterSpacing: '0.05em', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <span className="g-ico" data-g="link">🔗</span> Related pages ({relatedPages.length})
               </span>
               <button
                 type="button"
+                className="rel-link-btn"
                 onClick={openPagePicker}
-                style={{ fontSize: 'var(--rel-btn-fs, 11px)', fontFamily: 'var(--btn-font, inherit)', padding: 'var(--rel-btn-pad, 2px 8px)', borderRadius: '6px', border: '1px solid var(--rel-edge, var(--rel-ink, #7c6ff0))', color: 'var(--rel-ink, #7c6ff0)', background: 'transparent', cursor: 'pointer' }}
+                style={{ fontSize: 'var(--rel-btn-fs, 11px)', fontFamily: 'var(--btn-font, inherit)', padding: 'var(--rel-btn-pad, 2px 8px)', borderRadius: '6px', border: '1px solid var(--rel-edge, var(--rel-ink, var(--accent)))', color: 'var(--rel-ink, var(--accent))', background: 'transparent', cursor: 'pointer' }}
               >
                 + Link a page
               </button>
@@ -2353,7 +2387,7 @@ const Editor = forwardRef<EditorHandle, Props>(({ isFavorite, onToggleFavorite, 
                 {relatedPages.map(p => (
                   <span
                     key={p.pageId}
-                    style={{ fontSize: '12px', padding: '2px 4px 2px 8px', borderRadius: '8px', background: 'var(--rel-soft, rgba(124,111,240,0.12))', color: 'var(--rel-ink, #6a5de0)', border: '1px solid var(--rel-edge, rgba(124,111,240,0.35))', display: 'flex', alignItems: 'center', gap: '4px' }}
+                    style={{ fontSize: '12px', padding: '2px 4px 2px 8px', borderRadius: '8px', background: 'var(--rel-soft, color-mix(in srgb, var(--accent) 12%, transparent))', color: 'var(--rel-ink, var(--accent))', border: '1px solid var(--rel-edge, color-mix(in srgb, var(--accent) 40%, transparent))', display: 'flex', alignItems: 'center', gap: '4px' }}
                   >
                     <button
                       type="button"
@@ -2367,7 +2401,7 @@ const Editor = forwardRef<EditorHandle, Props>(({ isFavorite, onToggleFavorite, 
                       type="button"
                       onClick={() => unlinkPage(p)}
                       title="Remove link"
-                      style={{ background: 'none', border: 'none', color: 'var(--rel-ink, #6a5de0)', cursor: 'pointer', padding: '0 2px', fontSize: '13px', lineHeight: 1 }}
+                      style={{ background: 'none', border: 'none', color: 'var(--rel-ink, var(--accent))', cursor: 'pointer', padding: '0 2px', fontSize: '13px', lineHeight: 1 }}
                     >
                       ×
                     </button>
@@ -2475,7 +2509,7 @@ const Editor = forwardRef<EditorHandle, Props>(({ isFavorite, onToggleFavorite, 
               <button
                 type="button"
                 onClick={() => setShowPagePicker(false)}
-                style={{ fontSize: '12px', padding: '6px 14px', borderRadius: '8px', border: '1px solid #7c6ff0', background: '#7c6ff0', color: '#fff', cursor: 'pointer', fontWeight: 600 }}
+                style={{ fontSize: '12px', padding: '6px 14px', borderRadius: '8px', border: '1px solid var(--accent)', background: 'var(--accent)', color: '#fff', cursor: 'pointer', fontWeight: 600 }}
               >
                 Done
               </button>

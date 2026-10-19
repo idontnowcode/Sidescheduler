@@ -112,7 +112,7 @@ export default function PageList({
   return (
     <div className="pl-col" style={{ width }}>
       <div className="pl-head">
-        <span className="pl-head-icon">{head.icon}</span>
+        <span className="pl-head-icon" data-g={({ '★': 'star', '🕘': 'clock', '📥': 'inbox' } as Record<string, string>)[head.icon] || 'folder'}>{head.icon}</span>
         <span className="pl-head-name" title={head.name}>{head.name}</span>
         <span className="pl-head-n">{rows.length}</span>
         <button className="pl-collapse" title="페이지 목록 접기" onClick={onCollapse}>‹</button>

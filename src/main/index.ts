@@ -890,10 +890,20 @@ function scheduleNextReminder(): void {
 // 제목 표시줄을 앱 헤더와 합친 창 설정. 높이는 헤더(--header-h)와 같아야
 // 창 조작 단추가 헤더 줄에 정확히 얹힌다 — 어긋나면 단추만 따로 떠 보인다.
 const LIGHTNOTE_HEADER_H = 44
+// 창 조작 단추는 앱이 헤더 안에 직접 그린다(WindowControls.tsx). 운영체제
+// 오버레이를 쓰면 단추 오른쪽에 아무것도 못 놓는다 — 테마의 귀퉁이 장식 자리.
 const LIGHTNOTE_TITLEBAR = {
   titleBarStyle: 'hidden' as const,
-  titleBarOverlay: { color: '#252526', symbolColor: '#cccccc', height: LIGHTNOTE_HEADER_H },
 }
+
+ipcMain.on('lightnote:win', (e, act: string) => {
+  const win = BrowserWindow.fromWebContents(e.sender)
+  if (!win || win.isDestroyed()) return
+  if (act === 'minimize') win.minimize()
+  else if (act === 'maximize') { if (win.isMaximized()) win.unmaximize(); else win.maximize() }
+  else if (act === 'close') win.close()
+})
+ipcMain.handle('lightnote:win-is-max', (e) => !!BrowserWindow.fromWebContents(e.sender)?.isMaximized())
 
 // 테마를 바꾸면 단추 색도 따라가야 한다(밝은 테마에 흰 단추는 안 보인다).
 // 테마마다 머리말 높이가 다르다(가죽·고서재는 더 널찍하다). 높이를 안
@@ -922,7 +932,7 @@ function openLightNoteWindow(): void {
     minWidth: 960,
     minHeight: 600,
     title: 'LightNote',
-    icon: join(__dirname, '../../resources/icon.ico'),
+    icon: join(__dirname, '../../resources/lightnote.ico'),
     show: false,
     // 창 제목 표시줄을 앱 헤더와 합친다. 제목만 적힌 줄이 하나 더 있을
     // 이유가 없다 — 그 줄에 검색칸이 들어간다. 창 조작 단추는 운영체제가
@@ -939,6 +949,10 @@ function openLightNoteWindow(): void {
   lightNoteWindow.setMenuBarVisibility(false)
   lightNoteWindow.once('ready-to-show', () => lightNoteWindow?.show())
   lightNoteWindow.on('closed', () => { lightNoteWindow = null })
+  // 최대화 단추 모양(□ / ❐)을 창 상태에 맞춘다 — 두 번 눌러 키우기·스냅으로 바뀌어도 따라간다
+  const sendWinState = () => lightNoteWindow?.webContents.send('lightnote:win-state', { maximized: !!lightNoteWindow?.isMaximized() })
+  lightNoteWindow.on('maximize', sendWinState)
+  lightNoteWindow.on('unmaximize', sendWinState)
 
   if (process.env.NODE_ENV === 'development' && process.env['ELECTRON_RENDERER_URL']) {
     lightNoteWindow.loadURL(process.env['ELECTRON_RENDERER_URL'] + '#lightnote')
@@ -973,7 +987,7 @@ ipcMain.on('lightnote:open-page', (_e, target) => openLightNoteToPage(target))
 function openLightNoteInNewWindow(target?: { pageId: string; notebookId: string; sectionId: string }): void {
   const win = new BrowserWindow({
     width: 1280, height: 800, minWidth: 960, minHeight: 600,
-    title: 'LightNote', icon: join(__dirname, '../../resources/icon.ico'),
+    title: 'LightNote', icon: join(__dirname, '../../resources/lightnote.ico'),
     show: false,
     ...LIGHTNOTE_TITLEBAR,
     webPreferences: {

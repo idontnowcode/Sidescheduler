@@ -41,7 +41,8 @@ ok('each entry carries a data: URI (no file:// dependency)', listed.every(f => f
 await ln.locator('.icon-btn[title="Settings"]').click()
 await ln.waitForSelector('text=Editor font', { timeout: 5000 })
 await ln.waitForTimeout(300)
-const btn = ln.locator('button', { hasText: 'My Test Font' })
+// 같은 글꼴이 'UI 글꼴' 줄에도 나온다 — 본문(Editor font) 쪽 단추만 고른다
+const btn = ln.locator('button:not([data-ui-font])', { hasText: 'My Test Font' })
 ok('custom font button rendered in Settings', await btn.count() === 1)
 await btn.click()
 await ln.waitForTimeout(300)

@@ -71,7 +71,16 @@ app.whenReady().then(async () => {
     let sr = 0, sg = 0, sb = 0, sn = 0
     for (let i = 0; i < a.length; i += 4) { sr += b[i] - a[i]; sg += b[i+1] - a[i+1]; sb += b[i+2] - a[i+2]; sn++ }
     const bias = { r: sr / sn, g: sg / sn, b: sb / sn }
-    const mean = tot / (${GW} * ${GH})
+    // MASK=x0,y0,x1,y1(비율) — 그 안의 칸은 뺀다. 내용(노트 글·첨부 이미지)이
+    // 달라서 생기는 차이를 디자인 차이와 섞지 않으려고.
+    const mask = ${JSON.stringify((process.env.MASK || '').split(',').filter(Boolean).map(Number))}
+    let mt = 0, mn = 0
+    cells.forEach((row, r) => row.forEach((o, c) => {
+      const cx = (c + 0.5) / ${GW}, cy = (r + 0.5) / ${GH}
+      const out = mask.length === 4 && cx > mask[0] && cx < mask[2] && cy > mask[1] && cy < mask[3]
+      if (out) o.masked = true; else { mt += o.d; mn++ }
+    }))
+    const mean = mask.length === 4 ? mt / mn : tot / (${GW} * ${GH})
     // 0 차이 = 100점, 평균 차이 64 이상이면 0점 (경험적으로 그쯤이면 딴 화면)
     const score = Math.max(0, Math.min(100, 100 * (1 - mean / 64)))
     return { score, mean, cells, bias }

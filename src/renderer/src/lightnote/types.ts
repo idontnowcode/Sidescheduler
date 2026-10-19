@@ -280,6 +280,9 @@ declare global {
       isTestRun?: boolean
       /** 창 조작 단추(최소화·최대화·닫기)의 색을 테마에 맞춘다 */
       setTitleBarColors: (color: string, symbolColor: string, height?: number) => void
+      winControl?: (act: 'minimize' | 'maximize' | 'close') => void
+      winIsMaximized?: () => Promise<boolean>
+      onWinState?: (cb: (s: { maximized: boolean }) => void) => () => void
       /** 옆 앱(플래너) 열기 — 맨 왼쪽 버튼 바에서 쓴다 */
       planner: {
         openPalette: () => void

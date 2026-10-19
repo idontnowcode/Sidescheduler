@@ -140,6 +140,14 @@ contextBridge.exposeInMainWorld('lightnote', {
   // 운영체제가 그 줄 위에 그려 주므로, 테마가 바뀌면 색만 맞춰 주면 된다.
   setTitleBarColors: (color, symbolColor, height) =>
     ipcRenderer.send('lightnote:titlebar-colors', { color, symbolColor, height }),
+  // 앱이 그리는 창 조작 단추
+  winControl: (act) => ipcRenderer.send('lightnote:win', act),
+  winIsMaximized: () => ipcRenderer.invoke('lightnote:win-is-max'),
+  onWinState: (cb) => {
+    const h = (_e, s) => cb(s)
+    ipcRenderer.on('lightnote:win-state', h)
+    return () => ipcRenderer.removeListener('lightnote:win-state', h)
+  },
 
   // 옆 앱들(플래너) 열기. LightNote는 늘 DSP 안에서 도는 창이라
   // ("독립 실행"은 사이드바만 숨긴 것) 이 길은 항상 열려 있다.

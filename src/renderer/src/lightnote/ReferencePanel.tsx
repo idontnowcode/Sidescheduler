@@ -109,9 +109,9 @@ export default function ReferencePanel({
   return (
     <div className="ref-panel">
       <div className="ref-toolbar">
-        <button className="ref-add" title="텍스트 자료 등록" onClick={() => setTextDraft('')}>＋ 텍스트</button>
-        <button className="ref-add" title="이미지 파일에서 등록" onClick={onAddImageFile}>🖼 이미지</button>
-        <button className="ref-add" title="클립보드 이미지 등록" onClick={onAddImagePaste}>📋 붙여넣기</button>
+        <button className="ref-add" title="텍스트 자료 등록" onClick={() => setTextDraft('')}><span className="g-ico" data-g="plus">＋</span> 텍스트</button>
+        <button className="ref-add" title="이미지 파일에서 등록" onClick={onAddImageFile}><span className="g-ico" data-g="image">🖼</span> 이미지</button>
+        <button className="ref-add" title="클립보드 이미지 등록" onClick={onAddImagePaste}><span className="g-ico" data-g="clipboard">📋</span> 붙여넣기</button>
       </div>
 
       {refs.length > 0 && (

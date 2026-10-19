@@ -102,10 +102,12 @@ for (const [key, label] of PICK) {
   await ln.waitForTimeout(1100)
   // 테스트로 띄우면 툴바가 펼쳐진 채로 뜬다(isTestRun). 기준 화면은 한 줄
   // 이라, 펼친 채로 찍으면 본문이 두 줄만큼 아래로 밀려 비교가 어긋난다.
-  await ln.evaluate(() => document.querySelector('.ql-toolbar')?.classList.remove('ln-tb-open'))
+  if (!process.env.SHOT_TB_OPEN) await ln.evaluate(() => document.querySelector('.ql-toolbar')?.classList.remove('ln-tb-open'))
   await ln.waitForTimeout(400)
   const file = join(OUT, `${key}.png`)
   await ln.screenshot({ path: file })
+  // 손볼 때 계산된 값을 같이 찍어 본다:  SHOT_PROBE="<식>" ONLY_THEME=fantasy node scripts/shot-themes.mjs
+  if (process.env.SHOT_PROBE) console.log('PROBE', JSON.stringify(await ln.evaluate(process.env.SHOT_PROBE), null, 1))
   console.log(`  ${file}  —  ${label}`)
 }
 

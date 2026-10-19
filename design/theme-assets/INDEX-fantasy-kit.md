@@ -571,3 +571,237 @@ No text, no shadow, no glow.
 
 **이 11장이 들어가면 싱크로율은 90% 이상으로 갑니다.** 지금 남은 어긋남이
 전부 "그려진 장식이 없어서" 생기는 자리이기 때문입니다.
+
+
+---
+
+# 3차 — 목표 화면(TARGET-v3)에 있는데 **그림이 없는 자리** (필수 26 + 선택 2)
+
+> **받음 (2026-10-19)**: `raw/fantasy-kit-v3/` 35장 + 보충 보석 4장 = 39장, 모두 앱에 연결함. 3차는 끝.
+
+> 원칙: 크기·밝기·배치를 CSS로 맞추지 않고, **화면에 보이는 장식은 전부 그림**으로 받는다.
+> 이미 가진 그림으로 되는 자리(툴바 아이콘·체크칸·화살표·별·×·핀·구분선·스크롤·배지·경로 구분자·
+> 단추 아이콘·돋보기·더하기 등)는 생성하지 않고 그것을 쓴다(아래 "생성 안 함" 표).
+>
+> 처음 33장으로 적었다가, 가진 그림과 겹치는 10장을 빼고 노트북 색 점을 앱 팔레트(8색)+회색으로
+> 고쳐 26장이 됐다.
+
+## 공통 규칙 (모든 장의 프롬프트 앞에 붙여 주세요)
+
+```
+Style: dark-fantasy desktop app UI asset, matching an old grimoire interface —
+near-black cracked stone, blackened iron, and muted OXIDIZED BRONZE trims
+(not bright yellow gold). Trims are THIN and restrained, the look is calm and flat,
+not ornate. Seen perfectly straight-on, orthographic, no perspective, no outer drop shadow.
+No text, no letters, no numbers, no watermark.
+```
+
+- **배경**: 장식·아이콘은 **투명 배경 PNG**(안 되면 순수 검정 #000 — 제가 뺍니다). 판·띠는 **그림이 캔버스를 꽉 채우게**.
+- **9등분** 표시가 있는 판은 가운데가 **무늬 없이 고르게** 이어져야 늘릴 수 있습니다. 모서리 장식은 네 귀퉁이에만.
+- 아이콘은 **가는 청동 선**(획 약 2.5px @128px). 지금 쓰는 선 아이콘(icon-note·icon-folder 등)과 같은 계열.
+- 파일은 `design/theme-assets/raw/fantasy-kit-v3/` 에 아래 이름 그대로 넣어 주세요.
+
+## 목록 — 파일 · 크기 · 넣을 자리 · 자리 준비 상태
+
+"자리 준비"가 **있음**이면 코드에 그림을 받을 자리가 이미 있어 넣기만 하면 되고,
+**만듦**이면 그림이 오면 제가 그 자리를 새로 만들어 연결합니다.
+
+| # | 파일 | 크기 · 9등분 | 넣을 자리 (화면 · 코드) | 자리 준비 |
+|---|---|---|---|---|
+| 1 | `header-crest.png` | 256×256 | 머리말 왼쪽 끝 문장 · `.app-header` 배경 층 `--header-orn` | 있음 |
+| 2 | `header-gem.png` | 160×160 | 머리말 오른쪽 · 창 단추(—□×) **왼쪽**에 붙임 ※ | 만듦 |
+| 3 | `header-bar.png` | 1536×128 · 위아래 18, 좌우 60 | 머리말 띠 · `.app-header` `--bar-top-img` | 있음(테 두께 조정) |
+| 4 | `search-shell.png` | 1024×128 · 사방 24 | 검색칸 껍데기 · `.ln-search-input` `--field-img` | 있음 |
+| 5 | `rail-column.png` | 256×1536 · 위 120, 아래 60, 좌우 22 | 레일 기둥 · `.rail` `--rail-img` | 있음 |
+| 6 | `section-head.png` | 768×96 · 위아래 14, 좌우 40 | NOTEBOOKS 머리 띠 · `.sidebar-top` | 만듦 |
+| 7 | `icon-import.png` | 128×128 | NOTEBOOKS 가져오기(↓) 단추 · 지금 인박스 아이콘이 잘못 붙어 있음 | 만듦 |
+| 8–16 | `dot-blue` `dot-green` `dot-orange` `dot-purple` `dot-pink` `dot-lime` `dot-cyan` `dot-yellow` `dot-gray` (.png) | 각 64×64 | 노트북 색 점(`.nb-color`) · 앱 팔레트 8색 + 팔레트 밖 색용 회색. 목차 점(`.toc-item::before`)도 파랑·초록·주황을 같이 씀 | 만듦(가까운 색 고르기 코드) |
+| 17 | `row-hover.png` | 512×128 · 사방 20 | 목록·트리 줄 마우스 올림 · `--row-hover-img` | 있음 |
+| 18 | `list-head.png` | 768×112 · 위아래 16, 좌우 40 | 페이지 목록 머리(Begin) · `.pl-head` `--secbar-img` | 있음 |
+| 19 | `icon-collapse.png` | 128×128 | 목록 접기(‹) `.pl-collapse` · 우측 패널 접기(⟩) `.toc-collapse`는 좌우 뒤집어 씀 | 만듦 |
+| 20 | `tab.png` | 384×128 · 위 20, 좌우 24, 아래 6 | 안 켜진 문서 탭 · `.ln-tab` `--tab-img` | 있음 |
+| 21 | `tab-on.png` | 384×128 · 같은 9등분 | 켜진 문서 탭 · `.ln-tab.active` `--lntab-active-img` | 있음 |
+| 22 | `tab-more.png` | 160×112 · 사방 18 | 넘친 탭 배지(+5) · `.ln-tab-overflow-btn` | 만듦 |
+| 23 | `title-plate.png` | 1024×192 · 위아래 20, 좌우 40 | 제목줄 판 · `.editor-header` `--head-img` | 있음 |
+| 24 | `toolbar-plate.png` | 1024×112 · 위아래 12, 좌우 30 | 툴바 판 · `.ql-toolbar` `--toolbar-img` | 있음 |
+| 25 | `paper-corner.png` | 256×256 (왼쪽 위 1장) | 종이 네 귀퉁이 · `--paper-layers` (제가 네 방향으로 뒤집음) | 있음 |
+| 26 | `heading-bar.png` | 32×128 | 종이 소제목 왼쪽 금색 막대 · 지금 CSS 왼쪽 테두리 | 만듦 |
+| 27 | `count-badge.png` | 96×96 | 우측 `참조 ①` 개수 · `.rp-count` | 만듦 |
+| 28 | `footer-plate.png` | 1024×128 · 위아래 16, 좌우 40 | 관련 페이지 띠 판 · `.ln-related` `--rel-img` | 있음 |
+
+**합계 28장 = 필수 26장 + 선택 2장(#2 보석, #27 개수 배지).** 1~7(7장) + 색 점 9장 + 17~28(12장).
+
+**선택(없어도 됨) 2장**
+- #2 `header-gem` — 목표 이미지의 보석 자리(창 오른쪽 위 끝)는 Windows 창 단추가 그려지는 자리라 그대로는 가려집니다.
+  창 단추 왼쪽에 붙이는 수밖에 없어서 목표와 위치가 다릅니다. 원하시면 생성하세요.
+- #27 `count-badge` — 참조가 1개 이상일 때만 보입니다. 지금 있는 붉은 배지(`b-badge`)로 대신할 수도 있습니다.
+
+## 생성 안 함 — 이미 가진 그림으로 쓰는 자리 (처음 목록에서 뺀 10장)
+
+| 처음 적었던 것 | 대신 쓰는 그림 | 이유 |
+|---|---|---|
+| `icon-search` (돋보기) | `icon-search.png` (레일 돋보기) | 같은 그림이 이미 있음. 검색칸 자리만 연결 |
+| `icon-add` (＋) | `icon-plus.png` | 같음. NOTEBOOKS ＋ 단추 자리만 연결 |
+| `icon-pdf` | `icon-page.png` | 접힌 문서 모양 — 이미 PDF 단추에 연결함 |
+| `icon-sparkle` | `icon-ai.png` | 반짝임 모양 — 이미 AI 단추에 연결함 |
+| `icon-panel-close` (×) | `icon-collapse` (#19, 뒤집어 씀) | 그 단추는 '닫기'가 아니라 '접기' |
+| `toolbar-sep` | `s-divider-v.png` | 이미 툴바 묶음 구분에 연결함 |
+| `rail-sep` | `o-divider.png` | 가로 구분 장식이 이미 있음 |
+| `row-divider` | 키트 `divider-h.png` | 가는 가로선이 이미 있음 |
+| `tabbar-line` | 키트 `divider-h.png` | 같음 |
+| `toc-dot` | 색 점 보석(#8–16)의 파랑·초록·주황 | 목차 점은 단계별 3색이라 노트북 점과 같은 보석을 씀 |
+
+## 프롬프트
+
+- **header-crest** — `A gothic pointed-arch heraldic crest made of blackened iron with thin oxidized-bronze filigree, a small central rivet, compact and roughly square, transparent background.`
+- **header-gem** (선택) — `A small faceted deep-red ruby set in a blackened-iron claw mount with two short thin bronze wings to the sides, soft inner glow in the stone only, transparent background.`
+- **header-bar** — `A long horizontal app title bar: flat near-black cracked stone surface, a single thin oxidized-bronze hairline along the bottom edge and a faint darker groove along the top edge, tiny bronze corner studs at the far left and right ends only, plain even centre.`
+- **search-shell** — `A long recessed search field frame: the inside is a slightly sunken matte black panel with a soft inner shadow, framed by a thin bevelled oxidized-bronze border with very small rounded corners. The inside is completely empty and even (no icon).`
+- **rail-column** — `A tall narrow vertical column: flat near-black cracked stone face framed by a thin oxidized-bronze border, the top end shaped as a shallow pointed gothic arch, the bottom end squared with a small bronze stud. The long middle section is plain and even.`
+- **section-head** — `A low flat section header strip: near-black stone with a thin oxidized-bronze hairline along the bottom edge only, tiny bronze tick marks at both ends. Plain even centre.`
+- **icon-import** — `A downward arrow into an open tray, thin oxidized-bronze line icon, transparent background.`
+- **dot-(색)** — `A tiny round polished gemstone bead, [sapphire blue | emerald green | amber orange | amethyst purple | rose-quartz pink | peridot lime green | turquoise cyan | citrine yellow | smoky grey], with a thin dark-bronze rim and a small specular highlight, transparent background.` (색만 바꿔 9장 — 앱 팔레트: #4dabf7 #69db7c #ffa94d #da77f2 #f783ac #a9e34b #66d9e8 #ffd43b, 그리고 회색)
+- **row-hover** — `A subtle highlight plate for a list row: very dark warm-brown surface slightly lighter than near-black, with a hairline oxidized-bronze border at low contrast and square corners. Plain even centre.`
+- **list-head** — `A flat header strip: near-black stone, thin oxidized-bronze hairline along the bottom, a faint inner darker groove along the top. Plain even centre.`
+- **icon-collapse** — `A left-pointing chevron, thin oxidized-bronze line icon, transparent background.`
+- **tab** — `A document tab shape (rounded top corners, open flat bottom): dark stone surface, thin dark-bronze outline on the top and sides only, low contrast. Plain even centre.`
+- **tab-on** — `The same document tab shape, slightly lighter warm-dark surface, a brighter thin oxidized-bronze outline on top and sides, open bottom that blends into the panel below.`
+- **tab-more** — `A small square-ish badge plate: dark stone with a thin bronze border and a hint of deep red inside, plain centre.`
+- **title-plate** — `A wide flat title panel: near-black stone, a single thin oxidized-bronze hairline along the bottom edge, nothing else. Very calm, almost invisible frame. Plain even centre.`
+- **toolbar-plate** — `A low flat toolbar strip: near-black stone with a thin oxidized-bronze hairline along the top and another along the bottom. No corner ornaments. Plain even centre.`
+- **paper-corner** — `A top-left corner bracket ornament in dark oxidized bronze: two thin rails meeting at the corner with delicate gothic filigree near the joint, fading out along each rail. Medium size, elegant, transparent background.`
+- **heading-bar** — `A short vertical bar of aged gold-bronze with slightly worn edges, like a bookmark ribbon tip, transparent background.`
+- **count-badge** (선택) — `A small round badge: dark stone disc with a thin oxidized-bronze ring, empty centre (no number), transparent background.`
+- **footer-plate** — `A low flat footer strip: near-black stone with a thin oxidized-bronze hairline along the top edge only. Plain even centre, no ornaments.`
+
+받으면 할 일: `scan-kit.js`로 배경 확인 → 필요하면 검정 빼기 → `kit.json`에 9등분 자리 기록 →
+"만듦" 자리 새로 만들기(보석·NOTEBOOKS 띠·색 점 대응·접기·넘침 배지·소제목 막대·개수 배지·가져오기) →
+"생성 안 함" 표의 돋보기·＋ 자리도 이때 연결 → 목표 화면과 같은 크기로 찍어 대조.
+
+---
+
+# 3차 보충 — 보석 4장 (2026-10-19, **받음·연결 완료**)
+
+> 3차 그림은 `raw/fantasy-kit-v3/`에 35장으로 받았다(예전 33장 목록 기준으로 생성됨).
+> 판·띠 6장의 검은 띠는 잘라서 쓰고, 더 온 그림도 쓴다 — **다시 만들 것은 없다.**
+> 빠진 것은 노트북 색 보석 4장뿐이다. 이것만 생성하면 3차가 끝난다.
+
+| # | 파일 | 크기 | 넣을 자리 | 앱 색 |
+|---|---|---|---|---|
+| 1 | `dot-purple.png` | 64×64 | 노트북 색 점 `.nb-color` | `#da77f2` |
+| 2 | `dot-pink.png` | 64×64 | 〃 | `#f783ac` |
+| 3 | `dot-lime.png` | 64×64 | 〃 | `#a9e34b` |
+| 4 | `dot-yellow.png` | 64×64 | 〃 | `#ffd43b` |
+
+**맞춰 줄 것** — 이미 받은 `dot-green`·`dot-blue` 등과 **한 벌로 보여야** 합니다.
+- 보석은 캔버스 가운데, 지름 약 37px(64px 중), 둘레 13px 정도 비움.
+- 같은 굵기의 어두운 청동 테, 왼쪽 위 작은 반사광 하나. **보석 1개만**(여러 개 나오면 다시).
+- 배경 투명(안 되면 순수 검정 #000 — 제가 뺍니다).
+
+**프롬프트** (공통 규칙 뒤에 붙여 주세요)
+
+- **dot-purple** — `A tiny round polished gemstone bead, amethyst purple, with a thin dark-bronze rim and a small specular highlight at the upper left. Exactly one bead, centred. Transparent background.`
+- **dot-pink** — `A tiny round polished gemstone bead, rose-quartz pink, with a thin dark-bronze rim and a small specular highlight at the upper left. Exactly one bead, centred. Transparent background.`
+- **dot-lime** — `A tiny round polished gemstone bead, peridot lime green (clearly yellower than emerald), with a thin dark-bronze rim and a small specular highlight at the upper left. Exactly one bead, centred. Transparent background.`
+- **dot-yellow** — `A tiny round polished gemstone bead, citrine golden yellow, with a thin dark-bronze rim and a small specular highlight at the upper left. Exactly one bead, centred. Transparent background.`
+
+파일은 `design/theme-assets/raw/fantasy-kit-v3/`에 위 이름 그대로. 오기 전까지는 가까운 색 보석으로 대신 표시한다
+(보라→파랑, 분홍→빨강, 연두→초록, 노랑→주황).
+
+---
+
+# 3차 보충 2 — 창 오른쪽 위 귀퉁이 장식 틀 1장 (2026-10-19)
+
+> 창 조작 단추(—□×)를 앱이 직접 그리게 바꿨다. 이제 × **오른쪽**, 창 맨 귀퉁이에 목표 이미지처럼
+> 보석을 앉힐 수 있다. 보석(`header-gem`)은 이미 있고, 그것을 감싸는 **고딕 귀퉁이 틀**만 없다.
+
+| 파일 | 크기 | 넣을 자리 |
+|---|---|---|
+| `window-corner.png` | 128×128 | 창 오른쪽 위 끝, × 단추 오른쪽 칸(`.win-gem`) 배경. 보석은 제가 그 위에 얹습니다 |
+
+- 투명 배경. 그림이 **오른쪽 위 모서리에 붙어** 있어야 합니다(창 귀퉁이에 맞물림).
+- 가운데(보석 자리, 지름 약 40px)는 **비워 두세요**.
+
+**프롬프트** (공통 규칙 뒤에)
+
+- **window-corner** — `A top-right window corner ornament in blackened iron with thin oxidized-bronze gothic filigree: two short rails meeting at the top-right corner, with a small empty diamond-shaped bezel in the middle where a gem will be set, and a delicate curl trailing down the right edge. The bezel centre is empty and transparent. Flush to the top and right edges, transparent background.`
+
+파일은 `raw/fantasy-kit-v3/window-corner.png`. 오면 `assets/fantasy/v3-window-corner.png`로 옮기기만 하면 코드가 알아서 씁니다.
+
+---
+
+# 3차 보충 3 — 목록 머리 금색 폴더 1장 (2026-10-19)
+
+> 페이지 목록 머리(예: "업무 1", "Begin") 왼쪽 폴더. 지금은 가는 선 아이콘이라 목표 이미지의
+> **속이 찬 금색 폴더**에 비해 빈약하다. 선 아이콘을 칠하거나 밝혀서는 안 나온다 — 그림이 필요하다.
+
+| 파일 | 크기 | 넣을 자리 |
+|---|---|---|
+| `icon-folder-gold.png` | 128×128 | `.pl-head-icon`(목록 머리 폴더). 넣으면 코드가 자동으로 바꿔 씀 |
+
+- 투명 배경, 아이콘이 캔버스를 거의 채우게(둘레 여백 8px 이하).
+
+**프롬프트** (공통 규칙 뒤에)
+
+- **icon-folder-gold** — `A small closed file-folder icon, solid filled with warm polished antique gold (amber-gold gradient, lighter top flap, slightly darker body), thin darker bronze outline, subtle soft highlight on the tab. Simple, readable at 20px, flat front view. Transparent background.`
+
+파일은 `raw/fantasy-kit-v3/icon-folder-gold.png`. 오면 `assets/fantasy/v3-icon-folder-gold.png`로 옮기기만 하면 된다.
+
+---
+
+# 3차 보충 4 — 창 조작부를 참고 그림(—□× 흑철판)과 똑같이 (2026-10-20)
+
+> 참고 그림에서 **배경색만 빼고** 칸 나눔·기호·오른쪽 위 귀퉁이 장식을 그대로 따른다.
+> 칸 나눔(위아래 이중 레일 + 마름모 장식 기둥)은 이미 받은 `window-controls-plate.png`가 같은 구조라 **다시 안 만든다.**
+> 새로 필요한 것은 **금속 기호 4장 + 큰 귀퉁이 장식 1장**이다. 코드 자리는 미리 만들어 두었다 — 파일만 넣으면 켜진다.
+
+## 공통 규칙 (모든 장 앞에)
+
+```
+Style: dark-fantasy desktop UI asset, exactly matching a gothic blackened-iron window-control bar:
+chiselled ANTIQUE BRONZE metal with worn edges, bevelled faces catching a soft top-left light,
+fine scratches. Calm, not glowing (except the ruby). Perfectly straight-on orthographic front view,
+no perspective, no drop shadow outside the object. No text, letters or numbers.
+Transparent background (if not possible: pure black #000, I will key it out).
+```
+
+## 목록
+
+| # | 파일 | 크기 | 넣을 자리 |
+|---|---|---|---|
+| 1 | `win-glyph-min.png` | 128×128 | 최소화 기호 (—) |
+| 2 | `win-glyph-max.png` | 128×128 | 최대화 기호 (□) |
+| 3 | `win-glyph-restore.png` | 128×128 | 이전 크기 기호 (겹친 □ 두 개) — 최대화 상태일 때 |
+| 4 | `win-glyph-close.png` | 128×128 | 닫기 기호 (×) |
+| 5 | `window-corner-tall.png` | 192×256 | 창 오른쪽 위 귀퉁이 큰 장식(보석 포함). 헤더 아래로 조금 내려온다 |
+
+**기호 4장은 한 벌로** — 같은 굵기(획 약 14px @128), 같은 금속, 같은 빛 방향. 기호는 캔버스 가운데,
+폭이 캔버스의 60~70%. 화면에서는 약 15px로 줄어 보이므로 **굵고 단순하게**(가는 장식선 금지).
+
+**프롬프트**
+
+- **win-glyph-min** — `A single short horizontal bar glyph (a minimize symbol), thick bevelled antique-bronze metal bar with flat chiselled ends, centred.`
+- **win-glyph-max** — `A single hollow square outline glyph (a maximize symbol), thick bevelled antique-bronze metal frame with mitred corners, centred, the inside of the square fully transparent.`
+- **win-glyph-restore** — `Two overlapping hollow square outline glyphs (a restore-window symbol): a back square offset up-right partly hidden behind a front square, both thick bevelled antique-bronze metal frames with mitred corners, centred, insides transparent.`
+- **win-glyph-close** — `A single X glyph (a close symbol), two thick bevelled antique-bronze metal bars crossing at the centre with chiselled ends, centred.`
+- **window-corner-tall** — `A top-right window corner ornament in blackened iron with oxidized-bronze gothic filigree: a pointed spire rising from the top, below it a diamond-shaped bezel holding a faceted deep-red RUBY with a soft inner glow, a short arm curling LEFT along the top edge (where a horizontal rail would attach, about one quarter down from the top), and a long scrolled tail running DOWN the right edge ending in a small spike. Flush to the right edge. Transparent background.`
+
+## 넣는 곳
+
+`raw/fantasy-kit-v3/` 에 위 이름으로 → 앱 폴더 `assets/fantasy/` 에 **`v3-` 를 붙여** 복사
+(`v3-win-glyph-min.png`, … , `v3-window-corner-tall.png`). 코드가 파일을 찾으면:
+- 기호 4장 → SVG 기호 대신 그림(15px). 최대화 상태면 restore 그림으로 바뀐다.
+- 큰 귀퉁이 → 지금의 작은 귀퉁이 틀 + 보석을 대신한다(크기 74×92, 헤더 아래로 내려옴).
+
+## (선택) 문서 탭 전용 칸 2장
+
+지금 문서 탭은 창 조작판의 칸을 잘라 쓰고 있다. 탭 높이(약 36px)로 줄이면 기둥 장식이 가늘어진다 —
+탭 비율로 따로 그리면 더 또렷하다.
+
+| 파일 | 크기 | 넣을 자리 |
+|---|---|---|
+| `tab-cell.png` | 256×96 | 안 켜진 문서 탭 한 칸 |
+| `tab-cell-on.png` | 256×96 | 켜진 문서 탭 한 칸 |
+
+- **tab-cell** — `One cell of a gothic blackened-iron tab strip: near-black cracked stone face, a double bronze rail along the top and another along the bottom, and on the LEFT edge only a thick vertical bronze post with small diamond studs at top, middle and bottom. The right edge is open (the next cell's post closes it). Plain even centre. Fills the canvas.`
+- **tab-cell-on** — `The same tab cell, identical rails and left post, but the stone face is deep blood-red worn leather-like stone, slightly lighter at the centre.`

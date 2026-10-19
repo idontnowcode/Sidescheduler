@@ -40,6 +40,10 @@ export default function TabBar({ tabs, activeId, onSelect, onClose, onCloseOther
   const [ctx, setCtx] = useState<{ x: number; y: number; tab: OpenTab } | null>(null)
   const ctxRef = useRef<HTMLDivElement>(null)
   useClampedMenuPosition(ctxRef, ctx)
+  // 넘침 단추(▾ N)를 우클릭했을 때 뜨는 메뉴 — 숨겨진 탭을 펼치지 않고 바로 닫는다.
+  const [hiddenCtx, setHiddenCtx] = useState<{ x: number; y: number } | null>(null)
+  const hiddenCtxRef = useRef<HTMLDivElement>(null)
+  useClampedMenuPosition(hiddenCtxRef, hiddenCtx)
 
   const [drag, setDrag] = useState<string | null>(null)
   const [drop, setDrop] = useState<DropTarget | null>(null)
@@ -60,8 +64,20 @@ export default function TabBar({ tabs, activeId, onSelect, onClose, onCloseOther
     roRef.current = ro
   }, [])
 
+  // 테마가 탭 최소 폭(--lntab-min)이나 넘침 단추 폭(--lntab-more-w)을 바꾸면 그 값으로 센다.
+  // 안 그러면 탭이 칸보다 많이 들어가 줄이 가로로 스크롤된다.
+  const [themeTick, setThemeTick] = useState(0)
+  useEffect(() => {
+    const on = () => setThemeTick(t => t + 1)
+    window.addEventListener('ln-theme-changed', on)
+    return () => window.removeEventListener('ln-theme-changed', on)
+  }, [])
+  const cssPx = (name: string) => parseFloat(getComputedStyle(document.documentElement).getPropertyValue(name)) || 0
+  void themeTick
+  const tabSlot = cssPx('--lntab-min') ? cssPx('--lntab-min') + 12 : TAB_MIN_WIDTH
+  const moreW = cssPx('--lntab-more-w') || OVERFLOW_BTN_WIDTH
   const maxVisible = barWidth > 0
-    ? Math.max(1, Math.floor((barWidth - OVERFLOW_BTN_WIDTH) / TAB_MIN_WIDTH))
+    ? Math.max(1, Math.floor((barWidth - moreW) / tabSlot))
     : tabs.length
   const overflowing = tabs.length > maxVisible
   const visible = overflowing ? tabs.slice(0, maxVisible) : tabs
@@ -112,6 +128,19 @@ export default function TabBar({ tabs, activeId, onSelect, onClose, onCloseOther
       document.removeEventListener('contextmenu', close)
     }
   }, [ctx])
+  useEffect(() => {
+    if (!hiddenCtx) return
+    const close = () => setHiddenCtx(null)
+    const id = setTimeout(() => {
+      document.addEventListener('click', close)
+      document.addEventListener('contextmenu', close)
+    }, 0)
+    return () => {
+      clearTimeout(id)
+      document.removeEventListener('click', close)
+      document.removeEventListener('contextmenu', close)
+    }
+  }, [hiddenCtx])
 
   // 가로 스크롤: 세로 휠을 가로 이동으로 바꿔준다 (탭 줄에는 세로 스크롤이 없다)
   const onWheel = (e: React.WheelEvent) => {
@@ -202,6 +231,11 @@ export default function TabBar({ tabs, activeId, onSelect, onClose, onCloseOther
             className={`ln-tab-overflow-btn${activeIsHidden ? ' has-active' : ''}${drop?.id === '__overflow__' ? ' ln-tab-drop-over' : ''}`}
             title={`숨겨진 탭 ${hidden.length}개`}
             onClick={openOverflow}
+            onContextMenu={(e) => {
+              e.preventDefault(); e.stopPropagation()
+              setOverflowOpen(false); setCtx(null)
+              setHiddenCtx({ x: e.clientX, y: e.clientY })
+            }}
             onDragOver={(e) => { if (drag) { e.preventDefault(); setDrop({ id: '__overflow__' }) } }}
             onDragLeave={() => setDrop(prev => (prev?.id === '__overflow__' ? null : prev))}
             onDrop={(e) => { e.preventDefault(); finishDrop() }}
@@ -238,6 +272,16 @@ export default function TabBar({ tabs, activeId, onSelect, onClose, onCloseOther
           >
             숨겨진 탭 {hidden.length}개 모두 닫기
           </button>
+        </div>
+      )}
+
+      {hiddenCtx && overflowing && (
+        <div ref={hiddenCtxRef} className="context-menu ln-tab-hidden-menu" style={{ left: hiddenCtx.x, top: hiddenCtx.y }} onClick={e => e.stopPropagation()}>
+          <div className="ctx-item" onClick={() => { onCloseHidden(hidden.map(t => t.pageId)); setHiddenCtx(null) }}>
+            숨겨진 탭 {hidden.length}개 모두 닫기
+          </div>
+          <div className="ctx-sep" />
+          <div className="ctx-item" onClick={() => { onCloseAll(); setHiddenCtx(null) }}>모든 탭 닫기</div>
         </div>
       )}
 

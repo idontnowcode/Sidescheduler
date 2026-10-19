@@ -60,7 +60,7 @@ const THEMES = {
   dark:   { label: 'Dark',    vars: { '--bg':'#1e1e1e','--bg2':'#252526','--bg3':'#2d2d30','--bg4':'#3c3c3c','--border':'#3c3c3c','--text':'#cccccc','--text-dim':'#888888' } },
   light:  { label: 'Light',  vars: { '--bg':'#f5f5f5','--bg2':'#ffffff','--bg3':'#ebebeb','--bg4':'#d4d4d4','--border':'#d0d0d0','--text':'#1e1e1e','--text-dim':'#666666' } },
   sepia:  { label: 'Sepia',  vars: { '--bg':'#f4ead8','--bg2':'#fdf6e3','--bg3':'#ecddc0','--bg4':'#d9c49c','--border':'#d0b880','--text':'#4a3728','--text-dim':'#8a7260' } },
-  oled:   { label: 'OLED',   vars: { '--bg':'#000000','--bg2':'#0a0a0a','--bg3':'#111111','--bg4':'#1a1a1a','--border':'#222222','--text':'#e0e0e0','--text-dim':'#555555' } },
+  oled:   { label: 'OLED',   vars: { '--bg':'#000000','--bg2':'#0a0a0a','--bg3':'#141414','--bg4':'#1f1f1f','--border':'#383838','--text':'#e0e0e0','--text-dim':'#8a8a8a' } },
   forest: { label: 'Forest', vars: { '--bg':'#1a2420','--bg2':'#1f2e29','--bg3':'#263832','--bg4':'#2f4840','--border':'#2f4840','--text':'#c5d8cc','--text-dim':'#6a8f7a' } },
 
   // ── 시안 세 벌 ────────────────────────────────────────────────────────
@@ -72,6 +72,8 @@ const THEMES = {
       '--bg': '#1c1b1a', '--bg2': '#161514', '--bg3': '#262422', '--bg4': '#343130',
       '--border': '#332f2c', '--text': '#e8e2d8', '--text-dim': '#9a8f84',
       '--accent': '#a33341', '--accent-hover': '#bb4251',
+      // 관련 페이지 띠 — 강조색(#a33341)은 어두운 가죽 위에서 대비가 2.8:1 이라 흐리다
+      '--rel-ink': '#d97a85', '--rel-edge': '#a33341',
       '--chrome-bg': '#0f0e0d', '--rail-bg': '#0d0c0b',
       '--list-bg': '#1c1b1a', '--panel-bg': '#1c1c1a',
       '--editor-head-bg': '#1d1c1a', '--toolbar-bg': '#1d1c1a',
@@ -229,7 +231,6 @@ const THEMES = {
       '--rail-active-fg': '#ffe3bd', '--rail-edge': '#d9ab55',
       '--paper-bg': '#c3ab8f', '--paper-ink': '#1e1409', '--paper-ink-dim': '#5a4a31',
       '--paper-soft-bg': '#b49a7b',
-      '--paper-lines': `url(${assetUrl('paper-lines.png')})`, '--paper-lines-size': '100% 704px',
       '--paper-shadow': '0 14px 34px rgba(0,0,0,0.55)',
       // 기준을 재 보니 우리 종이가 위로 26px 올라가 있고 아래로 44px
       // 더 내려와 있었다(70px 더 길다). 여백으로 맞춘다.
@@ -240,7 +241,7 @@ const THEMES = {
       '--paper-line-h': '35px', '--paper-gap': '0px',
       // 위쪽도 톱니가 깊게 들어온다 — 줄 간격(25)의 배수로 키운다.
       '--paper-head-gap': '0px', '--paper-pad-y': '28px',
-      '--tabbar-bg': 'transparent', '--tab-active-bg': '#1c1914',
+      '--tabbar-bg': 'transparent', '--tab-active-bg': 'rgba(255, 232, 190, 0.07)',
       '--tab-active-fg': '#ffeccd', '--tab-active-border': '#b98b3e',
       '--tab-radius': '0', '--tab-active-weight': '600',
       '--tab-gap': '4px', '--tab-strip-pad': '0px 10px 0', '--tab-pad': '2px 10px 2px 12px',
@@ -262,12 +263,18 @@ const THEMES = {
       // 기준은 로고 왼쪽에 장식 자리를 비워 둔다 — 로고가 x 144 쯤에서 시작한다.
       '--header-pad': '0 14px 0 82px', '--header-gap': '26px',
       // 머리말 왼쪽 끝 문장(레일 위) — 배경 층으로 얹는다
-      '--header-orn': `url(${assetUrl('k-rail-crest.png')})`, '--header-orn-size': '44px 44px', '--header-orn-pos': '12px center',
+      '--header-orn': `url(${assetUrl('v3-header-crest.png')})`, '--header-orn-size': '36px 36px', '--header-orn-pos': '19px center',
+      // 오른쪽 위 붉은 보석 — 그 자리는 Windows 창 단추가 그려지므로 단추(약 138px) 바로 왼쪽에
+      '--wingem-img': `url(${assetUrl('v3-header-gem.png')})`,
+      ...(assetUrl('v3-window-corner.png') ? { '--wingem-frame': `url(${assetUrl('v3-window-corner.png')})` } : {}),
+      '--winbtn-hover': 'rgba(217,171,85,0.12)',
       '--search-h': '41px', '--search-radius': '5px', '--search-max': '700px',
-      '--search-bg': '#0b0a08', '--search-border': '#8a6d3e', '--search-fs': '17.5px', '--search-icon-left': '12px', '--search-icon-op': '0.9',
-      '--btn-fs': '16.5px', '--btn-pad': '0px 9px', '--title-min': '0px',
+      '--search-bg': '#0b0a08', '--search-border': '#8a6d3e', '--search-fs': '17.5px', '--search-icon-left': '20px', '--search-icon-op': '0.9',
+      '--btn-fs': '18px', '--btn-pad': '0px 11px', '--title-min': '0px',
+      '--btn-fs-narrow': '17px', '--btn-pad-narrow': '0px 10px',
+      '--btn-ink': '#e6d6b2', '--btn-primary-ink': '#f3dcaa', '--btn-icon-gap': '7px',
       '--badge-bg': '#8d1f16', '--badge-fg': '#ffe3bd',
-      '--rail-sep': '#4a3f2b', '--rail-sep-w': '26px', '--rail-sep-m': '9px',
+      '--rail-sep-img': `url(${assetUrl('v3-rail-sep.png')})`, '--rail-sep': 'transparent', '--rail-sep-h': '7px', '--rail-sep-w': '44px', '--rail-sep-m': '6px',
       // 빽빽함 — 시안이 앞 셋보다도 널찍하다
       // 시안은 앞 셋보다도 널찍하다 — 조각을 겹쳐 보니 아이콘·글자가 한
       // 치수씩 더 컸다.
@@ -300,27 +307,24 @@ const THEMES = {
       ...kit('railbtn-hover', 'k-rail-button-hover.png'),
       ...kit('railbtn-active', 'k-rail-button-active.png'), '--railbtn-bw': '4px',
       // 고른 줄 · 탭 · 단추
-      ...kit('row-active', 'k-row-active.png'), '--row-bw': '5px 10px',
-      ...kit('tab-active', 'k-tab-active.png'), '--tabimg-bw': '10px 15px',
-      '--lntab-active-img': 'none', '--lntab-bw': '1px 1px 0', '--tab-sep': '#33291b',
-      '--row-divider': 'rgba(120,96,58,0.22)',
-      ...kit('btn', 'k-button-default.png'),
-      ...kit('btn-hover', 'k-button-default.png'),
-      ...kit('btn-primary', 'k-button-primary.png'), '--btnimg-bw': '7px 10px',
+      ...kit('row-active', 'k-row-active-tight.png'), '--row-bw': '3px 10px', '--row-active-iw': '10px 12px', '--slorn-mode': 'none', '--sl-bottom-line': 'transparent',
+      '--plrow-pad': '3px 8px 4px 4px',
+      ...kit('tab-active', 'k-tab-active.png'), '--tabimg-bw': '6px 10px',
+      '--lntab-bw': '6px 10px 0', '--tab-sep': 'transparent',
+      '--row-divider': 'transparent',
+      ...kit('btn', 'k-button-default-t.png'),
+      ...kit('btn-hover', 'k-button-default-t.png'),
+      ...kit('btn-primary', 'k-button-primary-t.png'), '--btnimg-bw': '7px 10px',
       // 가로 띠 — 머리말 · 제목줄 · 도구줄 · 관련페이지 · 상태바 · 구역머리
-      '--head-bw': '0 0 1px 0', '--head-line': '#3a2e1e',
-      '--toolbar-bw': '0 0 1px 0', '--toolbar-line': '#3a2e1e',
+      '--head-bw': '0', '--head-line': '#3a2e1e',
+      '--toolbar-bw': '0', '--toolbar-line': '#3a2e1e',
       '--relimg-bw': '0',
       ...kit('bar-bottom', 'k-status-bar.png'), '--barimg-bw': '14px 20px',
-      '--secbar-bw': '0 0 1px 0', '--secbar-line': '#3a2e1e',
-      '--head-pad': '10px 18px', '--head-actions-gap': '7px', '--save-ind': 'none',
+      '--secbar-line': '#3a2e1e',
+      '--head-pad': '10px 18px', '--head-actions-gap': '7px', 
       '--toolbar-pad': '0px 8px',
       // 종이 — 그려 받은 양피지 한 장 + 줄 + 네 귀퉁이 꺾쇠
       '--paper-layers': [
-        `url(${assetUrl('pc-tl.png')}) left 4px top 4px/38px no-repeat`,
-        `url(${assetUrl('pc-tr.png')}) right 4px top 4px/38px no-repeat`,
-        `url(${assetUrl('pc-bl.png')}) left 4px bottom 4px/38px no-repeat`,
-        `url(${assetUrl('pc-br.png')}) right 4px bottom 4px/38px no-repeat`,
         // 양피지를 칸보다 조금 크게 깔아 찢긴 둘레는 대부분 밖으로 밀어낸다
         `url(${assetUrl('k-paper-sheet.png')}) center/107% 107% no-repeat`,
       ].join(', '),
@@ -330,28 +334,128 @@ const THEMES = {
       '--crest-mode': 'block', '--crest-src': `url(${assetUrl('k-rail-crest.png')})`,
       '--finial-mode': 'block', '--finial-src': `url(${assetUrl('k-panel-finial.png')})`,
       '--finial-w': '40px', '--finial-h': '116px', '--finial-bottom': '14px', '--finial-op': '0.5',
-      '--crest-size': '34px', '--crest-gap': '10px',
+      '--crest-size': '38px', '--crest-gap': '10px', '--crest-top': '16px',
       // 아이콘 — 받은 키트의 것으로 전부 갈아 끼운다
       ...kitIcons,
       '--icon-mode': 'block', '--icon-orig': '0', '--icon-box': '26px',
+      ...(assetUrl('v3-icon-folder-gold.png') ? { '--i-folder': `url(${assetUrl('v3-icon-folder-gold.png')})` } : {}),
       '--icon-inset': '1px',
       '--ui-design-w': '1647',
+      // ── 글자·이모지 아이콘 자리에 그림 ─────────────────────────────
+      '--g-indent': '-9999px', '--g-w': '1.2em', '--gico-filter': 'brightness(1.2)', '--icon-img-filter': 'brightness(1.35) saturate(1.1)',
+      '--small-fs-k': '1.3', '--title-fit-min': '11px', '--nbpin-op': '1', '--lntab-min': '128px', '--lntab-more-w': '60px',
+      '--rptab-bw': '6px 10px', '--rptab-weight': '500', '--bc-gap': '6px', '--bc-w': '0.8em',
+      '--gi-caret': `url(${assetUrl('icon-caret.png')})`, '--caret-w': '12px',
+      '--gi-pin': `url(${assetUrl('icon-pin.png')})`, '--pin-w': '17px',
+      '--gi-star': `url(${assetUrl('k-icon-star-off.png')})`, '--gi-star-on': `url(${assetUrl('k-icon-star-on.png')})`,
+      '--gi-close': `url(${assetUrl('icon-close.png')})`, '--close-size': '11px',
+      '--gi-folder': `url(${assetUrl(assetUrl('v3-icon-folder-gold.png') ? 'v3-icon-folder-gold.png' : 'icon-folder.png')})`, '--gi-inbox': `url(${assetUrl('icon-inbox.png')})`, '--plhead-icon': '20px',
+      '--gi-pdf': `url(${assetUrl('icon-page.png')})`, '--gi-clock': `url(${assetUrl('icon-clock.png')})`, '--gi-ai': `url(${assetUrl('icon-ai.png')})`,
+      '--gi-link': `url(${assetUrl('icon-link.png')})`, '--gi-plus': `url(${assetUrl('icon-plus.png')})`,
+      '--gi-image': `url(${assetUrl('icon-image.png')})`, '--gi-clipboard': `url(${assetUrl('icon-clipboard.png')})`,
+      '--gi-chevron': `url(${assetUrl('o-chevron.png')})`,
+      // 툴바 — Quill 선 아이콘 대신 받은 그림
+      '--tbi-undo': `url(${assetUrl('icon-undo.png')})`, '--tbi-redo': `url(${assetUrl('icon-redo.png')})`,
+      '--tbi-bold': `url(${assetUrl('icon-bold.png')})`, '--tbi-italic': `url(${assetUrl('icon-italic.png')})`,
+      '--tbi-underline': `url(${assetUrl('icon-underline.png')})`, '--tbi-strike': `url(${assetUrl('icon-strike.png')})`,
+      '--tbi-listnum': `url(${assetUrl('icon-listnum.png')})`, '--tbi-list': `url(${assetUrl('icon-list.png')})`, '--tbi-check': `url(${assetUrl('icon-check-on.png')})`,
+      '--tbi-link': `url(${assetUrl('icon-link.png')})`, '--tbi-image': `url(${assetUrl('icon-image.png')})`, '--tbi-attach': `url(${assetUrl('icon-clip.png')})`,
+      '--tbi-svg': '0', '--tbi-size': '70%', '--tbi-active': 'brightness(1.45) drop-shadow(0 0 3px rgba(217,171,85,0.55))',
+      '--tb-sep-img': `url(${assetUrl('s-divider-v.png')})`, '--tb-sep-w': '3px',
+      '--tb-cell-bg': 'rgba(255, 232, 190, 0.035)', '--tb-cell-gap': '0px', '--tb-cell-pad-l': '8px', '--tb-cell-pad-r': '10px', '--tb-cell-h': '34px',
+      // 구분선 · 스크롤 · 배지 · 체크칸 · 드롭다운
+      '--secbar-bw': '0',
+      '--scroll-thumb': `url(${assetUrl('o-scroll.png')})`, '--scroll-track': `url(${assetUrl('o-scroll-track.png')})`,
+      '--badge-img': `url(${assetUrl('b-badge.png')})`,
+      '--ck-off': `url(${assetUrl('icon-check-off.png')})`, '--ck-on': `url(${assetUrl('icon-check-on.png')})`, '--ck-ink': 'transparent', '--ck-size': '1.3em', '--ck-filter': 'brightness(0.38) contrast(1.6)',
+      ...kit('select', 'b-select.png'),
+      // ── 3차 키트 (raw/fantasy-kit-v3) — 9등분 값은 kit.json, 그릴 두께(-iw)는 칸 높이에 맞춘 값 ──
+      ...kit('bar-top', 'v3-header-bar.png'), '--bar-top-iw': '6px 12px 4px 12px',
+      ...kit('field', 'v3-search-shell.png'), '--field-iw': '6px 14px 5px 14px',
+      ...kit('rail', 'v3-rail-column.png'), '--rail-iw': '22px 6px 17px 6px',
+      ...kit('sechead', 'k-button-default-t.png'), '--sechead-iw': '6px 9px',
+      ...kit('footplate', 'k-button-default-t.png'), '--footplate-iw': '6px 9px',
+      // 구분선 — 모아 보기 줄 사이 · 노트북 사이
+      '--sl-div-display': 'block', '--nb-div-img': `url(${assetUrl('v3-row-divider.png')})`,
+      // 페이지 제목: 본문 칸 폭(cqi)에 맞춰 22~32px
+      '--title-fs-fluid': 'clamp(22px, 5.4cqi, 32px)',
+      // 문서 탭: 판 없음 · 구분선 · 켜진 탭은 밝은 바탕 + 금색 밑줄
+      '--lntab-sep': `url(${assetUrl('v3-toolbar-sep.png')})`,
+      '--rptab-flex': '1 1 0', '--rpspacer-flex': '0 0 0', '--rpdot-fs': '18px', '--rpdot-ink': '#d9ab55',
+      // 창 단추 — 사용자가 준 참고 그림(raw/fantasy-kit-v3/window-controls-reference.webp)을
+      // 바깥 검정만 빼고 그대로 귀퉁이에 놓는다(v3-window-controls-art.png). 판·칸·기호·귀퉁이
+      // 장식이 모두 원본 픽셀이다. 클릭은 그림 속 세 칸 위치에 투명 단추를 겹쳐 받는다.
+      // 그림은 장식 오른쪽 끝(원본 x 1971)·첨탑 꼭대기(y 75)에서 잘라 창 모서리에 딱 붙는다.
+      // 칸 경계(원본 x): 기둥 142 · 625 · 1150, 닫기 칸 끝 1760 / 그림 폭 1972 → 백분율.
+      // 판(원본 y 160~578)이 헤더 0~61px 을 꽉 채운다 — 창 맨 위와 판 사이에 틈이 없다.
+      // 그만큼 그림을 키우고(폭 287.8px) 판 위 첨탑 부분은 창 밖으로 올린다(위 -12.4px).
+      '--winart': `url(${assetUrl('v3-window-controls-art.png')})`, '--winart-display': 'block',
+      '--winart-w': '287.8px', '--winart-h': '86.5px', '--winart-top': '-12.4px', '--winart-z': '210',
+      '--winart-pos': 'absolute', '--winart-btn-top': '0px', '--winart-btn-h': '61px',
+      '--winart-min-l': '7.20%', '--winart-min-w': '24.49%',
+      '--winart-max-l': '31.69%', '--winart-max-w': '26.62%',
+      '--winart-close-l': '58.32%', '--winart-close-w': '30.93%',
+      '--winctl-margin': '0 0 0 auto', '--winglyph-svg': '0',
+      '--wingem-display': 'none',
+      '--winclose-hover': 'rgba(120, 12, 6, 0.30)',
+      '--winclose-press': 'rgba(140, 14, 7, 0.45)',
+      // 문서 탭 — 오른쪽 패널 탭(목차·업무·참조)과 같은 방식: 켜진 탭만 테 있는 붉은 판,
+      // 나머지는 글자 + 가는 구분선, 마우스 올림은 어두운 탭 판. 테 두께도 같다.
+      '--lntab-cell-img': 'none', '--lntab-cell-iw': '1',
+      ...kit('lntab-cell-on', 'k-tab-active.png'), ...kit('lntab-cell-hover', 'v3-tab.png'),
+      // 인박스 한 줄 입력 — 단추와 같은 높이, 글자는 테 안쪽에서 시작
+      '--capture-h': '38px', '--capture-pad': '0 12px 0 16px', '--capture-gap': '6px', '--capture-wrap-pad': '8px 8px',
+      '--sbtop-margin': '8px 6px',
+      '--btnplate-iw': '7px 10px',
+      '--sbtop-sep': `url(${assetUrl('v3-toolbar-sep.png')})`, '--sbtop-sep-pad': '10px', '--sbtop-pad': '7px 10px 7px 16px', '--sbtop-btn': '30px',
+      '--rptab-sep': `url(${assetUrl('v3-toolbar-sep.png')})`,
+      '--plhead-weight': '400', 
+      '--row-title-font': "'Malgun Gothic Semilight', 'Malgun Gothic', 'Noto Sans KR', sans-serif",
+      '--plstar-box': '24px', '--star-size': '20px', '--fav-box': '34px', '--fav-size': '28px',
+      '--gi-expand': `url(${assetUrl('v3-icon-expand.png')})`,
+      ...kit('secbar', 'v3-list-head.png'), '--secbar-iw': '4px 8px',
+      ...kit('row-hover', 'v3-row-hover.png'), '--row-hover-iw': '3px',
+      ...kit('lntab-active', 'k-tab-active.png'), '--lntab-active-iw': '1',
+      ...kit('tab-hover', 'v3-tab.png'), '--tab-hover-bg': 'transparent',
+      '--lntab-bw-idle': '6px 10px 0',
+      ...kit('tabmore', 'v3-tab-more.png'), '--tabmore-iw': '4px 5px',
+      ...kit('head', 'v3-title-plate.png'), '--head-iw': '1px 10px 2px 10px',
+      ...kit('toolbar', 'v3-toolbar-plate.png'), '--toolbar-iw': '3px 14px',
+      ...kit('rel', 'v3-footer-plate.png'), '--rel-iw': '2px 10px 1px 10px',
+      '--search-icon-img': `url(${assetUrl('v3-icon-search.png')})`, '--search-icon-size': '20px', '--search-pad-l': '50px', '--search-svg-op': '0',
+      '--gem-blue': `url(${assetUrl('v3-dot-blue.png')})`, '--gem-green': `url(${assetUrl('v3-dot-green.png')})`,
+      '--gem-orange': `url(${assetUrl('v3-dot-orange.png')})`, '--gem-cyan': `url(${assetUrl('v3-dot-cyan.png')})`,
+      '--gem-gray': `url(${assetUrl('v3-dot-gray.png')})`, '--gem-red': `url(${assetUrl('v3-dot-red.png')})`,
+      ...(assetUrl('v3-dot-purple.png') ? { '--gem-purple': `url(${assetUrl('v3-dot-purple.png')})` } : {}),
+      ...(assetUrl('v3-dot-pink.png') ? { '--gem-pink': `url(${assetUrl('v3-dot-pink.png')})` } : {}),
+      ...(assetUrl('v3-dot-lime.png') ? { '--gem-lime': `url(${assetUrl('v3-dot-lime.png')})` } : {}),
+      ...(assetUrl('v3-dot-yellow.png') ? { '--gem-yellow': `url(${assetUrl('v3-dot-yellow.png')})` } : {}),
+      '--nbdot': '14px', '--nbdot-c': 'transparent',
+      '--toc-gem-1': `url(${assetUrl('v3-toc-dot.png')})`, '--toc-gem-2': `url(${assetUrl('v3-dot-green.png')})`,
+      '--toc-gem-3': `url(${assetUrl('v3-dot-orange.png')})`, '--tocdot': '13px', '--tocdot-c': 'transparent',
+      '--gi-collapse': `url(${assetUrl('v3-icon-panel-close.png')})`, '--gi-panel-close': `url(${assetUrl('v3-icon-panel-close.png')})`,
+      '--collapse-size': '17px',
+      '--hbar-img': `url(${assetUrl('v3-heading-bar.png')})`, '--hbar-c': 'transparent', '--hbar-w': '4px',
+      '--cbadge-img': `url(${assetUrl('v3-count-badge.png')})`, '--cbadge-c': 'transparent', '--cbadge-size': '20px',
+      '--cbadge-pad': '0', '--cbadge-fs': '11px', '--cbadge-ink': '#e8cf9f',
+      '--row-div-img': `url(${assetUrl('v3-row-divider.png')})`, '--row-div-h': '3px',
+      '--tabbar-line-img': `url(${assetUrl('v3-tabbar-line.png')})`, '--tabbar-line-h': '5px',
       // 목표 화면에 맞춘 작은 글자들 — 목록 머리·NOTEBOOKS·템플릿/Trash, 그리고
       // 글자 수 표시(목표엔 없다, 제목 자리를 먹어 제목이 잘렸다)
-      '--counts-display': 'none', '--plhead-fs': '19px', '--nblabel-fs': '14px',
-      '--nblabel-font': "Georgia, 'Noto Serif KR', serif", '--nblabel-track': '0.12em',
-      '--sl-fs': '19px', '--rptab-fs': '17.5px',
+      '--counts-display': 'none', '--plhead-fs': '19px', '--nblabel-fs': '15px',
+      '--nblabel-font': "'Cinzel', Georgia, serif", '--nblabel-track': '0.14em', '--nblabel-weight': '600',
+      '--sl-fs': '17px', '--page-fs': '16.5px', '--rptab-fs': '17.5px',
       '--tb-fs': '16px', '--tb-btn-w': '34px', '--tb-btn-h': '30px',
-      '--btn-font': "Georgia, 'Noto Serif KR', serif", '--refadd-fs': '15px',
+      '--btn-font': "'Segoe UI', 'Malgun Gothic', sans-serif", '--refadd-fs': '15px',
       // 제목줄 두 줄 — 단추는 아랫줄 오른쪽에 붙어 제목과 겹치지 않는다
       '--head-display': 'grid', '--title-wrap-display': 'contents',
-      '--foot-fs': '19px', '--foot-pad': '11px 12px', '--sl-icon': '24px', '--foot-icon': '24px',
+      '--foot-fs': '19px', '--foot-pad': '11px 12px 11px 18px', '--sl-icon': '21px', '--foot-icon': '24px',
       // 레일과 사이드바의 경계 — 같은 돌결이 이어져 어디서 끊기는지 안 보였다.
       '--rail-edge-line': '#6b5530', '--rail-edge-shadow': '1px 0 0 #050403, 4px 0 8px rgba(0,0,0,0.55)',
       // 머리말 아랫선과 창 단추. 단추 자리를 새카만 덩어리로 칠하면 돌결 위에
       // 검은 상자가 떠 보인다 — 돌의 평균색과 청동 기호로 맞춘다.
       '--header-line': '#5a4628',
-      '--titlebar-bg': '#15130f', '--titlebar-ink': '#b8955a',
+      '--titlebar-bg': '#15130f', '--titlebar-ink': '#d9d4ca',
       // 툴바 — 회색 기호가 금장과 따로 놀았다
       '--tb-ink': '#c6b99f', '--sl-ink': '#e2d6bc', '--tb-ink-hover': '#ecd3a0', '--tb-sep': '#3e3220',
       // 아이콘 — 꽉 찬 금속 그림을 받아 써 봤는데, 22~26px 로 줄이면
@@ -414,6 +518,9 @@ export function applyTheme(key: string) {
   ALL_THEME_VARS.forEach((k) => root.style.removeProperty(k))
   Object.entries(theme.vars as Record<string, string>).forEach(([k, v]) => root.style.setProperty(k, v))
   localStorage.setItem('lightnote-theme', key)
+  root.dataset.lnTheme = key
+  const uf = localStorage.getItem('lightnote-ui-font')
+  if (uf && uf !== 'theme') applyUiFont(uf)
   applyUiZoom()
   // 노트 줄 간격이 바뀌었을 수 있다 — 본문 줄 높이를 다시 매기게 알린다.
   window.dispatchEvent(new CustomEvent('ln-theme-changed'))
@@ -483,6 +590,29 @@ export function applyFont(key: string) {
   localStorage.setItem('lightnote-font', key)
 }
 
+// UI 글꼴 — 사이드바·목록·탭·단추 같은 화면 글자. 본문(노트) 글꼴과 따로 고른다.
+// 'theme' 이면 테마가 정한 글꼴을 그대로 쓴다. 테마를 바꿔도 고른 값이 이긴다.
+const UI_FONT_VARS = ['--ui-font', '--row-title-font', '--btn-font']
+export function applyUiFont(key: string) {
+  const root = document.documentElement
+  let stack = ''
+  if (key.startsWith('custom:')) {
+    const cf = customFontsCache.find(f => f.id === key.slice('custom:'.length))
+    if (cf) stack = `'${cf.family}', 'Malgun Gothic', sans-serif`
+  } else if (key !== 'theme') {
+    stack = FONTS[key as keyof typeof FONTS]?.stack || ''
+  }
+  if (stack) UI_FONT_VARS.forEach(v => root.style.setProperty(v, stack))
+  else {
+    // 테마 기본으로 되돌린다 — 테마가 준 값이 있으면 그것, 없으면 지운다
+    const t = THEMES[localStorage.getItem('lightnote-theme') as keyof typeof THEMES]
+    const vars = (t?.vars || {}) as Record<string, string>
+    UI_FONT_VARS.forEach(v => (vars[v] ? root.style.setProperty(v, vars[v]) : root.style.removeProperty(v)))
+  }
+  localStorage.setItem('lightnote-ui-font', key)
+  window.dispatchEvent(new CustomEvent('ln-theme-changed'))
+}
+
 // 줄노트 표기 — 본문 줄마다 옅은 밑줄을 그어 줄을 구분한다. 고정 간격의
 // 배경선(진짜 줄노트 종이)은 문단마다 글자 크기와 여백이 달라 글줄과 어긋나
 // 금세 밀리므로, 문단 자체에 밑줄을 긋는 쪽을 택했다(항상 글줄에 붙는다).
@@ -499,6 +629,7 @@ export async function initAppearance() {
   if (a) applyAccent(a)
   await loadCustomFonts()
   applyFont(f || 'sans')
+  applyUiFont(localStorage.getItem('lightnote-ui-font') || 'theme')
   applyRuled(localStorage.getItem('lightnote-ruled') === '1')
   syncTitleBar()   // 테마를 안 바꿨어도 창 단추는 한 번 맞춰 둬야 한다
 }
@@ -509,6 +640,7 @@ export default function SettingsModal({ onClose }: Props) {
   const [currentTheme, setCurrentTheme] = useState(localStorage.getItem('lightnote-theme') || 'dark')
   const [currentAccent, setCurrentAccent] = useState(localStorage.getItem('lightnote-accent') || 'blue')
   const [currentFont, setCurrentFont] = useState(localStorage.getItem('lightnote-font') || 'sans')
+  const [currentUiFont, setCurrentUiFont] = useState(localStorage.getItem('lightnote-ui-font') || 'theme')
   const [ruled, setRuled] = useState(localStorage.getItem('lightnote-ruled') === '1')
   const [apiKey, setApiKey] = useState('')
   const [showKey, setShowKey] = useState(false)
@@ -573,6 +705,10 @@ export default function SettingsModal({ onClose }: Props) {
   const handleFont = useCallback((key: string) => {
     applyFont(key)
     setCurrentFont(key)
+  }, [])
+  const handleUiFont = useCallback((key: string) => {
+    applyUiFont(key)
+    setCurrentUiFont(key)
   }, [])
 
   // Re-scan on Settings mount too — a bonus if the user just dropped a file
@@ -737,6 +873,31 @@ export default function SettingsModal({ onClose }: Props) {
           <span style={{ fontSize: '11px', color: 'var(--text-dim, #888)' }}>
             .ttf/.otf/.woff/.woff2 파일을 넣고 앱을 다시 시작하면 위 목록에 나타납니다.
           </span>
+        </div>
+
+        <div className="settings-divider" />
+
+        <div className="settings-section-title">UI 글꼴 <span style={{ fontWeight: 400, fontSize: '11px', color: 'var(--text-dim, #888)' }}>(사이드바·목록·탭·단추 — 본문 글꼴과 따로)</span></div>
+        <div className="ui-font-list" style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+          {[['theme', { label: '테마 기본', stack: 'inherit' }] as const, ...Object.entries(FONTS),
+            ...customFonts.map(cf => [`custom:${cf.id}`, { label: cf.family, stack: `'${cf.family}', sans-serif` }] as const)]
+            .map(([key, font]) => (
+            <button
+              key={key}
+              type="button"
+              data-ui-font={key}
+              onClick={() => handleUiFont(key)}
+              style={{
+                fontFamily: font.stack, fontSize: '13px', padding: '6px 12px',
+                borderRadius: '8px', cursor: 'pointer',
+                border: currentUiFont === key ? '1px solid var(--accent, #7c6ff0)' : '1px solid var(--border, #444)',
+                background: currentUiFont === key ? 'var(--accent, #7c6ff0)' : 'transparent',
+                color: currentUiFont === key ? '#fff' : 'var(--text, #ccc)',
+              }}
+            >
+              {font.label}
+            </button>
+          ))}
         </div>
 
         <div className="settings-divider" />

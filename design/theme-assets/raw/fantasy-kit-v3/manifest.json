@@ -1,0 +1,403 @@
+{
+  "version": 3,
+  "generated": "built-in-imagegen",
+  "count": 48,
+  "assets": {
+    "header-crest.png": {
+      "width": 256,
+      "height": 256,
+      "transparent": true,
+      "slice": null,
+      "source": "exec-54191108-01a6-4b1e-86c7-8f7d1f8030ea.png"
+    },
+    "header-gem.png": {
+      "width": 160,
+      "height": 160,
+      "transparent": true,
+      "slice": null,
+      "source": "exec-878ad0d2-2b17-47b1-970f-49995cf2b8c9.png"
+    },
+    "header-bar.png": {
+      "width": 1536,
+      "height": 128,
+      "transparent": false,
+      "slice": [
+        18,
+        60,
+        18,
+        60
+      ],
+      "source": "exec-8b0699ee-f720-4471-96a3-dae4f4c20ea5.png"
+    },
+    "search-shell.png": {
+      "width": 1024,
+      "height": 128,
+      "transparent": false,
+      "slice": [
+        24,
+        24,
+        24,
+        24
+      ],
+      "source": "exec-46593981-967e-4993-ac57-5e106a0734a4.png"
+    },
+    "icon-search.png": {
+      "width": 128,
+      "height": 128,
+      "transparent": true,
+      "slice": null,
+      "source": "exec-6362b799-b8ff-4682-b8bd-58a1d59eb48c.png"
+    },
+    "rail-column.png": {
+      "width": 256,
+      "height": 1536,
+      "transparent": true,
+      "slice": [
+        120,
+        22,
+        60,
+        22
+      ],
+      "source": "exec-98ef0151-9ecf-4195-aaf9-0fd62f946d27.png"
+    },
+    "rail-sep.png": {
+      "width": 128,
+      "height": 32,
+      "transparent": true,
+      "slice": null,
+      "source": "exec-32e63320-bcef-48c5-9e07-9bcc021ede0c.png"
+    },
+    "section-head.png": {
+      "width": 768,
+      "height": 96,
+      "transparent": false,
+      "slice": [
+        14,
+        40,
+        14,
+        40
+      ],
+      "source": "exec-8afd0b34-38a6-44a9-a498-a8e62d062b6a.png"
+    },
+    "icon-import.png": {
+      "width": 128,
+      "height": 128,
+      "transparent": true,
+      "slice": null,
+      "source": "exec-6fe8a5d3-28cb-4db3-bf6d-4c4e9bdf078e.png"
+    },
+    "icon-add.png": {
+      "width": 128,
+      "height": 128,
+      "transparent": true,
+      "slice": null,
+      "source": "exec-a5367b1d-f303-4a22-bf8b-fcea9d81e1d3.png"
+    },
+    "dot-green.png": {
+      "width": 64,
+      "height": 64,
+      "transparent": true,
+      "slice": null,
+      "source": "exec-8a4dec57-4545-42a3-ba7f-cca1bc73962d.png"
+    },
+    "dot-cyan.png": {
+      "width": 64,
+      "height": 64,
+      "transparent": true,
+      "slice": null,
+      "source": "exec-d08badfa-db45-4e94-814a-f59425929547.png"
+    },
+    "dot-orange.png": {
+      "width": 64,
+      "height": 64,
+      "transparent": true,
+      "slice": null,
+      "source": "exec-ca0306d4-2b60-4a2a-b810-573f7eb2d9fc.png"
+    },
+    "dot-blue.png": {
+      "width": 64,
+      "height": 64,
+      "transparent": true,
+      "slice": null,
+      "source": "exec-f05a0374-9c23-4c33-90c4-355944e65fda.png"
+    },
+    "dot-gray.png": {
+      "width": 64,
+      "height": 64,
+      "transparent": true,
+      "slice": null,
+      "source": "exec-1c28c385-aefe-48b6-a66f-35774406bae8.png"
+    },
+    "dot-red.png": {
+      "width": 64,
+      "height": 64,
+      "transparent": true,
+      "slice": null,
+      "source": "exec-266953ab-e5a8-458e-bcc5-b4bcd0ba36b1.png"
+    },
+    "row-hover.png": {
+      "width": 512,
+      "height": 128,
+      "transparent": false,
+      "slice": [
+        20,
+        20,
+        20,
+        20
+      ],
+      "source": "exec-17a050ca-847d-404e-bc37-4801dcf03e60.png"
+    },
+    "list-head.png": {
+      "width": 768,
+      "height": 112,
+      "transparent": false,
+      "slice": [
+        16,
+        40,
+        16,
+        40
+      ],
+      "source": "exec-b7d0436d-ceac-4aac-900b-edbf54dbfa71.png"
+    },
+    "row-divider.png": {
+      "width": 768,
+      "height": 16,
+      "transparent": true,
+      "slice": null,
+      "source": "exec-dbcba19f-62c1-45aa-9603-ab8e2a81c715.png"
+    },
+    "icon-collapse.png": {
+      "width": 128,
+      "height": 128,
+      "transparent": true,
+      "slice": null,
+      "source": "exec-aeab5848-bb46-45ad-ba77-80e6d09321a3.png"
+    },
+    "tab.png": {
+      "width": 384,
+      "height": 128,
+      "transparent": false,
+      "slice": [
+        20,
+        24,
+        6,
+        24
+      ],
+      "source": "exec-213acd96-e48f-4f04-8dd0-2607af26dec8.png"
+    },
+    "tab-on.png": {
+      "width": 384,
+      "height": 128,
+      "transparent": false,
+      "slice": [
+        20,
+        24,
+        6,
+        24
+      ],
+      "source": "exec-4477a4b6-c742-4f74-9a30-1098835a5260.png"
+    },
+    "tab-more.png": {
+      "width": 160,
+      "height": 112,
+      "transparent": false,
+      "slice": [
+        18,
+        18,
+        18,
+        18
+      ],
+      "source": "exec-db0e04ad-57db-4998-a9b1-27006f898d32.png"
+    },
+    "tabbar-line.png": {
+      "width": 1024,
+      "height": 16,
+      "transparent": true,
+      "slice": null,
+      "source": "exec-746b5075-a71c-4da8-98ad-472a72c4093e.png"
+    },
+    "title-plate.png": {
+      "width": 1024,
+      "height": 192,
+      "transparent": false,
+      "slice": [
+        20,
+        40,
+        20,
+        40
+      ],
+      "source": "exec-62899bea-d474-4bed-96f2-e3c1183e2893.png"
+    },
+    "toolbar-plate.png": {
+      "width": 1024,
+      "height": 112,
+      "transparent": false,
+      "slice": [
+        12,
+        30,
+        12,
+        30
+      ],
+      "source": "exec-467d0698-dc41-43fd-85b2-460e5cd43c38.png"
+    },
+    "toolbar-sep.png": {
+      "width": 24,
+      "height": 128,
+      "transparent": true,
+      "slice": null,
+      "source": "exec-2f47e8b8-056a-4a50-bfc1-5810071e0c0a.png"
+    },
+    "icon-pdf.png": {
+      "width": 128,
+      "height": 128,
+      "transparent": true,
+      "slice": null,
+      "source": "exec-0ec19e1b-24bf-42fd-a0d6-99c556396f50.png"
+    },
+    "icon-sparkle.png": {
+      "width": 128,
+      "height": 128,
+      "transparent": true,
+      "slice": null,
+      "source": "exec-86b3f072-47a1-4ad7-b432-bc4faa95bc44.png"
+    },
+    "paper-corner.png": {
+      "width": 256,
+      "height": 256,
+      "transparent": true,
+      "slice": null,
+      "source": "exec-2b076a8a-df9a-4057-b47c-59cbeb2d73a3.png"
+    },
+    "heading-bar.png": {
+      "width": 32,
+      "height": 128,
+      "transparent": true,
+      "slice": null,
+      "source": "exec-80483ab5-4ddc-4666-bcb0-1d2cf0c221be.png"
+    },
+    "toc-dot.png": {
+      "width": 64,
+      "height": 64,
+      "transparent": true,
+      "slice": null,
+      "source": "exec-4dc43574-dc6c-42e2-9b27-110e1a4e346b.png"
+    },
+    "icon-panel-close.png": {
+      "width": 128,
+      "height": 128,
+      "transparent": true,
+      "slice": null,
+      "source": "exec-9584e1c0-e156-4780-9917-7cdd7475923c.png"
+    },
+    "count-badge.png": {
+      "width": 96,
+      "height": 96,
+      "transparent": true,
+      "slice": null,
+      "source": "exec-bc9446c6-e719-4437-b551-17af489f2d74.png"
+    },
+    "footer-plate.png": {
+      "width": 1024,
+      "height": 128,
+      "transparent": false,
+      "slice": [
+        16,
+        40,
+        16,
+        40
+      ],
+      "source": "exec-0bbc720e-985a-47a9-9259-a9324039baa3.png"
+    },
+    "dot-purple.png": {
+      "width": 64,
+      "height": 64,
+      "transparent": true,
+      "slice": null,
+      "source": "exec-fa4630fd-94f0-484f-81e3-62218abdea27.png"
+    },
+    "dot-pink.png": {
+      "width": 64,
+      "height": 64,
+      "transparent": true,
+      "slice": null,
+      "source": "exec-b0084bfd-21a8-4a0b-a5db-59546c2d316e.png"
+    },
+    "dot-lime.png": {
+      "width": 64,
+      "height": 64,
+      "transparent": true,
+      "slice": null,
+      "source": "exec-decd80aa-ccb9-415d-8c76-acdef2af8318.png"
+    },
+    "dot-yellow.png": {
+      "width": 64,
+      "height": 64,
+      "transparent": true,
+      "slice": null,
+      "source": "exec-f361052f-5e05-460d-93af-fcbdf9c3e20e.png"
+    },
+    "window-corner.png": {
+      "width": 128,
+      "height": 128,
+      "transparent": true,
+      "slice": null,
+      "source": "exec-3fd2a2f7-aadf-400d-87cf-8aa0259a2b67.png"
+    },
+    "icon-folder-gold.png": {
+      "width": 128,
+      "height": 128,
+      "transparent": true,
+      "slice": null,
+      "source": "exec-fa60abf1-3149-4f9c-8631-bff15bc35a42.png"
+    },
+    "window-controls-plate.png": {
+      "width": 384,
+      "height": 160,
+      "transparent": false,
+      "slice": null,
+      "source": "exec-f175d9c9-08a6-4cb6-bd2e-3ba33c42731f.png"
+    },
+    "window-close-accent.png": {
+      "width": 192,
+      "height": 24,
+      "transparent": true,
+      "slice": null,
+      "source": "exec-99aa6aa7-798f-4117-80e5-18cf94f1b697.png"
+    },
+    "win-glyph-min.png": {
+      "width": 128,
+      "height": 128,
+      "transparent": true,
+      "slice": null,
+      "source": "exec-76f7aaae-68d2-42eb-8529-23a017ce6607.png"
+    },
+    "win-glyph-max.png": {
+      "width": 128,
+      "height": 128,
+      "transparent": true,
+      "slice": null,
+      "source": "exec-4a3e29ae-8c4a-41e5-aab7-32b693bd1e0b.png"
+    },
+    "win-glyph-restore.png": {
+      "width": 128,
+      "height": 128,
+      "transparent": true,
+      "slice": null,
+      "source": "exec-b12543a0-f86c-493e-b8b2-6873265c9c8a.png"
+    },
+    "win-glyph-close.png": {
+      "width": 128,
+      "height": 128,
+      "transparent": true,
+      "slice": null,
+      "source": "exec-9b906803-e20f-4904-903c-ee15e9a84cd5.png"
+    },
+    "window-corner-tall.png": {
+      "width": 192,
+      "height": 256,
+      "transparent": true,
+      "slice": null,
+      "source": "exec-4c146df8-57cd-4fbd-9ad1-e933eda5c275.png"
+    }
+  }
+}

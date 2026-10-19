@@ -161,7 +161,8 @@ for (const [key, label] of [['leather', '가죽 서재'], ['field', '현장 노�
     ok('제목 글꼴(LN Serif KR)이 앱 안에서 불러와진다', bundled)
     ok('아이콘이 그림으로 바뀐다', m.railIcon.includes('url('), m.railIcon.slice(0, 20))
     ok('고른 줄이 그려진 명판이다', m.rowPlate.includes('url('), m.rowPlate.slice(0, 20))
-    ok('종이가 양피지 그림이고 귀퉁이 꺾쇠가 있다', (m.paperLayers.match(/url\(/g) || []).length >= 5, m.paperLayers.slice(0, 40))
+    // 귀퉁이 꺾쇠는 뺐다(2026-10-19, 사용자: 지금 수준에선 없는 게 낫다) — 양피지 한 장만 남는다
+    ok('종이가 양피지 그림이다', (m.paperLayers.match(/url\(/g) || []).length >= 1, m.paperLayers.slice(0, 40))
     ok('창이 좁으면 화면 전체가 배율로 준다', m.zoom > 0 && m.zoom <= 1, `배율 ${m.zoom}`)
   }
   ok('돋보기가 이모지가 아니라 선으로 그린 아이콘', m.searchIconIsSvg)

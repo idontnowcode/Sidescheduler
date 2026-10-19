@@ -49,6 +49,40 @@ const overlap = await ln.evaluate(() => {
 })
 ok('검색칸이 창 단추 밑으로 들어가지 않는다', overlap)
 
+// ── 창 조작 단추 — 앱이 직접 그린다 ─────────────────────────────────────
+const lnWin = async (fn) => app.evaluate(({ BrowserWindow }, f) => {
+  const w = BrowserWindow.getAllWindows().find((x) => x.webContents.getURL().includes('#lightnote'))
+  return w ? ({ min: w.isMinimized(), max: w.isMaximized() })[f] : null
+}, fn)
+const ctl = await ln.evaluate(() => {
+  const btns = [...document.querySelectorAll('.win-ctrls .win-btn')]
+  const hdr = document.querySelector('.app-header').getBoundingClientRect()
+  // 오른쪽 끝 = 창 단추 판, 또는 테마가 그 뒤에 두는 귀퉁이 장식(보석)
+  const tail = [document.querySelector('.win-ctrls'), document.querySelector('.win-gem')]
+    .filter((e) => e && getComputedStyle(e).display !== 'none').map((e) => e.getBoundingClientRect())
+  const last = tail.sort((a, b) => b.right - a.right)[0]
+  return { n: btns.length, titles: btns.map((b) => b.title), right: last ? Math.round(hdr.right - last.right) : -1,
+    noDrag: btns.every((b) => getComputedStyle(b).getPropertyValue('-webkit-app-region') === 'no-drag') }
+})
+ok('창 단추 셋(최소화·최대화·닫기)이 헤더에 있다', ctl.n === 3, ctl.titles.join(' / '))
+ok('창 단추는 헤더 오른쪽 끝에 붙는다', ctl.right >= 0 && ctl.right <= 2, `오른쪽 여백 ${ctl.right}px`)
+ok('창 단추는 드래그에서 빠진다(눌린다)', ctl.noDrag)
+await ln.locator('.win-btn[title="최대화"]').click()
+await ln.waitForTimeout(700)
+ok('최대화 단추를 누르면 창이 커진다', await lnWin('max') === true)
+ok('커지면 단추가 "이전 크기로"로 바뀐다', await ln.locator('.win-btn[title="이전 크기로"]').count() === 1)
+await ln.locator('.win-btn[title="이전 크기로"]').click()
+await ln.waitForTimeout(700)
+ok('다시 누르면 이전 크기로 돌아온다', await lnWin('max') === false)
+await ln.locator('.win-btn[title="최소화"]').click()
+await ln.waitForTimeout(700)
+ok('최소화 단추를 누르면 창이 내려간다', await lnWin('min') === true)
+await app.evaluate(({ BrowserWindow }) => {
+  const w = BrowserWindow.getAllWindows().find((x) => x.webContents.getURL().includes('#lightnote'))
+  w?.restore(); w?.focus()
+})
+await ln.waitForTimeout(700)
+
 // 이름과 로고는 한 번만 (시안에서 두 번 나온 걸 덜어낸 자리)
 ok('앱 이름이 화면에 한 번만 적힌다',
   await ln.locator('.app-name').count() === 1,

@@ -32,6 +32,23 @@ export interface TreeHandle {
 }
 
 const COLORS = ['#4dabf7','#69db7c','#ffa94d','#da77f2','#f783ac','#a9e34b','#66d9e8','#ffd43b']
+// 노트북 색 → 보석 그림 이름(판타지 테마). 팔레트 밖 색은 가장 가까운 팔레트 색, 무채색은 회색.
+const GEMS = ['blue', 'green', 'orange', 'purple', 'pink', 'lime', 'cyan', 'yellow']
+function gemOf(color: string): string {
+  const i = COLORS.indexOf((color || '').toLowerCase())
+  if (i >= 0) return GEMS[i]
+  const m = /^#?([0-9a-f]{6})$/i.exec(color || '')
+  if (!m) return 'gray'
+  const n = parseInt(m[1], 16), rgb = [n >> 16, (n >> 8) & 255, n & 255]
+  if (Math.max(...rgb) - Math.min(...rgb) < 40) return 'gray'
+  let best = 0, bd = Infinity
+  COLORS.forEach((c, j) => {
+    const p = parseInt(c.slice(1), 16), q = [p >> 16, (p >> 8) & 255, p & 255]
+    const d = q.reduce((s, v, k) => s + (v - rgb[k]) ** 2, 0)
+    if (d < bd) { bd = d; best = j }
+  })
+  return GEMS[best]
+}
 
 // 지워진 노트북/폴더의 id가 남아 있어도 해가 없다 — 그냥 아무것도 안 걸릴 뿐.
 function loadIdSet(key: string): Set<string> {
@@ -645,7 +662,7 @@ const NotebookTree = forwardRef<TreeHandle, Props>(({ selected, onPageSelect, on
     const sections = sectionsByNb[nb.id] || []
     const isSelected = selected.notebookId === nb.id && !selected.sectionId
     return (
-      <div key={nb.id}>
+      <div key={nb.id} className="nb-block">
         <div
           className={`nb-header${isSelected ? ' selected' : ''}${
             dropNb === nb.id ? (dropMode === 'into' ? ' drop-target' : ' nb-drop-line') : ''}`}
@@ -667,7 +684,7 @@ const NotebookTree = forwardRef<TreeHandle, Props>(({ selected, onPageSelect, on
           onContextMenu={e => showCtx(e, { type: 'notebook', notebookId: nb.id })}
         >
           <span className={`nb-arrow${isOpen ? ' open' : ''}`}>▶</span>
-          <span className="nb-color" style={{ background: nb.color }} />
+          <span className="nb-color" data-gem={gemOf(nb.color)} style={{ '--nb-c': nb.color } as React.CSSProperties} />
           <span className="nb-name">{nb.name}</span>
           {nb.pinned && <span className="nb-pin" title="Pinned">📍</span>}
           <button className="icon-btn-sm nb-add-btn" title="Add folder"
@@ -886,11 +903,11 @@ const NotebookTree = forwardRef<TreeHandle, Props>(({ selected, onPageSelect, on
       )}
       <div className="sidebar-top">
         <span className="sidebar-label">Notebooks</span>
-        <button className="icon-btn-sm" data-icon="inbox" title="가져오기 (다른 PC에서 내보낸 .json)"
+        <button className="icon-btn-sm" data-icon="import" title="가져오기 (다른 PC에서 내보낸 .json)"
           onClick={e => { e.stopPropagation(); handleImport() }}>
           <svg {...TI}><path d="M3.5 13.5h4l1.2 2.3h6.6l1.2-2.3h4" /><path d="M12 3.5v7m0 0 3-3m-3 3-3-3" /></svg>
         </button>
-        <button className="icon-btn-sm" title="New notebook"
+        <button className="icon-btn-sm" data-icon="add" title="New notebook"
           onClick={e => {
             e.stopPropagation()
             openInputModal('New notebook name', '', async (val) => {

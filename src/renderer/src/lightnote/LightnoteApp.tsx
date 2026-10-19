@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
+import WindowControls from './WindowControls'
 import 'quill/dist/quill.snow.css'
 import './lightnote.css'
 import type { Selected, TrashNode, SearchResult, TocItem, OpenTab, PageReference, DataDirStatus, LnView, ListSource } from './types'
@@ -73,7 +74,7 @@ export default function LightnoteApp() {
   const [rightW, setRightW] = useState(() => Number(localStorage.getItem('ln-right-w')) || 255)
   // 페이지 리스트 칸 — 다섯 칸째라 자리를 많이 먹는다. 접을 수 있고, 접은
   // 상태와 너비는 기억한다.
-  const [listW, setListW] = useState(() => Number(localStorage.getItem('ln-pagelist-w')) || 265)
+  const [listW, setListW] = useState(() => Number(localStorage.getItem('ln-pagelist-w')) || 280)
   const [listHidden, setListHidden] = useState(() => localStorage.getItem('ln-pagelist-hidden') === '1')
   // 그 칸이 무엇을 줄 세우고 있는가. 기본은 지금 보고 있는 페이지의 폴더이고
   // (원노트처럼 옆 페이지가 같이 보인다), 왼쪽 맨 위에서 고르면 그 목록으로
@@ -596,7 +597,7 @@ export default function LightnoteApp() {
       <header className="app-header">
         <span className="app-name">LightNote</span>
         <SearchBar onOpen={openSearchResult} />
-        <div className="header-winpad" />
+        <WindowControls />
       </header>
 
       <div className="main-layout" style={{ position: 'relative' }}>
@@ -669,7 +670,7 @@ export default function LightnoteApp() {
             얇은 띠만 남아, 다시 펴는 길이 사라지지 않는다. */}
         {listOff ? (
           <button className="pl-reopen" title="페이지 목록 펴기" onClick={() => setListHidden(false)}>
-            <span className="pl-reopen-mark">›</span>
+            <span className="pl-reopen-mark g-ico" data-g="expand">›</span>
             <span className="pl-reopen-label">페이지 목록</span>
           </button>
         ) : (
@@ -798,7 +799,9 @@ export default function LightnoteApp() {
       </div>
 
       <div className="status-bar">
-        <span>{breadcrumb}</span>
+        <span>{breadcrumb.split('›').map((x, i) => (
+          <span key={i}>{i > 0 && <span className="g-ico bc-sep" data-g="chevron">›</span>}{x.trim()}</span>
+        ))}</span>
       </div>
 
       {quickAdd && (
