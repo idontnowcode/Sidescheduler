@@ -275,7 +275,8 @@ const THEMES = {
       '--row-fs': '18px', '--row-pad': '1px 2px', '--sl-pad': '6px 12px', '--nb-fs': '18px', '--tree-fs': '17.5px',
       '--row-sub-fs': '15px', '--row-sub-gap': '4px',
       '--title-fs': '32px', '--status-fs': '17.5px', '--tab-fs': '16.5px',
-      '--title-font': "'Noto Serif KR', Georgia, serif",
+      // 제목 명조는 앱에 묶은 글꼴(LN Serif KR, 600) — PC 에 Noto Serif KR 이 없어도 같게 보인다
+      '--title-font': "'LN Serif KR', 'Noto Serif KR', Georgia, serif",
       '--paper-font': "'Noto Serif KR', Georgia, serif", '--paper-fs': '17.5px', '--paper-weight': '400', '--paper-well': '#14110d',
       // 제목 아래 저장 시각·오른쪽 목차도 기준은 한 치수 크다.
       '--saved-fs': '15px', '--toc-fs': '17px', '--toc-pad': '6px 10px',

@@ -153,6 +153,12 @@ for (const [key, label] of [['leather', '가죽 서재'], ['field', '현장 노�
       parseFloat(m.framePad) >= 8, m.framePad)
     // 목표 화면은 UI 는 고딕, 문서 제목·본문만 명조다
     ok('문서 제목이 명조다', /Serif KR|Myeongjo|Batang/.test(m.titleFont), m.titleFont.slice(0, 40))
+    // 제목 명조는 앱에 묶은 글꼴이라 PC 에 Noto Serif KR 이 없어도 같아야 한다
+    const bundled = await ln.evaluate(async () => {
+      await document.fonts.load('600 32px "LN Serif KR"', '가나다')
+      return document.fonts.check('600 32px "LN Serif KR"', '가나다')
+    })
+    ok('제목 글꼴(LN Serif KR)이 앱 안에서 불러와진다', bundled)
     ok('아이콘이 그림으로 바뀐다', m.railIcon.includes('url('), m.railIcon.slice(0, 20))
     ok('고른 줄이 그려진 명판이다', m.rowPlate.includes('url('), m.rowPlate.slice(0, 20))
     ok('종이가 양피지 그림이고 귀퉁이 꺾쇠가 있다', (m.paperLayers.match(/url\(/g) || []).length >= 5, m.paperLayers.slice(0, 40))
