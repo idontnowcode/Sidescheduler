@@ -120,6 +120,7 @@ contextBridge.exposeInMainWorld('lightnote', {
   dataDirRelaunch: () => ipcRenderer.invoke('lightnote:data-dir:relaunch'),
   // OneDrive가 남긴 충돌 사본 찾기 (알려만 준다 — 지우거나 합치지 않는다)
   conflictCopies: () => ipcRenderer.invoke('lightnote:conflict-copies'),
+  conflictResolve: (paths, force) => ipcRenderer.invoke('lightnote:conflict-resolve', { paths, force: !!force }),
   revealPath: (p) => ipcRenderer.invoke('lightnote:reveal-path', { path: p }),
 
   // 스티커 메모 — 창 하나가 노트 하나

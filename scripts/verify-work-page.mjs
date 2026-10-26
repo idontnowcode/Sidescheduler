@@ -17,6 +17,10 @@ const ok = (name, cond, detail = '') => {
   if (cond) pass++; else fail++
   console.log(`${cond ? 'PASS' : 'FAIL'}  ${name}${detail ? '  ·  ' + detail : ''}`)
 }
+// 날짜는 오늘 기준으로 잡는다(고정 날짜면 시간이 지나 순서가 뒤집혀 실패했다).
+// 새 업무 기한 = 오늘+30일 · 예전 업무 = 오늘+20일 · 커넥터 = 오늘+9일 → 기한 순은 늘 커넥터 → 예전 → 방열
+const DUE30 = new Date(Date.now() + 30 * 86400000)
+const DUE30_ISO = `${DUE30.getFullYear()}-${String(DUE30.getMonth() + 1).padStart(2, '0')}-${String(DUE30.getDate()).padStart(2, '0')}`
 const md = (t) => { const d = new Date(t); return `${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}` }
 const tempRoot = mkdtempSync(join(tmpdir(), 'dsp-workpage-'))
 const app = await electron.launch({ args: ['out/main/index.js'], env: { ...process.env, DSP_TEST_DATA_DIR: tempRoot, NODE_ENV: 'production' } })
@@ -74,7 +78,7 @@ await ln.waitForSelector('.work-dlg', { timeout: 3000 })
 const opts = await ln.locator('#wd-tpl option').allTextContents()
 ok('본문 틀: 기본 · 간단 · 빈 페이지', opts.some((o) => o.startsWith('기본 틀')) && opts.some((o) => o.startsWith('간단 틀')) && opts.some((o) => o.startsWith('빈 페이지')), opts.join(' | '))
 await ln.locator('#wd-title').fill('방열 패드 소재 비교')
-await ln.locator('#wd-due').fill('2026-11-14')
+await ln.locator('#wd-due').fill(DUE30_ISO)
 await ln.locator('#wd-tpl').selectOption('basic')
 await ln.locator('.work-dlg button[type="submit"]').click()
 await ln.waitForTimeout(1500)
@@ -102,7 +106,7 @@ const newWo = await ln.evaluate(async () => {
   const list = await window.lightnote.workObjectList()
   return list.find((w) => w.title === '방열 패드 소재 비교') || null
 })
-ok('업무 속성: 켜짐 · 예정 · 시작 오늘 · 기한 11/14', !!newWo && newWo.enabled && newWo.status === '예정' && md(newWo.start) === md(now) && md(newWo.due) === '11/14',
+ok('업무 속성: 켜짐 · 예정 · 시작 오늘 · 기한(고른 날)', !!newWo && newWo.enabled && newWo.status === '예정' && md(newWo.start) === md(now) && md(newWo.due) === md(DUE30),
   newWo ? `${newWo.status} ${md(newWo.start)} ${md(newWo.due)}` : '없음')
 
 // ── ② 줄 날짜 ────────────────────────────────────────────────────────
@@ -216,7 +220,7 @@ ok('틀만 있고 쓴 줄이 없는 칸(배경 등)은 안 나온다', !B.includ
 ok('패널에만 있던 예전 기록은 "진행 현황" 칸으로 합쳐진다', block('예전 업무 (패널 기록)').includes('. 진행 현황\n        - 패널에 적은 진행 기록 (' + md(now) + ')'))
 ok('그 주 기록 없는 완료 업무는 빠진다', !t.includes('끝난 업무'))
 ok('일반(업무 아님) 페이지는 없다', !t.includes('일반 메모'))
-ok('기한 순(커넥터 +9일 → 예전 업무 +20일 → 방열 11/14 → 기한 없음)', t.indexOf('커넥터 대체 검토') < t.indexOf('예전 업무') && t.indexOf('예전 업무') < t.indexOf('방열 패드 소재 비교') && t.indexOf('방열 패드 소재 비교') < t.indexOf('PCB SMT 일정'))
+ok('기한 순(커넥터 +9일 → 예전 업무 +20일 → 방열 +30일 → 기한 없음)', t.indexOf('커넥터 대체 검토') < t.indexOf('예전 업무') && t.indexOf('예전 업무') < t.indexOf('방열 패드 소재 비교') && t.indexOf('방열 패드 소재 비교') < t.indexOf('PCB SMT 일정'))
 
 // ── ⑥ 본문 A/I 가 업무 관리(액션 화면)에 잡히고, 거기서 체크하면 본문이 바뀐다 ──
 await ln.locator('.rail .icon-btn', { hasText: '액션' }).click()

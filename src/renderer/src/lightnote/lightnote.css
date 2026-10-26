@@ -3788,3 +3788,13 @@ button.wo-kind:hover { color: var(--text); background: var(--bg3); }
 :root[data-ln-theme="fantasy"] .cc-alert-text, :root[data-ln-theme="fantasy"] .cc-alert-pop .cc-btn { font-size: calc(12px * var(--small-fs-k, 1)); }
 :root[data-ln-theme="fantasy"] .cc-alert-list { font-size: calc(11.5px * var(--small-fs-k, 1)); }
 :root[data-ln-theme="fantasy"] .cc-alert-pop { width: 400px; }
+.cc-alert-head { display: flex; align-items: center; gap: 8px; }
+.cc-alert-head .cc-alert-title { flex: 1; }
+.cc-btn-main { border-color: var(--accent); color: var(--accent); font-weight: 600; }
+.cc-btn-main:hover:not(:disabled) { background: var(--accent); color: #fff; border-color: var(--accent); }
+.cc-btn:disabled { opacity: .5; cursor: default; }
+.cc-alert-list { list-style: none; padding: 0; display: flex; flex-direction: column; gap: 4px; max-height: 200px; }
+.cc-alert-list li { display: flex; align-items: center; gap: 8px; }
+.cc-alert-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cc-alert-more { margin-left: 0; }
+.cc-alert-pop { width: 380px; }

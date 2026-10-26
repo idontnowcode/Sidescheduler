@@ -629,7 +629,15 @@ export default function LightnoteApp() {
         <span className="app-name">LightNote</span>
         <SearchBar onOpen={openSearchResult} />
         {/* 동기화 충돌 사본은 줄을 통째로 차지하지 않고 검색칸 오른쪽의 경고 단추로 알린다 */}
-        {!conflictsHidden && <ConflictAlert conflicts={conflicts} onHide={() => setConflictsHidden(true)} />}
+        {!conflictsHidden && (
+          <ConflictAlert conflicts={conflicts} onHide={() => setConflictsHidden(true)}
+            onResolved={() => {
+              // 합친 뒤: 남은 사본 다시 세고, 노트북 목록·업무 표시를 새로 읽는다
+              window.lightnote.conflictCopies().then(setConflicts).catch(() => {})
+              void treeRef.current?.reload()
+              window.dispatchEvent(new CustomEvent('ln-work-changed'))
+            }} />
+        )}
         <WindowControls />
       </header>
 

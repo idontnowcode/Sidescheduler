@@ -349,6 +349,7 @@ declare global {
       dataDirUseLocal: () => Promise<{ success: boolean }>
       dataDirRelaunch: () => Promise<void>
       conflictCopies: () => Promise<{ path: string; name: string }[]>
+      conflictResolve: (paths: string[], force?: boolean) => Promise<{ path: string; ok: boolean; kind?: 'list' | 'page' | 'page-kept'; added?: number; updated?: number; reason?: string }[]>
       revealPath: (path: string) => Promise<void>
       stickyNew: () => Promise<StickyTarget | null>
       stickyOpen: (target: StickyTarget) => Promise<boolean>

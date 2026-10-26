@@ -1281,7 +1281,8 @@ function startDataWatch(): void {
 // 동기화가 늦게 도착하면 OneDrive가 `notebooks-DESKTOP-A.json` 같은 사본을
 // 남기는데, 앱이 그냥 무시해서 **날아간 줄도 모른다.** 찾아서 알려만 준다
 // (지우거나 합치지 않는다 — 사용자가 보고 정한다).
-const ROOT_BASES = ['notebooks', 'page-refs', 'page-links', 'work-objects', 'references', 'settings']
+const conflictMerge = require('./lightnote/conflict-merge')
+const ROOT_BASES: string[] = conflictMerge.ROOT_BASES
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.json$/i
 
 function findConflictCopies(root: string, out: string[] = [], depth = 0): string[] {
@@ -1293,7 +1294,7 @@ function findConflictCopies(root: string, out: string[] = [], depth = 0): string
     let dir = false
     try { dir = statSync(full).isDirectory() } catch { continue }
     if (dir) {
-      if (name === 'versions') continue
+      if (name === 'versions' || name === '_conflict-backup') continue
       findConflictCopies(full, out, depth + 1)
       continue
     }
@@ -1312,6 +1313,25 @@ function findConflictCopies(root: string, out: string[] = [], depth = 0): string
 ipcMain.handle('lightnote:conflict-copies', () => {
   const root = activeDataDir || localDataDir()
   return findConflictCopies(root).map((p) => ({ path: p, name: p.split(/[\\/]/).pop() || p }))
+})
+
+// 충돌 사본을 원본에 합친다(목록·맵 파일) / 페이지 본문 사본은 사본으로 바꾼다 — 원본은 버전 기록과
+// `_conflict-backup` 에 남기고, 사본도 지우지 않고 그리로 옮긴다. 열린 창에는 바뀐 페이지를 알린다.
+ipcMain.handle('lightnote:conflict-resolve', async (_e, { paths, force }: { paths: string[]; force?: boolean }) => {
+  const root = activeDataDir || localDataDir()
+  const pageVersions = require('./lightnote/page-versions')
+  const results: unknown[] = []
+  for (const p of paths || []) {
+    try {
+      const r = await conflictMerge.resolve(root, p, { force: !!force, snapshotPage: (pid: string, prev: unknown) => pageVersions.snapshot(pid, prev, true) })
+      results.push({ path: p, ...r })
+      if (r.ok && r.kind === 'page') {
+        const m = /notebooks[\\/]([^\\/]+)[\\/]sections[\\/]([^\\/]+)[\\/]pages[\\/]/.exec(p)
+        if (m) for (const win of BrowserWindow.getAllWindows()) if (!win.isDestroyed()) win.webContents.send('lightnote:page-changed', { notebookId: m[1], sectionId: m[2], pageId: r.pageId })
+      }
+    } catch (e) { results.push({ path: p, ok: false, reason: String((e as Error)?.message || e) }) }
+  }
+  return results
 })
 
 ipcMain.handle('lightnote:reveal-path', (_e, { path: p }: { path: string }) => {
