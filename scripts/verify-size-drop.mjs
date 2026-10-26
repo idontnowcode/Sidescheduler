@@ -54,11 +54,11 @@ const size = await ln.evaluate(() => {
   return { defaultLabel: labelStyle.content.replace(/^"|"$/g, ''), itemLabels }
 })
 ok('size picker exists', !size.err, JSON.stringify(size).slice(0, 200))
-const expected = { '': '보통', small: '작게', large: '크게', huge: '아주 크게' }
-const allKo = size.itemLabels.every(({ v, t }) => t === expected[v])
-ok('size picker shows Korean labels (작게/보통/크게/아주 크게)', allKo, JSON.stringify(size.itemLabels))
+// 글자 크기는 이제 '작게/보통/크게' 네 단계가 아니라 숫자(px) 목록이다 — 목록 글자가 그 숫자인지 본다
+const numeric = size.itemLabels.length >= 8 && size.itemLabels.every(({ v, t }) => !v || t === v.replace('px', ''))
+ok('size picker lists numeric sizes (6…48)', numeric, JSON.stringify(size.itemLabels).slice(0, 200))
 
-// Apply "huge" and confirm the editor span gains ql-size-huge
+// 24 를 고르면 글자에 font-size:24px 가 붙는다
 const applied = await ln.evaluate(async () => {
   const root = document.querySelector('.ql-editor')
   root.focus()
@@ -66,18 +66,16 @@ const applied = await ln.evaluate(async () => {
   r.selectNodeContents(root); r.collapse(false); sel.removeAllRanges(); sel.addRange(r)
   document.execCommand('insertText', false, '\nBIG')
   await new Promise(rs => setTimeout(rs, 100))
-  // select the just-typed text
   const ps = root.querySelectorAll('p')
   const last = ps[ps.length - 1]
   const r2 = document.createRange(); r2.selectNodeContents(last); sel.removeAllRanges(); sel.addRange(r2)
-  // click "huge" item
   const picker = document.querySelector('.ql-toolbar .ql-size')
   picker.querySelector('.ql-picker-label').click()
-  picker.querySelector('.ql-picker-item[data-value="huge"]').click()
+  picker.querySelector('.ql-picker-item[data-value="24px"]').click()
   await new Promise(rs => setTimeout(rs, 250))
-  return { hasHuge: !!root.querySelector('.ql-size-huge') }
+  return { has24: !!root.querySelector('[style*="font-size: 24px"]') }
 })
-ok('"아주 크게" applies ql-size-huge', applied.hasHuge)
+ok('choosing 24 applies font-size:24px', applied.has24)
 
 // ── (2) Dragging a page over folder B paints drop-target ───────────────────
 const before = await ln.evaluate(() => {

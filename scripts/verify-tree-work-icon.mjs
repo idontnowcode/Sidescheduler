@@ -48,7 +48,8 @@ await ln.waitForTimeout(200)
 await ln.locator('.sec-header', { hasText: 'S' }).click()
 await ln.waitForTimeout(300)
 
-const iconOf = async (title) => ln.locator('.page-item', { hasText: title }).locator('.page-icon').textContent()
+// 트리 아이콘은 이모지에서 그림 아이콘으로 바뀌었다(7973e4e) — 글자 대신 아이콘 종류로 본다
+const iconOf = async (title) => (await ln.locator('.page-item', { hasText: title }).locator('.page-icon').getAttribute('data-icon')) === 'action' ? '📋' : '📄'
 ok('업무 속성 켜진 페이지는 📋', (await iconOf('업무 페이지'))?.trim() === '📋')
 ok('일반 노트는 📄 그대로', (await iconOf('그냥 노트'))?.trim() === '📄')
 ok('업무 속성이 enabled:false(숨김)면 📄 그대로', (await iconOf('업무속성 숨김'))?.trim() === '📄')

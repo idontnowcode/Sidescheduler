@@ -87,4 +87,153 @@ async function buildReport(pageIds) {
   return { text: out.join('\n').trimEnd() + '\n', count: items.length };
 }
 
-module.exports = { buildReport, buildFieldSections };
+// ── 주간 업무 현황 보고 (A안: 업무별 묶음) ─────────────────────────────────
+// 설계: docs/02-design/features/weekly-report.design.md. 이미 쌓이는 기록을
+// 기간으로 걸러 업무마다 금주 실적·차주 계획·이슈로 묶는다. AI 없음.
+const DAY = 24 * 60 * 60 * 1000;
+function startOfDay(ts) { const d = new Date(ts); d.setHours(0, 0, 0, 0); return d.getTime(); }
+function mondayOf(ts) { const d = new Date(startOfDay(ts)); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return d.getTime(); }
+function addDays(ts, n) { const d = new Date(ts); d.setDate(d.getDate() + n); return d.getTime(); }
+function daysBetween(a, b) { return Math.round((startOfDay(b) - startOfDay(a)) / DAY); }
+
+/** 기준 주(월 00:00 ~ 일 23:59:59.999)와 다음 주. week: 'this' | 'last'.
+ *  ref = 지연 일수를 셀 기준일 — 이번 주면 오늘, 지난 주면 그 주 일요일. */
+function weekRange(now = Date.now(), week = 'this') {
+  const ws = week === 'last' ? addDays(mondayOf(now), -7) : mondayOf(now);
+  const we = addDays(ws, 7) - 1;
+  const nws = addDays(ws, 7);
+  const nwe = addDays(ws, 14) - 1;
+  const ref = week === 'last' ? startOfDay(we) : startOfDay(now);
+  const asOf = week === 'last' ? we : now; // 열림/닫힘을 판단할 시점
+  return { ws, we, nws, nwe, ref, asOf };
+}
+
+const inRange = (ts, a, b) => ts != null && ts >= a && ts <= b;
+
+// 기준 시점 T 에 아직 열려 있던 것 — 지난 주 보고는 그 주 끝의 상태로 판단해야 한다
+// (그 뒤에 완료·해결된 것은 그때는 열려 있었고, 그 뒤에 생긴 것은 그때 없었다).
+const actionOpenAt = (a, T) => !a.done || (a.doneAt != null && a.doneAt > T);
+const decisionOpenAt = (p, T) => (p.raisedAt == null || p.raisedAt <= T) && (!p.resolved || (p.resolvedAt != null && p.resolvedAt > T));
+
+// ── 본문 줄 읽기 ────────────────────────────────────────────────────────────
+// delta → 줄 목록. 줄 속성(header·list·indent·linetime)은 줄 끝 '\n' 에 붙어 있다.
+// 이미지 등 글자가 아닌 것은 건너뛴다.
+function deltaLines(delta) {
+  const lines = [];
+  let buf = '';
+  for (const op of (delta && delta.ops) || []) {
+    if (typeof op.insert !== 'string') continue;
+    const parts = op.insert.split('\n');
+    for (let i = 0; i < parts.length; i++) {
+      buf += parts[i];
+      if (i < parts.length - 1) {
+        const a = op.attributes || {};
+        const lt = typeof a.linetime === 'string' ? a.linetime.split('-').map(Number) : null;
+        lines.push({ text: buf, header: a.header || null, list: a.list || null, indent: a.indent || 0,
+          created: lt ? lt[0] || null : null, modified: lt ? lt[1] || lt[0] || null : null });
+        buf = '';
+      }
+    }
+  }
+  return lines;
+}
+
+const isActionSection = (name) => /action|a\/i|액션/i.test(name || '');
+const DUE_IN_TEXT = /~\s*(\d{1,2})\/(\d{1,2})/;
+
+// 본문 소제목 → 칸. 그 주(ws~we)에 수정 날짜가 든 줄만, Action 칸은 규칙이 다르다.
+function bodySections(lines, range) {
+  const { ws, we } = range;
+  const sections = [];
+  let cur = { name: '(본문)', lines: [] };
+  const push = () => { if (cur.lines.length) sections.push(cur); };
+  for (const ln of lines) {
+    if (ln.header) { push(); cur = { name: ln.text.trim() || '(소제목 없음)', lines: [] }; continue; }
+    if (!ln.text.trim()) continue;
+    const pad = '    '.repeat(ln.indent || 0);
+    const inWeek = ln.modified != null && ln.modified >= ws && ln.modified <= we;
+    if (isActionSection(cur.name) && (ln.list === 'checked' || ln.list === 'unchecked')) {
+      // A/I: 그 주에 체크한 것 = 완료, 체크 안 된 것은 날짜와 상관없이 지금 남은 일
+      if (ln.list === 'checked' && inWeek) cur.lines.push(`${pad}- [완료] ${ln.text.trim()} (${fmtMD(ln.modified)})`);
+      else if (ln.list === 'unchecked') cur.lines.push(`${pad}- ${ln.text.trim()}`);
+      continue;
+    }
+    if (inWeek) cur.lines.push(`${pad}- ${ln.text.trim()} (${fmtMD(ln.modified)})`);
+  }
+  push();
+  return sections;
+}
+
+// 예전 업무 패널 기록(본문 원본 이전)도 같은 칸 이름으로 합친다.
+const CANON = ['진행 메모', '배경', '진행 현황', '논의 및 의사 결정 기록', 'Action Item', '참고 자료'];
+function panelSections(wo, range) {
+  const { ws, we, asOf } = range;
+  const out = [];
+  const prog = (wo.progressLog || []).filter((p) => p.at >= ws && p.at <= we).sort((a, b) => a.at - b.at)
+    .map((p) => `- ${p.text} (${fmtMD(p.at)})`);
+  if (prog.length) out.push({ name: '진행 현황', lines: prog });
+  const dec = [
+    ...(wo.decisions || []).filter((d) => d.at >= ws && d.at <= we).sort((a, b) => a.at - b.at).map((d) => `- 결정: ${d.text} (${fmtMD(d.at)})`),
+    ...(wo.pendingDecisions || []).filter((p) => (p.raisedAt == null || p.raisedAt <= asOf) && (!p.resolved || (p.resolvedAt != null && p.resolvedAt > asOf)))
+      .map((p) => `- 미결: ${p.text}`),
+  ];
+  if (dec.length) out.push({ name: '논의 및 의사 결정 기록', lines: dec });
+  const acts = [
+    ...(wo.nextActions || []).filter((a) => a.done && a.doneAt >= ws && a.doneAt <= we).map((a) => `- [완료] ${a.text} (${fmtMD(a.doneAt)})`),
+    ...(wo.nextActions || []).filter((a) => !a.done || (a.doneAt != null && a.doneAt > asOf)).map((a) => `- ${a.text}${a.due ? ` (~${fmtMD(a.due)})` : ''}`),
+  ];
+  if (acts.length) out.push({ name: 'Action Item', lines: acts });
+  return out;
+}
+
+function mergeSections(body, panel) {
+  const out = body.map((s) => ({ name: s.name, lines: [...s.lines] }));
+  const norm = (n) => n.replace(/\s+/g, '').toLowerCase();
+  for (const p of panel) {
+    const hit = out.find((s) => norm(s.name) === norm(p.name) || (isActionSection(s.name) && isActionSection(p.name)));
+    if (hit) hit.lines.push(...p.lines);
+    else out.push({ name: p.name, lines: [...p.lines] });
+  }
+  // 패널에서만 온 칸은 기본 틀 순서 자리로
+  const bodyNames = new Set(body.map((s) => s.name));
+  const head = out.filter((s) => bodyNames.has(s.name));
+  const tail = out.filter((s) => !bodyNames.has(s.name)).sort((a, b) => CANON.indexOf(a.name) - CANON.indexOf(b.name));
+  return [...head, ...tail];
+}
+
+function weeklyHeadState(wo, ref) {
+  const late = wo.due && wo.status !== '완료' && startOfDay(wo.due) < ref;
+  const state = late ? `지연 D+${daysBetween(wo.due, ref)}` : (wo.status || '');
+  const parts = [state, wo.due ? `기한 ${fmtMD(wo.due)}` : ''].filter(Boolean);
+  return parts.length ? ` (${parts.join(', ')})` : '';
+}
+
+/** 업무로 등록된 페이지 전체 → 주간 보고(본문 소제목 그대로). 선택 없음.
+ *  docs/02-design/features/work-page.design.md §4. AI 없음. */
+async function buildWeeklyReport({ week = 'this', now = Date.now() } = {}) {
+  const range = weekRange(now, week);
+  const items = [];
+  for (const wo of await workObjectStorage.list()) {
+    if (!wo.enabled) continue;
+    const loc = await noteStorage.findPageLocation(wo.pageId);
+    if (!loc) continue;
+    const page = await noteStorage.loadPage(loc.notebookId, loc.sectionId, wo.pageId);
+    const sections = mergeSections(bodySections(deltaLines(page && page.delta), range), panelSections(wo, range));
+    const hasWeek = sections.some((s) => s.lines.some((l) => /\(\d\d\/\d\d\)$/.test(l)));
+    if (!hasWeek && (wo.status === '완료' || wo.status === '보류')) continue;
+    items.push({ title: loc.title, wo, sections });
+  }
+  items.sort((a, b) => (a.wo.due ?? Infinity) - (b.wo.due ?? Infinity));
+  const out = [`주간 업무 현황 (${fmtMD(range.ws)} ~ ${fmtMD(addDays(range.ws, 4))})`, `생성일: ${fmtDate(now)}`, ''];
+  items.forEach((it, i) => {
+    out.push(`${i + 1}. ${it.title || '(제목 없음)'}${weeklyHeadState(it.wo, range.ref)}`);
+    it.sections.forEach((s, j) => {
+      out.push(`    ${LETTERS[j] || `(${j + 1})`}. ${s.name}`);
+      for (const line of s.lines) out.push(`        ${line}`);
+    });
+    out.push('');
+  });
+  return { text: out.join('\n').trimEnd() + '\n', count: items.length, range };
+}
+
+module.exports = { buildReport, buildFieldSections, buildWeeklyReport, weekRange, deltaLines, bodySections };

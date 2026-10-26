@@ -61,6 +61,8 @@ export default function WorkListView({ mode, onOpen, onClose }: Props) {
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [exporting, setExporting] = useState(false)
   const [exportMsg, setExportMsg] = useState<string | null>(null)
+  // 주간 보고 기준 주 — 월요일에 보고하면 '지난 주'를 고른다
+  const [week, setWeek] = useState<'this' | 'last'>('this')
 
   const reload = useCallback(() => {
     window.lightnote.workObjectList().then(l => { setItems(l); setLoaded(true) }).catch(() => setLoaded(true))
@@ -123,8 +125,15 @@ export default function WorkListView({ mode, onOpen, onClose }: Props) {
 
   const toggleActionDone = useCallback(async (item: WorkObjectListItem, actionId: string) => {
     const target = item.nextActions.find(a => a.id === actionId)
+    if (target?.fromBody && target.line != null) {
+      // 본문이 원본 — 본문 그 줄의 체크칸을 바꾼다(줄 날짜도 그때 남는다)
+      try { await window.lightnote.bodyTaskToggle(item.notebookId, item.sectionId, item.pageId, target.line, target.lineText || target.text) } catch { /* ignore */ }
+      reload()
+      return
+    }
     const nextDone = !target?.done
-    const acts = item.nextActions.map(a => a.id === actionId ? { ...a, done: nextDone, doneAt: nextDone ? Date.now() : null } : a)
+    const acts = item.nextActions.filter(a => !a.fromBody)
+      .map(a => a.id === actionId ? { ...a, done: nextDone, doneAt: nextDone ? Date.now() : null } : a)
     try {
       await window.lightnote.workObjectSet(item.pageId, { nextActions: acts })
       if (nextDone && target?.taskId) window.lightnote.workObjectCompleteTask(target.taskId).catch(() => {})
@@ -162,6 +171,27 @@ export default function WorkListView({ mode, onOpen, onClose }: Props) {
     }
   }, [selected, exporting])
 
+  // 주간 업무 현황 보고 — 업무로 등록된 페이지 전체에서 자동(선택 없음), 본문 소제목 그대로.
+  // 저장 + 클립보드.
+  const exportWeekly = useCallback(async () => {
+    if (exporting) return
+    setExporting(true); setExportMsg(null)
+    try {
+      const res = await window.lightnote.exportWeeklyReport(week)
+      if (res?.success) {
+        const name = res.filePath?.split(/[\\/]/).pop()
+        setExportMsg(res.copied ? `📋 주간 보고를 저장하고 클립보드에 복사했습니다: ${name}` : `📋 주간 보고를 저장했습니다: ${name}`)
+      } else if (res?.error === 'NO_WORK_PAGES') {
+        setExportMsg('업무로 등록된 페이지가 없습니다.')
+      } else if (!res?.canceled) {
+        setExportMsg('주간 보고를 만들지 못했습니다.')
+      }
+    } finally {
+      setExporting(false)
+      setTimeout(() => setExportMsg(null), 4000)
+    }
+  }, [exporting, week])
+
   const th = (key: SortKey, label: string) => (
     <th className="wl-th" onClick={() => setSort(s => ({ key, dir: s.key === key ? (s.dir === 1 ? -1 : 1) : 1 }))}>
       {label}{sort.key === key ? (sort.dir === 1 ? ' ▲' : ' ▼') : ''}
@@ -183,6 +213,18 @@ export default function WorkListView({ mode, onOpen, onClose }: Props) {
         <button className="wl-refresh" title="새로고침" onClick={reload}>↻</button>
         <div className="wl-spacer" />
         {exportMsg && <span className="wl-export-msg">{exportMsg}</span>}
+        {mode === 'work' && (
+          <>
+            <select className="wl-week-sel" value={week} title="주간 보고 기준 주"
+              onChange={e => setWeek(e.target.value as 'this' | 'last')}>
+              <option value="this">이번 주</option>
+              <option value="last">지난 주</option>
+            </select>
+            <button className="wl-export-btn wl-weekly-btn" onClick={exportWeekly} disabled={exporting}>
+              📋 주간 보고
+            </button>
+          </>
+        )}
         {mode === 'work' && selected.size > 0 && (
           <button className="wl-export-btn" onClick={exportSelected} disabled={exporting}>
             📤 선택 항목 내보내기 ({selected.size})

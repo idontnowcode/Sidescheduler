@@ -1,5 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { usesBodyTemplate, findSection, filled, type BodySection } from './bodySections'
+import { useDismiss } from './useDismiss'
 import type { WorkObject, WorkStatus, WorkPriority, WorkAction, WorkDecision, WorkDocLink, PageRefLoc, WorkProgressEntry, WorkPendingDecision } from './types'
+import ResourcePicker from './ResourcePicker'
 import { useClampedMenuPosition } from './clampMenu'
 import { confirmDialog } from './dialogHost'
 
@@ -51,6 +54,10 @@ interface Props {
   onEnabledChange?: () => void
   // 본문에서 '속성으로 승격'했을 때 이 값이 바뀌어 패널이 다시 읽는다.
   refreshKey?: number
+  /** 지금 열린 본문의 소제목 칸 — 본문이 원본이라 배경·진행 현황·의사결정·A/I 를 여기서 읽어 보여 준다 */
+  body?: BodySection[]
+  /** 예전 패널 기록(배경·목적·진행·결정·A/I)을 본문 칸으로 옮긴다 */
+  onMigrateToBody?: () => Promise<void>
 }
 
 const normalizeUrl = (raw: string) => {
@@ -65,7 +72,7 @@ const normalizeUrl = (raw: string) => {
 // The work-object ("업무 속성") panel. Loads/saves its own metadata for the
 // current page; every edit persists immediately. AI-free. Phase 3 adds D-day/
 // overdue badges, auto done-date on 완료, and (DSP-embedded only) calendar sync.
-export default function WorkObjectPanel({ pageId, noteTitle, onComplete, onOpenPage, onEnabledChange, refreshKey}: Props) {
+export default function WorkObjectPanel({ pageId, noteTitle, onComplete, onOpenPage, onEnabledChange, refreshKey, body, onMigrateToBody }: Props) {
   const [wo, setWo] = useState<WorkObject | null>(null)
   const [loaded, setLoaded] = useState(false)
   const [error, setError] = useState('')
@@ -80,21 +87,10 @@ export default function WorkObjectPanel({ pageId, noteTitle, onComplete, onOpenP
   const [kindMenu, setKindMenu] = useState<{ x: number; y: number; row: Row } | null>(null)
   const kindMenuRef = useRef<HTMLDivElement>(null)
   useClampedMenuPosition(kindMenuRef, kindMenu)
-  useEffect(() => {
-    if (!kindMenu) return
-    const close = () => setKindMenu(null)
-    const id = setTimeout(() => {
-      document.addEventListener('click', close)
-      document.addEventListener('contextmenu', close)
-    }, 0)
-    return () => {
-      clearTimeout(id)
-      document.removeEventListener('click', close)
-      document.removeEventListener('contextmenu', close)
-    }
-  }, [kindMenu])
+  useDismiss(!!kindMenu, () => setKindMenu(null), [kindMenuRef])
   // 관련 문서 link editor.
   const [adding, setAdding] = useState<null | 'url' | 'page'>(null)
+  const [pickingRes, setPickingRes] = useState(false)
   const [urlVal, setUrlVal] = useState('')
   const [urlLabel, setUrlLabel] = useState('')
   const [pageQuery, setPageQuery] = useState('')
@@ -263,7 +259,8 @@ export default function WorkObjectPanel({ pageId, noteTitle, onComplete, onOpenP
   const closeAdder = () => { setAdding(null); setUrlVal(''); setUrlLabel(''); setPageQuery('') }
 
   const openLink = (l: WorkDocLink) => {
-    if (l.kind === 'url' && l.url) window.lightnote.openExternal(l.url).catch(() => setError('링크를 열지 못했습니다.'))
+    if (l.kind === 'resource' && l.resId) window.lightnote.resOpen(l.resId).then(r => { if (!r.ok) setError(r.reason === 'missing' ? '이 PC에서 찾을 수 없습니다 — 자료 화면에서 위치를 다시 지정하세요.' : '자료를 열지 못했습니다.') }).catch(() => setError('자료를 열지 못했습니다.'))
+    else if (l.kind === 'url' && l.url) window.lightnote.openExternal(l.url).catch(() => setError('링크를 열지 못했습니다.'))
     else if (l.kind === 'page' && l.pageId && l.notebookId && l.sectionId) {
       onOpenPage?.(l.notebookId, l.sectionId, l.pageId, l.label)
     }
@@ -282,14 +279,16 @@ export default function WorkObjectPanel({ pageId, noteTitle, onComplete, onOpenP
       try { setAllPages(await window.lightnote.listAllPages()) } catch { /* keep empty */ }
     }
   }
+  // 목록 IPC 는 노트북·폴더 이름을 따로 준다(합친 경로 칸은 없다)
+  const pagePath = (p: PageRefLoc) => [p.notebookName, p.sectionName].filter(Boolean).join(' › ')
   const addPageLink = (p: PageRefLoc) => {
-    const label = p.pageName || p.title || '(제목 없음)'
+    const label = p.title || '(제목 없음)'
     setLinks([...docLinks, { id: uid(), kind: 'page', label, pageId: p.pageId, notebookId: p.notebookId, sectionId: p.sectionId }])
     closeAdder()
   }
   const pageMatches = (() => {
     const q = pageQuery.trim().toLowerCase()
-    const rows = q ? allPages.filter(p => `${p.path || ''} ${p.pageName || p.title || ''}`.toLowerCase().includes(q)) : allPages
+    const rows = q ? allPages.filter(p => `${pagePath(p)} ${p.title || ''}`.toLowerCase().includes(q)) : allPages
     return rows.filter(p => p.pageId !== pageId).slice(0, 8)
   })()
 
@@ -401,6 +400,21 @@ export default function WorkObjectPanel({ pageId, noteTitle, onComplete, onOpenP
 
   // ── 읽기용 요약 ────────────────────────────────────────────────────────
   // 빈 항목은 줄째로 빼서, 적어둔 것만 보이게 한다.
+  // ── 본문이 원본 (docs/02-design/features/work-page.design.md) ─────────────────
+  const bodyMode = !!body && usesBodyTemplate(body)
+  const legacyCount = (background.trim() ? 1 : 0) + (purpose.trim() ? 1 : 0) + (wo.progressLog || []).length
+    + (wo.decisions || []).length + (wo.pendingDecisions || []).length + (wo.nextActions || []).filter(a => !(a.taskId && !a.done)).length
+  const md = (t: number | null) => (t ? fmtDate(t) : '')
+  const migrateBox = legacyCount > 0 && onMigrateToBody ? (
+    <div className="wo-legacy">
+      <span>예전 패널 기록 {legacyCount}건{bodyMode ? ' — 이 페이지는 본문 칸에 적습니다' : ''}</span>
+      <button className="wo-migrate-btn" onClick={() => { onMigrateToBody().catch(() => setError('본문으로 옮기지 못했습니다.')) }}>본문으로 옮기기</button>
+    </div>
+  ) : null
+  const bodyNote = bodyMode
+    ? <div className="wo-body-note">배경 · 진행 현황 · 논의 및 의사 결정 · Action Item 은 <b>본문 칸</b>에 적습니다 — 여기엔 본문에서 읽어 와 보여 줍니다.</div>
+    : null
+
   if (!editing) {
     const todo = (wo.nextActions || []).filter(a => !a.done)
     const prog = (wo.progressLog || []).slice(0, 3)
@@ -420,6 +434,20 @@ export default function WorkObjectPanel({ pageId, noteTitle, onComplete, onOpenP
     })
     if (pend.length) rows.push({ k: '결정필요', v: '', lines: pend.map(d => d.text) })
     if (depts.trim()) rows.push({ k: '관련', v: depts.trim() })
+    // 본문 틀을 쓰는 페이지는 본문 칸이 원본 — 패널 기록 줄 대신 본문 칸을 보여 준다
+    const bodyRows: { k: string; v: string; lines?: string[] }[] = []
+    if (bodyMode && body) {
+      const bg = filled(findSection(body, 'background')).map(l => l.text.trim())
+      if (bg.length) bodyRows.push({ k: '배경', v: '', lines: bg.slice(0, 3) })
+      const pr = filled(findSection(body, 'progress')).slice(-3).map(l => `${l.text.trim()}${l.modified ? ` (${md(l.modified)})` : ''}`)
+      if (pr.length) bodyRows.push({ k: '진행', v: '', lines: pr })
+      const ai = filled(findSection(body, 'action')).filter(l => l.list === 'unchecked').map(l => l.text.trim())
+      if (ai.length) bodyRows.push({ k: '할일', v: '', lines: ai })
+      const de = filled(findSection(body, 'decision')).slice(-3).map(l => `${l.text.trim()}${l.modified ? ` (${md(l.modified)})` : ''}`)
+      if (de.length) bodyRows.push({ k: '결정', v: '', lines: de })
+      if (depts.trim()) bodyRows.push({ k: '관련', v: depts.trim() })
+    }
+    const shown = bodyMode ? bodyRows : rows
 
     return (
       <div className="wo-panel wo-panel-read">
@@ -431,14 +459,17 @@ export default function WorkObjectPanel({ pageId, noteTitle, onComplete, onOpenP
           <div className="wo-spacer" />
           <button className="wo-edit-btn" title="업무 속성 편집" onClick={() => toggleEditing(true)}>✎ 편집</button>
         </div>
-        {rows.length === 0 ? (
+        {bodyNote}
+        {shown.length === 0 ? (
           <div className="wo-sum-empty">
-            아직 적어둔 내용이 없습니다 — <b>✎ 편집</b>으로 배경·목적을 적거나,
-            본문에서 문장을 골라 우클릭하면 할일·진행 현황으로 보낼 수 있습니다.
+            {bodyMode
+              ? <>아직 본문 칸에 적은 내용이 없습니다 — 본문의 배경 · 진행 현황 · Action Item 칸에 적으면 여기 보입니다.</>
+              : <>아직 적어둔 내용이 없습니다 — <b>✎ 편집</b>으로 배경·목적을 적거나,
+                본문에서 문장을 골라 우클릭하면 할일·진행 현황으로 보낼 수 있습니다.</>}
           </div>
         ) : (
           <div className="wo-sum-rows">
-            {rows.map(r => (
+            {shown.map(r => (
               <div className="wo-sum-row" key={r.k}>
                 <span className="wo-sum-k">{r.k}</span>
                 {r.lines ? (
@@ -452,6 +483,7 @@ export default function WorkObjectPanel({ pageId, noteTitle, onComplete, onOpenP
             ))}
           </div>
         )}
+        {migrateBox}
         {error && <div className="wo-err wo-err-row">{error}</div>}
       </div>
     )
@@ -497,6 +529,9 @@ export default function WorkObjectPanel({ pageId, noteTitle, onComplete, onOpenP
         <button className="wo-del-btn" title="업무 속성 완전 삭제" onClick={removeAll}>삭제</button>
       </div>
 
+      {bodyNote}
+      {migrateBox}
+      {!bodyMode && (
       <div className="wo-row">
         <label className="wo-field wo-grow wo-report-text">
           <span>업무 배경</span>
@@ -513,6 +548,7 @@ export default function WorkObjectPanel({ pageId, noteTitle, onComplete, onOpenP
             onBlur={() => persist({ purpose })} />
         </label>
       </div>
+      )}
 
       <div className="wo-row">
         <label className="wo-field wo-grow">
@@ -531,8 +567,8 @@ export default function WorkObjectPanel({ pageId, noteTitle, onComplete, onOpenP
             )}
             {docLinks.map(l => (
               <span key={l.id} className={`wo-link-chip wo-link-${l.kind}`}>
-                <button className="wo-link-open" title={l.kind === 'url' ? l.url : '페이지 열기'} onClick={() => openLink(l)}>
-                  {l.kind === 'page' ? '📄' : '🔗'} {l.label}
+                <button className="wo-link-open" title={l.kind === 'url' ? l.url : l.kind === 'resource' ? '자료 열기' : '페이지 열기'} onClick={() => openLink(l)}>
+                  {l.kind === 'page' ? '📄' : l.kind === 'resource' ? '📎' : '🔗'} {l.label}
                 </button>
                 <button className="wo-link-x" title="링크 제거" onClick={() => removeLink(l.id)}>×</button>
               </span>
@@ -541,6 +577,7 @@ export default function WorkObjectPanel({ pageId, noteTitle, onComplete, onOpenP
               <span className="wo-link-add-group">
                 <button className="wo-link-add" onClick={() => setAdding('url')}>🔗 URL</button>
                 <button className="wo-link-add" onClick={openPageAdder}>📄 페이지</button>
+                <button className="wo-link-add" title="자료(파일·폴더·웹 주소)에서 고르기" onClick={() => setPickingRes(true)}>📎 자료</button>
               </span>
             )}
           </div>
@@ -568,12 +605,18 @@ export default function WorkObjectPanel({ pageId, noteTitle, onComplete, onOpenP
                   ? <div className="wo-page-empty">일치하는 페이지가 없습니다.</div>
                   : pageMatches.map(p => (
                     <button key={p.pageId} className="wo-page-hit" onClick={() => addPageLink(p)}>
-                      <span className="wo-page-hit-name">{p.pageName || p.title || '(제목 없음)'}</span>
-                      {p.path && <span className="wo-page-hit-path">{p.path}</span>}
+                      <span className="wo-page-hit-name">{p.title || '(제목 없음)'}</span>
+                      {pagePath(p) && <span className="wo-page-hit-path">{pagePath(p)}</span>}
                     </button>
                   ))}
               </div>
             </div>
+          )}
+          {pickingRes && (
+            <ResourcePicker onClose={() => setPickingRes(false)} onPick={(r) => {
+              setPickingRes(false)
+              setLinks([...docLinks, { id: uid(), kind: 'resource', label: r.title, resId: r.id }])
+            }} />
           )}
         </div>
       </div>
@@ -581,6 +624,7 @@ export default function WorkObjectPanel({ pageId, noteTitle, onComplete, onOpenP
       {/* 할일·진행·결정·질문을 한 목록으로. 처리할 것과 지난 기록만
           나눠 놓는다 — 미래 기한(할일)과 과거 발생일(진행/결정)을 한 줄로
           섞으면 시간순이 오히려 읽기 어려워진다. */}
+      {!bodyMode && (
       <div className="wo-log">
         <div className="wo-sub-title">기록</div>
 
@@ -608,6 +652,7 @@ export default function WorkObjectPanel({ pageId, noteTitle, onComplete, onOpenP
           <div className="wo-log-empty">아직 기록이 없습니다. 위에서 종류를 고르고 한 줄 적어보세요.</div>
         )}
       </div>
+      )}
 
       {kindMenu && (
         <div ref={kindMenuRef} className="context-menu" style={{ left: kindMenu.x, top: kindMenu.y }}

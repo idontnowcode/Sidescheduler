@@ -22,6 +22,39 @@ function checkboxLines(delta) {
   return out;
 }
 
+// ── 업무 페이지의 본문 A/I (docs/02-design/features/work-page.design.md) ─────────────
+// 본문이 원본: 'Action Item'(Action·A/I·액션) 소제목 아래 체크칸 줄이 곧 A/I.
+// 줄 끝 '~MM/DD' 는 기한, 체크된 줄의 줄 날짜(수정)는 완료 날짜.
+const isActionHead = (t) => /action|a\/i|액션/i.test(t || '');
+const DUE_RE = /\s*~\s*(\d{1,2})\/(\d{1,2})\s*$/;
+function dueFrom(text, base) {
+  const m = DUE_RE.exec(text);
+  if (!m) return null;
+  const ref = new Date(base || Date.now());
+  const d = new Date(ref.getFullYear(), Number(m[1]) - 1, Number(m[2]), 12, 0, 0, 0);
+  // 연도가 없으니 기준일에서 반년 넘게 지난 날짜면 내년으로 본다
+  if (d.getTime() < ref.getTime() - 183 * 86400000) d.setFullYear(d.getFullYear() + 1);
+  return d.getTime();
+}
+function bodyActions(delta) {
+  const out = [];
+  let inAction = false;
+  splitOpLines(delta).forEach((ln, i) => {
+    const nl = ln.nl || {};
+    const raw = lineText(ln).trim();
+    if (nl.header) { inAction = isActionHead(raw); return; }
+    if (!inAction || !isBox(nl) || !raw) return;
+    const lt = typeof nl.linetime === 'string' ? nl.linetime.split('-').map(Number) : null;
+    const done = nl.list === 'checked';
+    out.push({
+      id: `body:${i}`, text: raw.replace(DUE_RE, '').trim(), lineText: raw, line: i,
+      done, doneAt: done && lt ? (lt[1] || lt[0] || null) : null,
+      due: dueFrom(raw, lt ? lt[0] : null), taskId: null, fromBody: true,
+    });
+  });
+  return out;
+}
+
 /** 보이는 모든 페이지에서 체크박스 줄을 모은다. */
 async function list() {
   const out = [];
@@ -56,9 +89,12 @@ async function toggle(notebookId, sectionId, pageId, line, expectText) {
   if (expectText && lineText(ln).trim() !== String(expectText).trim()) return { error: 'MOVED' };
 
   const done = ln.nl.list !== 'checked';
-  ln.nl = { ...ln.nl, list: done ? 'checked' : 'unchecked' };
+  // 편집기 밖에서 체크해도 줄 날짜(수정)를 남긴다 — 주간 보고의 완료 날짜가 된다
+  const now = Date.now();
+  const lt = typeof ln.nl.linetime === 'string' ? ln.nl.linetime.split('-').map(Number) : null;
+  ln.nl = { ...ln.nl, list: done ? 'checked' : 'unchecked', linetime: `${(lt && lt[0]) || now}-${now}` };
   const res = await noteStorage.savePage(notebookId, sectionId, pageId, joinOpLines(lines), content.title);
   return { success: true, done, updatedAt: res && res.updatedAt };
 }
 
-module.exports = { list, toggle, checkboxLines };
+module.exports = { list, toggle, checkboxLines, bodyActions };

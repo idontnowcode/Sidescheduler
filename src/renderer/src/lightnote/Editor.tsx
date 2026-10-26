@@ -1,12 +1,26 @@
 import { useState, useRef, useEffect, useCallback, forwardRef, useImperativeHandle } from 'react'
+import { useDismiss } from './useDismiss'
 import Quill from 'quill'
 import TableUp, { defaultCustomSelect, TableAlign, TableMenuContextmenu, TableResizeLine, TableSelection } from 'quill-table-up'
 import 'quill-table-up/index.css'
 import 'quill-table-up/table-creator.css'
 import type { PageRefLoc, PageVersion } from './types'
 import { serializeForOrganize, markdownToQuillDelta, type ImageOp } from './organize-utils'
-import { useClampedMenuPosition } from './clampMenu'
+import { useClampedMenuPosition, uiZoomOf } from './clampMenu'
 import { alertToast, confirmDialog } from './dialogHost'
+import { computeMarkers, listParagraphHtml, listPlainLine, relaxSpaces, type LineInfo } from './listClipboard'
+import { parseBody, type BodySection } from './bodySections'
+
+// 본문 칸(.ql-editor)만 스크롤해 el 을 보이게 한다. scrollIntoView 는 본문 칸이 더 못
+// 내려가거나 표·이미지·배율 때문에 계산이 어긋나면 툴바를 감싼 바깥 칸까지 밀어 올려
+// 툴바가 사라졌다. 사각형은 화면 기준이라 배율(zoom)이 걸려 있으면 칸 높이 비율로 되돌린다.
+function scrollInEditor(root: HTMLElement, el: HTMLElement, block: 'start' | 'center') {
+  const r = root.getBoundingClientRect(), e = el.getBoundingClientRect()
+  const k = r.height ? root.offsetHeight / r.height : 1
+  let delta = (e.top - r.top) * k
+  delta -= block === 'center' ? (root.clientHeight - e.height * k) / 2 : 12
+  root.scrollTo({ top: Math.max(0, root.scrollTop + delta), behavior: 'smooth' })
+}
 
 // Full table support (insert/delete row+column, MERGE/SPLIT cells, resize) via
 // quill-table-up — replaces Quill's basic built-in table module.
@@ -308,6 +322,14 @@ function tableToText(quillInst: Quill): string | null {
     Scope: { BLOCK: number }
   }
   const ListStart = new Parchment.Attributor('liststart', 'data-list-start', { scope: Parchment.Scope.BLOCK })
+  // 글머리 모양 — '- ' 는 대시(–), '* ' 는 동그라미(•). 목록 종류는 같은 bullet 이고
+  // 모양만 이 속성(data-bullet)으로 가른다(내보내기·다른 기능은 그대로 bullet 으로 본다).
+  const BulletStyle = new Parchment.Attributor('bulletstyle', 'data-bullet', { scope: Parchment.Scope.BLOCK, whitelist: ['circle'] })
+  Quill.register(BulletStyle as Parameters<typeof Quill.register>[0], true)
+  // 줄 날짜 — "생성ms-수정ms". 본문에 쓰거나 고친 줄에만 붙는다(아래 text-change).
+  // 주간 보고가 '그 주에 추가·수정된 줄'을 고르는 근거. 화면엔 안 보인다.
+  const LineTime = new Parchment.Attributor('linetime', 'data-lt', { scope: Parchment.Scope.BLOCK })
+  Quill.register(LineTime as Parameters<typeof Quill.register>[0], true)
   const TocLevel = new Parchment.ClassAttributor('toclevel', 'ql-toc', { scope: Parchment.Scope.BLOCK, whitelist: ['1', '2', '3'] })
   Quill.register(ListStart as Parameters<typeof Quill.register>[0], true)
   Quill.register(TocLevel as Parameters<typeof Quill.register>[0], true)
@@ -449,15 +471,22 @@ export interface EditorHandle {
   insertRefMarker: (refId: string) => void
   // 그 참조를 처음 인용한 자리로 본문을 스크롤한다.
   scrollToRef: (refId: string) => void
+  /** 본문 소제목 칸 끝에 줄들을 붙인다(칸이 없으면 맨 아래에 소제목째 만든다).
+   *  예전 업무 패널 기록을 본문으로 옮길 때 — 원래 날짜를 줄 날짜로 그대로 남긴다. */
+  appendToSection: (title: string, match: RegExp, lines: Array<{ text: string; list?: string; at?: number | null }>) => void
 }
 
 interface Props {
+  /** 업무 페이지인가 — 소제목(칸) 사이에 구분선을 그린다 */
+  isWorkPage?: boolean
   /** 이 페이지에 별이 달려 있는가 (페이지 리스트 칸의 즐겨찾기) */
   isFavorite?: boolean
   onToggleFavorite?: () => void
   onOpenSettings: () => void
   onOpenPage?: (nbId: string, secId: string, pageId: string, crumb: string) => void
   onHeadingsChange?: (items: { level: number; text: string; index: number }[]) => void
+  /** 본문 소제목 칸이 바뀔 때마다(업무 패널이 본문을 읽어 보여 준다) */
+  onBodyChange?: (sections: BodySection[]) => void
   onTitleChange?: (nbId: string, secId: string, pageId: string, title: string) => void
   // 본문에서 고른 문장을 업무 속성으로 보낸다 (페이지=메모, 속성=정제된 내용).
   onPromote?: (kind: 'action' | 'progress' | 'decision' | 'pending', text: string) => void
@@ -547,9 +576,22 @@ const SWATCHES = [
   '#ffffff', '#ced4da', '#ff8787', '#ffc078', '#ffe066', '#8ce99a', '#74c0fc', '#b197fc', '#faa2c1',
 ]
 
-const Editor = forwardRef<EditorHandle, Props>(({ isFavorite, onToggleFavorite, onOpenSettings, onOpenPage, onHeadingsChange, onTitleChange, onPromote, refLabels, onRefOrderChange, onRefMarkerClick, onPromoteToRef }, ref) => {
+const Editor = forwardRef<EditorHandle, Props>(({ isWorkPage, isFavorite, onToggleFavorite, onOpenSettings, onOpenPage, onHeadingsChange, onBodyChange, onTitleChange, onPromote, refLabels, onRefOrderChange, onRefMarkerClick, onPromoteToRef }, ref) => {
   const [currentPage, setCurrentPage] = useState<{ notebookId: string; sectionId: string; pageId: string } | null>(null)
   const [titleValue, setTitleValue] = useState('')
+  // 툴바를 감싼 칸들(overflow: hidden)은 화면엔 스크롤바가 없어도 코드로는 스크롤된다 —
+  // 포커스 이동·scrollIntoView 가 이 칸을 밀어 올리면 툴바가 위로 사라진다. 밀리는 즉시 되돌린다.
+  // (overflow: clip 으로 막으면 flex 칸 높이 제한이 풀려 본문 칸이 스크롤되지 않는다.)
+  useEffect(() => {
+    const els = ['.quill-wrapper', '.editor-area', '.main-layout', '.ln-root']
+      .map((q) => document.querySelector(q) as HTMLElement | null).filter((e): e is HTMLElement => !!e)
+    const pin = (e: Event) => {
+      const el = e.currentTarget as HTMLElement
+      if (el.scrollTop || el.scrollLeft) { el.scrollTop = 0; el.scrollLeft = 0 }
+    }
+    els.forEach((el) => el.addEventListener('scroll', pin))
+    return () => els.forEach((el) => el.removeEventListener('scroll', pin))
+  }, [])
   // 제목이 칸보다 길면 '…'로 자르지 않고 글자를 줄여 다 보이게 한다. 칸 폭이
   // 바뀌거나(창 크기·칸 끌기) 제목·테마가 바뀔 때마다 다시 잰다.
   useEffect(() => {
@@ -558,6 +600,9 @@ const Editor = forwardRef<EditorHandle, Props>(({ isFavorite, onToggleFavorite, 
     const canvas = document.createElement('canvas')
     const fit = () => {
       el.style.fontSize = ''
+      el.style.minHeight = ''
+      // 글자를 줄여도 칸 높이는 처음 그대로 — 줄이면 제목줄이 낮아져 툴바·본문이 몇 px씩 끌려 올라갔다
+      const h0 = el.offsetHeight
       const cs = getComputedStyle(el)
       const base = parseFloat(cs.fontSize)
       const minVar = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--title-fit-min'))
@@ -569,6 +614,7 @@ const Editor = forwardRef<EditorHandle, Props>(({ isFavorite, onToggleFavorite, 
       const avail = el.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight) - 4
       if (!(avail > 0 && w > avail)) return
       let size = Math.max(min, Math.floor(base * avail / w * 10) / 10)
+      if (h0 > 0) el.style.minHeight = `${h0}px`
       el.style.fontSize = `${size}px`
       // 글자 사이 간격·커닝 때문에 추정이 몇 px 모자랄 수 있다 — 실제로 넘치면 더 줄인다
       for (let i = 0; i < 24 && el.scrollWidth > el.clientWidth + 1 && size > min; i++) {
@@ -655,6 +701,7 @@ const Editor = forwardRef<EditorHandle, Props>(({ isFavorite, onToggleFavorite, 
 
   const editorDivRef = useRef<HTMLDivElement>(null)
   const quillRef = useRef<Quill | null>(null)
+  const loadSeqRef = useRef(0)
   const saveTimerRef = useRef<ReturnType<typeof setTimeout>>()
   const titleTimerRef = useRef<ReturnType<typeof setTimeout>>()
   // Images pulled out of the page for AI Organize, re-inserted when applied.
@@ -665,6 +712,8 @@ const Editor = forwardRef<EditorHandle, Props>(({ isFavorite, onToggleFavorite, 
   // Latest onHeadingsChange, so the (once-only) Quill effect can call it fresh.
   const onHeadingsChangeRef = useRef(onHeadingsChange)
   useEffect(() => { onHeadingsChangeRef.current = onHeadingsChange }, [onHeadingsChange])
+  const onBodyChangeRef = useRef(onBodyChange)
+  useEffect(() => { onBodyChangeRef.current = onBodyChange }, [onBodyChange])
 
   // 참조: Quill 이펙트가 한 번만 도므로 최신 값을 ref로 들고 본다.
   const refLabelsRef = useRef<Map<string, string>>(new Map())
@@ -703,7 +752,10 @@ const Editor = forwardRef<EditorHandle, Props>(({ isFavorite, onToggleFavorite, 
   // going stale.
   useEffect(() => {
     const unsub = window.lightnote.onPageChangedElsewhere((d) => {
-      if (currentPageRef.current?.pageId === d.pageId) setRemotelyChanged(true)
+      if (currentPageRef.current?.pageId !== d.pageId) return
+      // 묻지 않는다: 고치던 게 없으면 바로 최신을 불러오고, 고치던 중이면 다음 자동 저장이
+      // 지금 내용으로 저장한다(덮이는 쪽은 버전 기록에 남는다).
+      if (!isDirtyRef.current) refreshFromDiskRef.current?.()
     })
     return unsub
   }, [])
@@ -721,9 +773,8 @@ const Editor = forwardRef<EditorHandle, Props>(({ isFavorite, onToggleFavorite, 
       if (!cp || base === null) return
       const st = await window.lightnote.pageStamp(cp.notebookId, cp.sectionId, cp.pageId)
       if (!st || typeof st.updatedAt !== 'number' || st.updatedAt === base) return
-      // 고치던 게 있으면 말없이 덮지 않는다 — 배너로 고르게 한다.
-      if (isDirtyRef.current) setRemotelyChanged(true)
-      else refreshFromDiskRef.current?.()
+      // 고치던 게 있으면 다음 자동 저장이 지금 내용으로 저장한다(덮이는 쪽은 버전 기록에 남는다).
+      if (!isDirtyRef.current) refreshFromDiskRef.current?.()
     }
     window.addEventListener('focus', onFocus)
     return () => window.removeEventListener('focus', onFocus)
@@ -775,7 +826,11 @@ const Editor = forwardRef<EditorHandle, Props>(({ isFavorite, onToggleFavorite, 
   // rewrites like AI Organize.
   // force=true면 디스크가 더 새롭더라도 이 창의 내용으로 덮어쓴다 — 배너에서
   // 사용자가 "내 것으로 저장"을 고른 경우. 덮이는 쪽은 스냅샷으로 남는다.
-  const savePage = useCallback(async (snapshot = false, force = false) => {
+  // 저장은 한 번에 하나씩 차례로 한다. 자동 저장이 끝나기 전에 또 저장이 시작되면(페이지를
+  // 옮길 때 등) 뒤의 저장이 앞 저장이 바꾼 시각을 "다른 곳에서 바뀌었다"로 잘못 읽어, 페이지마다
+  // '저장할지 내버려둘지' 알림이 떴다.
+  const saveChainRef = useRef<Promise<unknown>>(Promise.resolve())
+  const savePageNow = async (snapshot: boolean, force: boolean): Promise<void> => {
     const cp = currentPageRef.current
     if (!cp || !quillRef.current) return
     const delta = quillRef.current.getContents()
@@ -786,12 +841,11 @@ const Editor = forwardRef<EditorHandle, Props>(({ isFavorite, onToggleFavorite, 
         ...cp, delta, title, snapshot: snapshot || force, force,
         baseUpdatedAt: force ? undefined : (baseUpdatedAtRef.current ?? undefined),
       })
-      // 내가 읽은 뒤에 파일이 바뀌었다 — 묵은 내용으로 덮지 않고 알린다.
-      // 고치던 내용은 창에 그대로 있고, 배너의 [새로고침]이 선택지를 준다.
-      if (res && res.conflict) {
-        setSaveState('editing')   // 아직 저장 안 됨 — "Saved"로 보이면 안 된다
-        setRemotelyChanged(true)
-        return
+      // 내가 읽은 뒤에 파일이 바뀌었다(다른 창·다른 PC). 묻지 않고 지금 내용으로 저장한다 -
+      // 덮이는 쪽은 force 저장이 버전 기록에 스냅샷으로 남겨 '버전'에서 되살릴 수 있다.
+      if (res && res.conflict && !force) {
+        if (currentPageRef.current?.pageId !== cp.pageId) return
+        return savePageNow(snapshot, true)
       }
       if (res && typeof res.updatedAt === 'number') {
         baseUpdatedAtRef.current = res.updatedAt
@@ -809,6 +863,11 @@ const Editor = forwardRef<EditorHandle, Props>(({ isFavorite, onToggleFavorite, 
     } catch {
       setSaveState('error')
     }
+  }
+  const savePage = useCallback((snapshot = false, force = false): Promise<void> => {
+    const run = saveChainRef.current.then(() => savePageNow(snapshot, force))
+    saveChainRef.current = run.catch(() => {})
+    return run
   }, [])
 
   // Reload the current page's content from disk — used by the "다른 창에서
@@ -917,6 +976,8 @@ const Editor = forwardRef<EditorHandle, Props>(({ isFavorite, onToggleFavorite, 
                 const attrs: Record<string, unknown> = {
                   list: value,
                   liststart: (value === 'ordered' && start !== 1) ? String(start) : null,
+                  // '* ' → 동그라미 글머리, '- ' → 대시(기본)
+                  bulletstyle: (value === 'bullet' && trimmed === '*') ? 'circle' : null,
                 }
                 const delta = new QDelta()
                   .retain(range.index - offset)
@@ -1046,6 +1107,19 @@ const Editor = forwardRef<EditorHandle, Props>(({ isFavorite, onToggleFavorite, 
       }
     })
     quillRef.current = quill
+    // 링크 말풍선 등 Quill 이 본문 안에 띄우는 것들은 getBounds(화면 px)를 그대로 CSS px 로
+    // 쓴다. 배율이 걸린 테마(판타지 좁은 창)에서는 아래로 갈수록 말풍선이 글자에서 떨어져
+    // 떴다 — 배율로 나눠 돌려준다. (Quill 안쪽 스크롤 계산은 이 함수를 쓰지 않는다.)
+    {
+      const q = quill as unknown as { getBounds: (...a: unknown[]) => Record<string, number> | null }
+      const orig = q.getBounds.bind(quill)
+      q.getBounds = (...args: unknown[]) => {
+        const b = orig(...args)
+        const z = uiZoomOf(quill.container as HTMLElement)
+        if (!b || z === 1) return b
+        return { bottom: b.bottom / z, height: b.height / z, left: b.left / z, right: b.right / z, top: b.top / z, width: b.width / z }
+      }
+    }
 
     // 툴바는 **접힌 채로 시작**한다. 자주 쓰는 것만 한 줄로 보이고 나머지는
     // … 뒤에 있다. 전에 펴 뒀으면 그대로 편다.
@@ -1232,6 +1306,44 @@ const Editor = forwardRef<EditorHandle, Props>(({ isFavorite, onToggleFavorite, 
     }
     updateCounts()
 
+    // 줄 날짜 찍기 (docs/02-design/features/work-page.design.md §1) — 사용자가 바꾼 범위의
+    // 줄마다 생성(처음 한 번)·수정(오늘) 시각. 같은 날 이미 찍힌 줄은 건너뛴다.
+    // SILENT 라 되돌리기 기록·저장 이벤트를 따로 만들지 않고 사용자 변경 저장에 같이 실린다.
+    type DOp = { insert?: unknown; retain?: unknown; delete?: number; attributes?: Record<string, unknown> }
+    quill.on('text-change', (delta: { ops: DOp[] }, _old: unknown, source: string) => {
+      if (source !== Quill.sources.USER || !currentPageRef.current) return
+      const now = Date.now(), today = new Date(now).toDateString()
+      const ranges: Array<[number, number]> = []
+      let idx = 0
+      for (const op of delta.ops) {
+        if (op.retain != null) { const n = typeof op.retain === 'number' ? op.retain : 1; if (op.attributes) ranges.push([idx, n]); idx += n }
+        else if (op.insert != null) { const n = typeof op.insert === 'string' ? op.insert.length : 1; ranges.push([idx, n]); idx += n }
+        else if (op.delete != null) ranges.push([idx, 0])
+      }
+      const done = new Set<unknown>()
+      for (const [i, n] of ranges) {
+        for (const line of quill.getLines(Math.min(i, Math.max(0, quill.getLength() - 1)), Math.max(n, 1))) {
+          if (done.has(line)) continue
+          done.add(line)
+          // 표 칸 줄은 건너뛴다 — 표 변환(표↔텍스트)·병합이 여러 단계로 내용을 옮기는 도중에
+          // 줄 속성을 붙이면 변환이 어긋나 내용이 사라졌다
+          let inTbl = false
+          for (let p = (line as unknown as { parent?: { statics?: { blotName?: string }; parent?: unknown } }).parent; p; p = (p as { parent?: typeof p }).parent) {
+            if (/table/i.test((p as { statics?: { blotName?: string } }).statics?.blotName || '')) { inTbl = true; break }
+          }
+          if (inTbl || /table/i.test((line as unknown as { statics: { blotName: string } }).statics.blotName)) continue
+          const cur = (line as unknown as { formats: () => Record<string, unknown> }).formats().linetime
+          let created = now
+          if (typeof cur === 'string') {
+            const [c, m] = cur.split('-').map(Number)
+            if (c) created = c
+            if (m && new Date(m).toDateString() === today) continue
+          }
+          quill.formatLine(quill.getIndex(line), 1, 'linetime', `${created}-${now}`, Quill.sources.SILENT)
+        }
+      }
+    })
+
     quill.on('text-change', () => {
       updateCounts()
       if (!currentPageRef.current) return
@@ -1258,7 +1370,8 @@ const Editor = forwardRef<EditorHandle, Props>(({ isFavorite, onToggleFavorite, 
       clearTimeout(refTipTimer.current)
       refTipTimer.current = setTimeout(() => {
         const r = mark.getBoundingClientRect()
-        setRefTip({ x: r.left, y: r.bottom + 6, num: mark.getAttribute('data-num') || '?', label })
+        const z = uiZoomOf(mark.closest('.ln-root') as HTMLElement | null)
+        setRefTip({ x: r.left / z, y: (r.bottom + 6) / z, num: mark.getAttribute('data-num') || '?', label })
       }, 1000)
     })
     quill.root.addEventListener('mouseout', (e: MouseEvent) => {
@@ -1363,6 +1476,98 @@ const Editor = forwardRef<EditorHandle, Props>(({ isFavorite, onToggleFavorite, 
     // handled by the pointer-based drag logic below, not HTML5 drag-drop,
     // because contenteditable's native image drag is unreliable across
     // browsers / Electron versions.
+    // ── 목록 복사: Word·메일에 화면 기호 그대로 (listClipboard.ts) ─────────────
+    // 선택에 목록 줄이 있으면 목록 줄을 "기호 + 내용" 내어쓰기 문단으로 바꿔 넘긴다.
+    // 표 안 선택은 Quill 기본 복사에 맡긴다(줄 단위로 풀면 표가 깨진다).
+    type LineBlot = { formats: () => Record<string, unknown>; length: () => number; statics: { blotName: string }; parent?: LineBlot | null }
+    const lineInfo = (line: LineBlot): LineInfo => {
+      const f = line.formats()
+      if (f.list) return { kind: 'list', list: String(f.list), indent: Number(f.indent || 0),
+        liststart: f.liststart ? String(f.liststart) : null, bulletstyle: f.bulletstyle ? String(f.bulletstyle) : null }
+      const name = line.statics.blotName
+      return name === 'block' || name === 'header' ? { kind: 'reset' } : { kind: 'keep' }
+    }
+    const inTable = (line: LineBlot) => { for (let p = line.parent; p; p = p.parent) if (/table/i.test(p.statics?.blotName || '')) return true; return false }
+    const copyLists = (e: ClipboardEvent, cut: boolean) => {
+      const range = quill.getSelection()
+      if (!range || range.length === 0 || !e.clipboardData) return
+      const end = range.index + range.length
+      const sel = quill.getLines(range.index, range.length) as unknown as LineBlot[]
+      if (!sel.some((l) => l.formats().list) || sel.some(inTable)) return
+      const all = quill.getLines(0, end) as unknown as LineBlot[]
+      const markers = computeMarkers(all.map(lineInfo))
+      const html: string[] = [], text: string[] = []
+      all.forEach((line, i) => {
+        const start = quill.getIndex(line as unknown as Parameters<typeof quill.getIndex>[0])
+        const lineEnd = start + line.length()
+        if (lineEnd <= range.index || start >= end) return
+        const a = Math.max(start, range.index), b = Math.min(lineEnd - 1, end), len = Math.max(0, b - a)
+        const inner = len ? relaxSpaces(quill.getSemanticHTML(a, len)) : ''
+        const plain = len ? quill.getText(a, len) : ''
+        const info = lineInfo(line)
+        const mk = markers[i]
+        if (mk != null) { html.push(listParagraphHtml(mk, inner, info)); text.push(listPlainLine(mk, plain, info)) }
+        else {
+          const h = line.formats().header
+          const tag = h ? `h${h}` : 'p'
+          html.push(`<${tag}>${inner || '<br>'}</${tag}>`); text.push(plain)
+        }
+      })
+      e.clipboardData.setData('text/html', html.join(''))
+      e.clipboardData.setData('text/plain', text.join('\n'))
+      e.preventDefault()
+      e.stopImmediatePropagation()
+      if (cut) quill.deleteText(range.index, range.length, Quill.sources.USER)
+    }
+    // 표 우클릭 메뉴(quill-table-up)는 누른 자리에 그대로 떠서, 표가 본문 칸 아래쪽에 있으면
+    // 메뉴 아래가 칸 밖으로 잘려 '표 삭제' 같은 항목을 누를 수 없었다. 뜬 직후 칸 안으로 당긴다.
+    // 메뉴 위치는 표 모듈이 한 박자 늦게 다시 잡기도 해서(그러면 당겨 둔 게 풀려 아래가
+    // '관련 페이지' 띠에 가려졌다) 몇 번 더 맞춘다.
+    let tableCtxAt: { x: number; y: number } | null = null
+    const clampTableMenus = () => {
+      const cont = quill.container as HTMLElement
+      cont.querySelectorAll<HTMLElement>('.table-up-menu').forEach((m) => {
+        // 배율이 걸린 테마(판타지 좁은 창)에서는 표 모듈이 화면 px 를 그대로 써서 메뉴가 누른
+        // 자리에서 떨어져 떴다 — 누른 자리를 칸 안 CSS px 로 바꿔 다시 놓는다.
+        const z = uiZoomOf(cont)
+        if (tableCtxAt && Math.abs(z - 1) > 0.01 && m.classList.contains('is-contextmenu')) {
+          const cr = cont.getBoundingClientRect()
+          m.style.left = `${(tableCtxAt.x - cr.left) / z}px`
+          m.style.top = `${(tableCtxAt.y - cr.top) / z}px`
+        }
+        // 창이 낮아 본문 칸보다 메뉴가 길면 칸 높이에 맞춰 줄이고 안에서 스크롤한다
+        if (m.classList.contains('is-contextmenu') && m.offsetHeight > cont.clientHeight - 8) m.style.maxHeight = `${Math.max(120, cont.clientHeight - 8)}px`
+        const maxTop = cont.clientHeight - m.offsetHeight - 4
+        if (m.offsetTop > maxTop) m.style.top = `${Math.max(0, maxTop)}px`
+        const maxLeft = cont.clientWidth - m.offsetWidth - 4
+        if (m.offsetLeft > maxLeft) m.style.left = `${Math.max(0, maxLeft)}px`
+      })
+    }
+    quill.root.addEventListener('contextmenu', (e: MouseEvent) => {
+      tableCtxAt = { x: e.clientX, y: e.clientY }
+      requestAnimationFrame(clampTableMenus)
+      setTimeout(clampTableMenus, 60)
+      setTimeout(clampTableMenus, 200)
+    })
+    quill.root.addEventListener('copy', (e: ClipboardEvent) => copyLists(e, false), { capture: true })
+    quill.root.addEventListener('cut', (e: ClipboardEvent) => copyLists(e, true), { capture: true })
+    // 앱이 만든 목록 문단을 다시 붙여넣으면 목록으로 되살린다(기호 글자는 버린다).
+    {
+      const D = Quill.import('delta') as unknown as new () => { retain: (n: number, a?: Record<string, unknown>) => unknown }
+      quill.clipboard.addMatcher('SPAN', (node: Node, delta: unknown) =>
+        (node as HTMLElement).classList?.contains('ln-mk') ? new D() : delta)
+      quill.clipboard.addMatcher('P', (node: Node, delta: { length: () => number; compose: (d: unknown) => unknown }) => {
+        const el = node as HTMLElement
+        const list = el.getAttribute?.('data-ln-list')
+        if (!list) return delta
+        const indent = parseInt(el.getAttribute('data-ln-indent') || '0', 10)
+        const attrs = { list, indent: indent > 0 ? indent : null,
+          liststart: el.getAttribute('data-ln-start'), bulletstyle: el.getAttribute('data-ln-bullet') }
+        const d = new D() as { retain: (n: number, a?: Record<string, unknown>) => { retain: (n: number, a?: Record<string, unknown>) => unknown } }
+        return delta.compose(d.retain(Math.max(0, delta.length() - 1)).retain(1, attrs))
+      })
+    }
+
     quill.root.addEventListener('drop', (e: DragEvent) => {
       const files = e.dataTransfer?.files
       if (!files || files.length === 0) return
@@ -1505,11 +1710,13 @@ const Editor = forwardRef<EditorHandle, Props>(({ isFavorite, onToggleFavorite, 
       const wr = wrapper.getBoundingClientRect()
       // Hide the box when the image is scrolled out of the wrapper viewport.
       if (ir.bottom < wr.top || ir.top > wr.bottom) { setResizeBox(null); return }
+      // 화면 px → 칸 안 CSS px (배율이 걸린 테마에서 상자가 그림에서 떨어져 그려졌다)
+      const z = uiZoomOf(wrapper)
       setResizeBox({
-        left: ir.left - wr.left,
-        top: ir.top - wr.top,
-        w: ir.width,
-        h: ir.height,
+        left: (ir.left - wr.left) / z,
+        top: (ir.top - wr.top) / z,
+        w: ir.width / z,
+        h: ir.height / z,
       })
     }
     quill.root.addEventListener('click', (e) => {
@@ -1626,16 +1833,23 @@ const Editor = forwardRef<EditorHandle, Props>(({ isFavorite, onToggleFavorite, 
       if (!wrapper) return
       root.querySelectorAll('.ln-fold-hidden').forEach(n => n.classList.remove('ln-fold-hidden'))
       const wr = wrapper.getBoundingClientRect()
+      // 배율이 걸린 테마(판타지)에서는 화면 px 를 배율로 나눠야 접기 단추가 제목 옆에 온다 —
+      // 안 나누면 아래 제목일수록 단추가 위로 떨어져 엉뚱한 줄 옆에 떴다.
+      const fz = uiZoomOf(wrapper)
       const chevs: Chev[] = []
       // Each foldable block gets a sequential key in document order, stable for
       // the same content — that's what we persist so folds survive page switches.
       let foldIdx = 0
       const pushChev = (el: HTMLElement, gutter: number, key: number) => {
-        const br = el.getBoundingClientRect()
+        // 제목 칸 위쪽에 구분선 여백이 붙는 경우(업무 페이지)도 있어 글자 줄에 맞춘다
+        const box = el.getBoundingClientRect()
+        const rg = document.createRange(); rg.selectNodeContents(el)
+        const line = rg.getClientRects()[0]
+        const br = line && line.height > 0 ? { top: line.top, height: line.height, left: box.left } : box
         chevs.push({
-          top: br.top - wr.top + 3,
-          left: Math.max(0, br.left - wr.left - gutter),
-          height: Math.min(br.height, 34),
+          top: (br.top - wr.top) / fz + (line ? -2 : 3),
+          left: Math.max(0, (br.left - wr.left) / fz - gutter),
+          height: Math.min(br.height / fz, 34),
           folded: foldKeysRef.current.has(key),
           key,
         })
@@ -1721,6 +1935,13 @@ const Editor = forwardRef<EditorHandle, Props>(({ isFavorite, onToggleFavorite, 
       const sig = headings.map(h => `${h.level}:${h.text}`).join('|')
       if (sig !== lastTocSig) { lastTocSig = sig; onHeadingsChangeRef.current?.(headings) }
 
+      // 본문 칸(소제목별 줄) — 업무 패널이 읽어 보여 준다. 바뀐 경우에만 알린다.
+      if (onBodyChangeRef.current) {
+        const body = parseBody((quill.getContents() as { ops?: Array<{ insert?: unknown; attributes?: Record<string, unknown> }> }).ops)
+        const bsig = JSON.stringify(body)
+        if (bsig !== lastBodySig) { lastBodySig = bsig; onBodyChangeRef.current(body) }
+      }
+
       // 참조 마커 번호는 본문 등장 순서로 다시 칠한다. 순서가 실제로 바뀐
       // 경우에만 알려, 타자 한 글자마다 참조 패널이 다시 그려지지 않게 한다.
       const refOrder = renumberRefs(quill.root, refLabelsRef.current)
@@ -1729,6 +1950,7 @@ const Editor = forwardRef<EditorHandle, Props>(({ isFavorite, onToggleFavorite, 
     }
     let lastTocSig = ''
     let lastRefSig = ''
+    let lastBodySig = ''
     // A block is a TOC anchor if it's a heading OR carries a toclevel class.
     const tocLevelOf = (el: HTMLElement): number => { const l = levelOf(el); return l === 99 ? 0 : l }
     // Collect anchors in document order, descending into list containers so that
@@ -1829,17 +2051,23 @@ const Editor = forwardRef<EditorHandle, Props>(({ isFavorite, onToggleFavorite, 
     },
     scrollToRef: (refId: string) => {
       const el = quillRef.current?.root.querySelector(`.ln-ref[data-ref-id="${CSS.escape(refId)}"]`) as HTMLElement | null
-      el?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+      if (el && quillRef.current) scrollInEditor(quillRef.current.root, el, 'center')
       el?.classList.add('ln-ref-flash')
       setTimeout(() => el?.classList.remove('ln-ref-flash'), 1200)
     },
     loadPage: async (nbId: string, secId: string, pageId: string) => {
+      // 탭을 빨리 닫거나 오가면 읽기가 겹친다. 앞서 부른 읽기가 늦게 끝나 나중 것을 덮으면
+      // 제목·본문이 다른 페이지 것이 되고, 그대로 자동 저장되면 남의 본문이 이 페이지에
+      // 들어갔다. 가장 마지막에 부른 읽기만 화면에 반영한다.
+      const seq = ++loadSeqRef.current
       if (isDirtyRef.current) await savePage()
+      if (seq !== loadSeqRef.current) return
       const cp = { notebookId: nbId, sectionId: secId, pageId }
       setCurrentPage(cp)
       currentPageRef.current = cp
       try {
         const data = await window.lightnote.loadPage(nbId, secId, pageId)
+        if (seq !== loadSeqRef.current) return
         baseUpdatedAtRef.current = typeof data.updatedAt === 'number' ? data.updatedAt : null
         setTitleValue(data.title || 'Untitled')
         setSavedAt(typeof data.updatedAt === 'number' ? data.updatedAt : null)
@@ -1863,6 +2091,7 @@ const Editor = forwardRef<EditorHandle, Props>(({ isFavorite, onToggleFavorite, 
       }
     },
     clearEditor: () => {
+      loadSeqRef.current++ // 아직 끝나지 않은 읽기가 비운 화면을 다시 채우지 않게
       clearTimeout(saveTimerRef.current)
       setIsDirty(false)
       isDirtyRef.current = false
@@ -1877,10 +2106,43 @@ const Editor = forwardRef<EditorHandle, Props>(({ isFavorite, onToggleFavorite, 
       if (!quillRef.current) return ''
       return extractTextFromDelta(quillRef.current.getContents() as { ops?: Array<{ insert?: unknown }> })
     },
+    appendToSection: (title, match, lines) => {
+      const q = quillRef.current
+      if (!q || !lines.length) return
+      type L = { length: () => number; formats: () => Record<string, unknown>; domNode: HTMLElement }
+      const all = q.getLines(0, q.getLength()) as unknown as L[]
+      const isHead = (l: L) => !!l.formats().header
+      const at = all.findIndex((l) => isHead(l) && match.test((l.domNode.textContent || '').trim()))
+      const D = Quill.import('delta') as unknown as new () => { retain: (n: number) => unknown; insert: (t: string, a?: Record<string, unknown>) => unknown }
+      const d = new D() as unknown as { retain: (n: number) => typeof d; insert: (t: string, a?: Record<string, unknown>) => typeof d }
+      let index: number
+      if (at < 0) {
+        // 칸이 없으면 맨 아래에 소제목째 만든다
+        index = q.getLength() - 1
+        d.retain(index).insert('\n').insert(title).insert('\n', { header: 2 })
+        index += 1 + title.length + 1
+      } else {
+        // 칸 끝(다음 소제목 앞). 틀이 깔아 둔 빈 줄이 칸 끝에 있으면 그 앞에 넣는다
+        let end = at + 1
+        while (end < all.length && !isHead(all[end])) end++
+        let ins = end
+        while (ins - 1 > at && !(all[ins - 1].domNode.textContent || '').trim()) ins--
+        index = ins < all.length ? q.getIndex(all[ins] as never) : q.getLength() - 1
+        if (ins >= all.length && (all[all.length - 1].domNode.textContent || '').trim()) { d.retain(index).insert('\n'); index += 1 } else d.retain(index)
+      }
+      for (const ln of lines) {
+        const attrs: Record<string, unknown> = {}
+        if (ln.list) attrs.list = ln.list
+        if (ln.at) attrs.linetime = `${ln.at}-${ln.at}`
+        d.insert(ln.text).insert('\n', attrs)
+      }
+      // API 출처 — 줄 날짜를 오늘로 덮지 않고(원래 날짜 보존), 저장은 평소처럼 된다
+      q.updateContents(d as never, Quill.sources.API)
+    },
     scrollToHeading: (index: number) => {
       const el = tocAnchorsRef.current()[index]
-      if (el) {
-        el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      if (el && quillRef.current) {
+        scrollInEditor(quillRef.current.root, el, 'start')
         el.classList.add('ln-toc-flash')
         setTimeout(() => el.classList.remove('ln-toc-flash'), 900)
       }
@@ -2109,15 +2371,44 @@ const Editor = forwardRef<EditorHandle, Props>(({ isFavorite, onToggleFavorite, 
     setShowVersions(false)
   }, [])
 
+  // 툴바 드롭다운(글머리·크기·글꼴·색…)을 마우스로 열면 포커스가 어디 있든(본문·제목·
+  // 아무 데도 없음) Esc 로 닫혀야 한다. Quill 은 드롭다운 단추에 포커스가 있을 때만 닫았다.
+  useEffect(() => {
+    const onEsc = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      const host = editorDivRef.current?.parentElement?.parentElement
+      const open = host?.querySelectorAll<HTMLElement>('.ql-toolbar .ql-picker.ql-expanded')
+      if (!open || open.length === 0) return
+      open.forEach((pk) => {
+        pk.classList.remove('ql-expanded')
+        pk.querySelector('.ql-picker-label')?.setAttribute('aria-expanded', 'false')
+        pk.querySelector('.ql-picker-options')?.setAttribute('aria-hidden', 'true')
+      })
+      e.preventDefault()
+      e.stopPropagation()
+    }
+    document.addEventListener('keydown', onEsc, true)
+    return () => document.removeEventListener('keydown', onEsc, true)
+  }, [])
+
+  // 찾기 막대를 닫으면 본문으로 돌아간다 — 안 돌려주면 닫은 뒤 누르는 키가 아무 데도 안 먹었다.
+  const closeFind = useCallback(() => {
+    setFindOpen(false)
+    requestAnimationFrame(() => quillRef.current?.focus())
+  }, [])
+
   // Ctrl+F / Ctrl+H open the panel; Esc closes it.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && (e.key === 'f' || e.key === 'h')) {
         e.preventDefault()
+        // 막대가 그려지기 전에 친 글자가 본문에 들어가지 않게 본문에서 먼저 손을 뗀다
+        const ae = document.activeElement as HTMLElement | null
+        if (ae && ae.closest('.ql-editor')) ae.blur()
         setFindOpen(true)
         setTimeout(() => (document.getElementById('ln-find-input') as HTMLInputElement | null)?.focus(), 30)
       } else if (e.key === 'Escape' && findOpen) {
-        setFindOpen(false)
+        closeFind()
       }
     }
     document.addEventListener('keydown', onKey)
@@ -2133,22 +2424,10 @@ const Editor = forwardRef<EditorHandle, Props>(({ isFavorite, onToggleFavorite, 
   // 승격 메뉴는 아무 데나 누르면 닫힌다. 단, 메뉴를 연 바로 그 우클릭
   // 이벤트가 아직 document까지 버블링 중이라 즉시 등록하면 열리자마자
   // 스스로 닫힌다 — 한 틱 뒤에 붙인다.
-  useEffect(() => {
-    if (!promoteMenu) return
-    const close = () => setPromoteMenu(null)
-    const id = setTimeout(() => {
-      document.addEventListener('click', close)
-      document.addEventListener('contextmenu', close)
-    }, 0)
-    return () => {
-      clearTimeout(id)
-      document.removeEventListener('click', close)
-      document.removeEventListener('contextmenu', close)
-    }
-  }, [promoteMenu])
+  useDismiss(!!promoteMenu, () => setPromoteMenu(null), [promoteMenuRef])
 
   return (
-    <div className="editor-area">
+    <div className={`editor-area${isWorkPage ? ' is-work-page' : ''}`}>
       {/* Always mounted — Quill must stay on the same DOM node */}
       <div style={{ display: currentPage ? 'flex' : 'none', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
         <div className="editor-header">
@@ -2201,8 +2480,9 @@ const Editor = forwardRef<EditorHandle, Props>(({ isFavorite, onToggleFavorite, 
               onChange={e => setFindText(e.target.value)}
               onKeyDown={e => {
                 if (e.key === 'Enter') { e.preventDefault(); runFind(e.shiftKey ? -1 : 1) }
-                if (e.key === 'Escape') setFindOpen(false)
+                if (e.key === 'Escape') closeFind()
               }}
+              autoFocus
             />
             <span className="ln-find-count">{findHits.total ? `${findHits.at}/${findHits.total}` : '없음'}</span>
             <button onMouseDown={e => e.preventDefault()} className="ln-find-btn" title="이전 (Shift+Enter)" onClick={() => runFind(-1)}>▲</button>
@@ -2212,11 +2492,11 @@ const Editor = forwardRef<EditorHandle, Props>(({ isFavorite, onToggleFavorite, 
               placeholder="바꾸기"
               value={replaceText}
               onChange={e => setReplaceText(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Escape') setFindOpen(false) }}
+              onKeyDown={e => { if (e.key === 'Escape') closeFind() }}
             />
             <button onMouseDown={e => e.preventDefault()} className="ln-find-btn wide" onClick={replaceOne}>바꾸기</button>
             <button onMouseDown={e => e.preventDefault()} className="ln-find-btn wide" onClick={replaceAll}>모두 바꾸기</button>
-            <button onMouseDown={e => e.preventDefault()} className="ln-find-btn" title="닫기 (Esc)" onClick={() => setFindOpen(false)}>✕</button>
+            <button onMouseDown={e => e.preventDefault()} className="ln-find-btn" title="닫기 (Esc)" onClick={closeFind}>✕</button>
           </div>
         )}
         {remotelyChanged && (
@@ -2234,7 +2514,7 @@ const Editor = forwardRef<EditorHandle, Props>(({ isFavorite, onToggleFavorite, 
           style={{ position: 'relative' }}
           onMouseMove={e => {
             const wr = e.currentTarget.getBoundingClientRect()
-            setFoldHoverY(e.clientY - wr.top)
+            setFoldHoverY((e.clientY - wr.top) / uiZoomOf(e.currentTarget))
           }}
           onMouseLeave={() => setFoldHoverY(null)}
         >
@@ -2269,7 +2549,8 @@ const Editor = forwardRef<EditorHandle, Props>(({ isFavorite, onToggleFavorite, 
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   border: 'none', borderRadius: '5px', cursor: 'pointer',
                   background: c.folded ? 'color-mix(in srgb, var(--accent) 14%, transparent)' : 'transparent',
-                  color: c.folded ? 'var(--accent)' : 'var(--text-dim, #999)',
+                  // 종이 위에 놓이니 종이 먹색 — 화면 글자색(--text-dim)은 판타지 종이 위에서 안 보였다
+                  color: c.folded ? 'var(--accent)' : 'var(--paper-ink-dim, var(--text-dim, #999))',
                   fontSize: '14px',
                   opacity: revealed ? 1 : 0,
                   transition: 'opacity 120ms',
@@ -2303,12 +2584,13 @@ const Editor = forwardRef<EditorHandle, Props>(({ isFavorite, onToggleFavorite, 
                   const img = resizeTargetRef.current
                   if (!img || !quillRef.current) return
                   const startX = e.clientX
-                  const startW = img.getBoundingClientRect().width
+                  const root0 = quillRef.current.root
+                  const startW = img.getBoundingClientRect().width / uiZoomOf(root0)
                   const naturalRatio = img.naturalHeight && img.naturalWidth
                     ? img.naturalHeight / img.naturalWidth
-                    : (img.getBoundingClientRect().height / startW || 1)
+                    : (img.getBoundingClientRect().height / uiZoomOf(root0) / startW || 1)
                   const onMove = (ev: MouseEvent) => {
-                    const next = Math.max(40, Math.round(startW + (ev.clientX - startX)))
+                    const next = Math.max(40, Math.round(startW + (ev.clientX - startX) / uiZoomOf(root0)))
                     img.setAttribute('width', String(next))
                     img.removeAttribute('height')   // preserve aspect ratio
                     img.style.width = `${next}px`
@@ -2317,9 +2599,10 @@ const Editor = forwardRef<EditorHandle, Props>(({ isFavorite, onToggleFavorite, 
                     const root = quillRef.current!.root
                     const ir = img.getBoundingClientRect()
                     const rr = root.getBoundingClientRect()
+                    const z = uiZoomOf(root)
                     setResizeBox({
-                      left: ir.left - rr.left + root.scrollLeft,
-                      top: ir.top - rr.top + root.scrollTop,
+                      left: (ir.left - rr.left) / z + root.scrollLeft,
+                      top: (ir.top - rr.top) / z + root.scrollTop,
                       w: next, h: next * naturalRatio,
                     })
                   }

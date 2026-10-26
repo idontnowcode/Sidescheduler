@@ -78,7 +78,8 @@ await ln.waitForTimeout(200)
 await ln.evaluate(() => {
   const a = document.querySelector('.ql-editor a')
   if (!a) throw new Error('no anchor created')
-  a.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }))
+  // 본문 링크는 누르는 순간(mousedown, 왼쪽 단추) 바로 열린다 — 캐럿이 링크로 들어가 말풍선이 뜨지 않게
+  a.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true, view: window, button: 0 }))
 })
 await ln.waitForTimeout(250)
 

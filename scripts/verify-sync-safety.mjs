@@ -180,7 +180,8 @@ await ln.evaluate(() => window.dispatchEvent(new Event('focus')))
 await ln.waitForTimeout(1800)
 ok('자리에 앉으면(포커스) 저쪽 내용으로 따라간다', (await edText()).includes('회사에서 또 고침'), await edText())
 
-// 적던 게 있으면 말없이 덮지 않고 배너로 알린다
+// 적던 게 있으면 저쪽 내용으로 덮지 않는다 — 묻지도 않고(알림 없음) 지금 내용으로 자동 저장하고,
+// 덮인 저쪽 판은 페이지 기록(버전)에 남긴다. (예전엔 배너로 골랐는데 페이지마다 떠서 불편했다.)
 await ln.evaluate(() => {
   const q = document.querySelector('.ql-editor')
   q.focus()
@@ -189,21 +190,13 @@ await ln.evaluate(() => {
 await ln.waitForTimeout(300)
 writeJson(page2Path, { ...readJson(page2Path), delta: { ops: [{ insert: '집에서 세 번째 고침\n' }] }, updatedAt: Date.now() + 40000 })
 await ln.evaluate(() => window.dispatchEvent(new Event('focus')))
-await ln.waitForTimeout(1500)
-ok('적던 게 있으면 말없이 덮지 않는다', (await edText()).includes('내가 지금 적는 중'), await edText())
-ok('대신 배너로 알린다', await ln.locator('.ln-remote-banner').count() === 1)
-const btns = await ln.locator('.ln-remote-banner button').allTextContents()
-ok('빠져나갈 길이 둘 다 있다 (불러오기 / 내 것으로 저장)',
-  btns.some(t => t.includes('불러오기')) && btns.some(t => t.includes('내 것으로')), JSON.stringify(btns))
-
-// "내 것으로 저장" — 막다른 길이 아니어야 한다
-await ln.locator('.ln-remote-banner button', { hasText: '내 것으로' }).click()
-await ln.waitForTimeout(1500)
-ok('"내 것으로 저장"을 고르면 실제로 저장된다',
+await ln.waitForTimeout(2500)
+ok('적던 게 있으면 저쪽 내용으로 덮지 않는다', (await edText()).includes('내가 지금 적는 중'), await edText())
+ok('저장할지 묻는 알림이 뜨지 않는다', await ln.locator('.ln-remote-banner').count() === 0)
+ok('지금 내용이 자동으로 저장된다',
   JSON.stringify(readJson(page2Path).delta).includes('내가 지금 적는 중'),
   JSON.stringify(readJson(page2Path).delta))
-ok('저장한 뒤 배너가 사라진다', await ln.locator('.ln-remote-banner').count() === 0)
-ok('덮인 쪽은 페이지 기록으로 되돌릴 수 있다',
+ok('덮인 저쪽 판은 페이지 기록으로 되돌릴 수 있다',
   (await ln.evaluate((id) => window.lightnote.listVersions(id), page2.pageId)).length >= 1)
 
 // 그 뒤로도 평소처럼 저장된다 (충돌 상태에 갇히지 않는다)

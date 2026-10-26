@@ -95,16 +95,13 @@ await openWorkTab()
 await ln.waitForSelector('.wo-panel', { timeout: 8000 })
 ok('업무 속성 패널이 정상 로드됨 (크래시 없음)', await ln.locator('.wo-panel').count() === 1)
 
-// This is the exact reported action: click the 세모 아이콘/텍스트 toggle.
+// 예전엔 '보고용 정리' 접기 단추를 눌러 펼쳤다. 지금은 편집 화면에 배경·목적 칸이 바로
+// 있고 기록 4종은 한 목록이다 — 빈 데이터로 편집 화면을 열어도 멀쩡한지 본다.
 await openWoForm()
-await ln.locator('.wo-report-toggle').click()
 await ln.waitForTimeout(400)
-ok('"보고용 정리" 클릭 후에도 패널이 살아있음 (빈 화면 아님)', await ln.locator('.wo-panel').count() === 1)
-ok('"보고용 정리" 본문이 정상적으로 펼쳐짐', await ln.locator('.wo-report-body').count() === 1)
+ok('편집 화면을 연 뒤에도 패널이 살아있음 (빈 화면 아님)', await ln.locator('.wo-panel').count() === 1)
 const bgEmpty = await ln.locator('.wo-report-text textarea').first().inputValue()
 ok('배경 textarea가 빈 문자열로 정상 렌더링(크래시 아님)', bgEmpty === '', `"${bgEmpty}"`)
-ok('진행 현황 목록이 빈 배열로 정상 렌더링 (0개, 에러 아님)', await ln.locator('.wo-report-body .wo-decision').count() === 0)
-ok('의사결정 필요사항 목록이 빈 배열로 정상 렌더링 (0개, 에러 아님)', await ln.locator('.wo-report-body .wo-action').count() === 0)
 ok('렌더링 중 uncaught JS 예외 없음', pageErrors.length === 0, JSON.stringify(pageErrors))
 
 // And the panel is still fully usable afterward — add a new progress entry.

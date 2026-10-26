@@ -14,6 +14,8 @@ const referenceStorage = require('./reference-storage');
 const bodyTasks = require('./body-tasks');
 const journal = require('./journal');
 const pageList = require('./page-list');
+const resourceStorage = require('./resource-storage');
+const resourcePaths = require('./resource-paths');
 const path = require('path');
 const fs = require('fs').promises;
 const { shell, BrowserWindow } = require('electron');
@@ -49,6 +51,10 @@ function registerIpcHandlers(ipcMain, getWindow, safeStorage, dialog, app, sched
   pageVersions.init(LOCAL_ROOT);
   attachments.init(DATA_ROOT);
   referenceStorage.init(DATA_ROOT);
+  // 자료(LinkMap 을 옮긴 것)는 데이터 폴더에 — 같은 폴더를 쓰는 기기끼리 같이 본다.
+  // 경로 바꿔치기 규칙만은 기기마다 다르니 이 PC 쪽(APP_ROOT)에.
+  resourceStorage.init(DATA_ROOT);
+  resourcePaths.init(APP_ROOT);
   pageList.init(DATA_ROOT);
   storage.init(safeStorage);
   // PARA(Projects/Areas/Resources/Archives) 기본 노트북은 더 이상 만들지
@@ -347,7 +353,11 @@ function registerIpcHandlers(ipcMain, getWindow, safeStorage, dialog, app, sched
         for (const pg of await noteStorage.getVisiblePages(nb.id, sec.id)) {
           const o = byId.get(pg.id);
           if (o && o.enabled !== false) {
-            out.push({ ...o, title: pg.title, notebookId: nb.id, sectionId: sec.id, notebookName: nb.name, sectionName: sec.name });
+            // 본문이 원본 — 본문 'Action Item' 칸의 체크칸 줄도 A/I 로 함께 싣는다(fromBody).
+            // 진행률·액션 화면·마감 숫자가 모두 이 목록을 보므로 한 군데서 합친다. 저장은 안 한다.
+            let body = [];
+            try { const pc = await noteStorage.loadPage(nb.id, sec.id, pg.id); body = bodyTasks.bodyActions(pc && pc.delta); } catch { /* 본문을 못 읽으면 패널 A/I 만 */ }
+            out.push({ ...o, nextActions: [...(o.nextActions || []), ...body], title: pg.title, notebookId: nb.id, sectionId: sec.id, notebookName: nb.name, sectionName: sec.name });
           }
         }
       }
@@ -461,6 +471,31 @@ function registerIpcHandlers(ipcMain, getWindow, safeStorage, dialog, app, sched
       if (res.canceled || !res.filePath) return { canceled: true };
       await fs.writeFile(res.filePath, text, 'utf-8');
       return { success: true, filePath: res.filePath };
+    } catch (err) {
+      return { error: err.message || 'EXPORT_FAILED' };
+    }
+  });
+
+  // 주간 업무 현황 보고 (A안: 업무별 묶음) — 저장 + 클립보드 복사. AI 없음.
+  // 업무로 등록된 페이지 전체에서 자동으로 — 선택 없음 (docs/02-design/features/work-page.design.md §4)
+  ipcMain.handle('lightnote:export-weekly-report', async (_, { week } = {}) => {
+    if (!dialog) return { error: 'NO_DIALOG' };
+    try {
+      const { text, range, count } = await reportExport.buildWeeklyReport({ week: week === 'last' ? 'last' : 'this' });
+      if (!count) return { error: 'NO_WORK_PAGES' };
+      const win = getWindow();
+      const d = new Date(range.ws);
+      const ymd = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      const res = await dialog.showSaveDialog(win || undefined, {
+        title: '주간 업무 현황 보고 내보내기',
+        defaultPath: `주간업무현황_${ymd}.md`,
+        filters: [{ name: 'Markdown', extensions: ['md'] }, { name: 'Text', extensions: ['txt'] }],
+      });
+      if (res.canceled || !res.filePath) return { canceled: true };
+      await fs.writeFile(res.filePath, text, 'utf-8');
+      let copied = false;
+      try { require('electron').clipboard.writeText(text); copied = true; } catch { /* 복사 못 해도 파일은 남는다 */ }
+      return { success: true, filePath: res.filePath, copied };
     } catch (err) {
       return { error: err.message || 'EXPORT_FAILED' };
     }
@@ -625,6 +660,88 @@ function registerIpcHandlers(ipcMain, getWindow, safeStorage, dialog, app, sched
   ipcMain.handle('lightnote:refs:update', async (_, { pageId, id, patch }) =>
     referenceStorage.update(pageId, id, patch || {}));
   ipcMain.handle('lightnote:refs:remove', async (_, { pageId, id }) => referenceStorage.remove(pageId, id));
+  ipcMain.handle('lightnote:refs:add-resource', async (_, { pageId, resId, caption }) =>
+    referenceStorage.add(pageId, { kind: 'resource', resId, caption }));
+
+  // === 자료 (웹·파일·폴더 링크 — LinkMap 을 옮긴 것). AI 를 부르지 않는다. ===
+  ipcMain.handle('lightnote:res:list', () => resourceStorage.list());
+  ipcMain.handle('lightnote:res:add', (_, { items }) => resourceStorage.add(items || []));
+  ipcMain.handle('lightnote:res:update', (_, { id, patch }) => resourceStorage.update(id, patch || {}));
+  ipcMain.handle('lightnote:res:remove', (_, { ids }) => resourceStorage.remove(ids || []));
+  ipcMain.handle('lightnote:res:restore', (_, { ids }) => resourceStorage.restore(ids || []));
+  ipcMain.handle('lightnote:res:tag-create', (_, { name }) => resourceStorage.createTag(String(name || '').trim() || '새 태그'));
+  ipcMain.handle('lightnote:res:tag-update', (_, { id, patch }) => resourceStorage.updateTag(id, patch || {}));
+  ipcMain.handle('lightnote:res:tag-delete', (_, { id }) => resourceStorage.deleteTag(id));
+  ipcMain.handle('lightnote:res:tag-merge', (_, { from, into }) => resourceStorage.mergeTags(from, into));
+  ipcMain.handle('lightnote:res:open', async (_, { id }) => {
+    const it = await resourceStorage.get(id);
+    if (!it) return { ok: false, reason: 'gone' };
+    if (it.kind === 'web') {
+      if (!/^https?:\/\//i.test(it.target)) return { ok: false, reason: 'bad_url' };
+      await shell.openExternal(it.target);
+    } else {
+      if (it.missing) return { ok: false, reason: 'missing' };
+      const err = await shell.openPath(it.resolved);
+      if (err) return { ok: false, reason: err };
+    }
+    await resourceStorage.touchOpened(id);
+    return { ok: true };
+  });
+  ipcMain.handle('lightnote:res:reveal', async (_, { id }) => {
+    const it = await resourceStorage.get(id);
+    if (!it || it.kind === 'web' || it.missing) return false;
+    shell.showItemInFolder(it.resolved);
+    return true;
+  });
+  // 미리보기용 바이트 — 큰 파일은 읽지 않는다
+  ipcMain.handle('lightnote:res:read', async (_, { id }) => {
+    const it = await resourceStorage.get(id);
+    if (!it || it.kind !== 'file') return { ok: false, reason: 'not_file' };
+    if (it.missing) return { ok: false, reason: 'missing' };
+    try {
+      const st = await fs.stat(it.resolved);
+      if (st.size > 30 * 1024 * 1024) return { ok: false, reason: 'too_large' };
+      return { ok: true, data: new Uint8Array(await fs.readFile(it.resolved)), mtime: st.mtimeMs };
+    } catch { return { ok: false, reason: 'unreadable' }; }
+  });
+  ipcMain.handle('lightnote:res:pick', async (event, { mode }) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    const r = await dialog.showOpenDialog(win, {
+      properties: mode === 'folder' ? ['openDirectory'] : ['openFile', 'multiSelections'],
+      title: mode === 'folder' ? '폴더 고르기' : '파일 고르기',
+    });
+    return r.canceled ? [] : r.filePaths;
+  });
+  ipcMain.handle('lightnote:res:pick-json', async (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    const r = await dialog.showOpenDialog(win, { properties: ['openFile'], title: 'LinkMap 내보내기 파일', filters: [{ name: 'JSON', extensions: ['json'] }] });
+    return r.canceled ? null : r.filePaths[0];
+  });
+  // 웹 주소의 제목만 한 번 가져와 본다(5초, 실패하면 null) — 화면엔 주소로 대신 적는다
+  ipcMain.handle('lightnote:res:fetch-title', async (_, { url }) => {
+    if (!/^https?:\/\//i.test(url || '')) return null;
+    try {
+      const { net } = require('electron');
+      const ctl = new AbortController();
+      const t = setTimeout(() => ctl.abort(), 5000);
+      const res = await net.fetch(url, { signal: ctl.signal, redirect: 'follow' });
+      clearTimeout(t);
+      const html = (await res.text()).slice(0, 200000);
+      const m = /<title[^>]*>([\s\S]*?)<\/title>/i.exec(html);
+      return m ? m[1].replace(/\s+/g, ' ').trim().slice(0, 300) : null;
+    } catch { return null; }
+  });
+  ipcMain.handle('lightnote:res:folder-list', (_, { path: p }) => resourceStorage.listFolder(p));
+  ipcMain.handle('lightnote:res:folder-import', (_, { root, rels, extTags }) => resourceStorage.importFolder(root, rels || [], !!extTags));
+  ipcMain.handle('lightnote:res:folder-preview', (_, { tagId }) => resourceStorage.previewSync(tagId));
+  ipcMain.handle('lightnote:res:folder-sync', (_, { tagId }) => resourceStorage.applySync(tagId));
+  ipcMain.handle('lightnote:res:exclusions', (_, { tagId }) => resourceStorage.getExclusions(tagId));
+  ipcMain.handle('lightnote:res:set-exclusions', (_, { tagId, rels }) => resourceStorage.setExclusions(tagId, rels || []));
+  ipcMain.handle('lightnote:res:remap', (_, { id, actual }) => resourceStorage.remap(id, actual));
+  ipcMain.handle('lightnote:res:content', (_, { id, content }) => resourceStorage.setContent(id, content));
+  // 이 자료를 가리키는 페이지 id 들(참조·업무 문서 링크). 제목은 화면이 페이지 목록으로 붙인다.
+  ipcMain.handle('lightnote:res:used-by', (_, { id }) => resourceStorage.usedBy(id));
+  ipcMain.handle('lightnote:res:import-linkmap', (_, { path: p }) => resourceStorage.importLinkMap(p));
   ipcMain.handle('lightnote:refs:image', async (_, { pageId, file }) => referenceStorage.imageDataUrl(pageId, file));
 
   // 클립보드에서 바로 붙여넣은 이미지(캡처 등) — data URI로 받아 파일로 떨군다.

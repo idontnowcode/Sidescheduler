@@ -38,6 +38,12 @@ export default function RightPanel({ width, hasWork, refCount, showRefsKey, toc,
     setTab('ref')
     setCollapsed(false)
   }, [showRefsKey])
+  // 새 업무 페이지를 만들거나 업무로 전환하면 업무 탭을 바로 연다.
+  useEffect(() => {
+    const on = () => { setTab('work'); setCollapsed(false); try { localStorage.setItem('ln-right-tab', 'work') } catch { /* private mode */ } }
+    window.addEventListener('ln-show-work-tab', on)
+    return () => window.removeEventListener('ln-show-work-tab', on)
+  }, [])
   const pick = (t: Tab) => {
     setTab(t)
     try { localStorage.setItem('ln-right-tab', t) } catch { /* private mode */ }

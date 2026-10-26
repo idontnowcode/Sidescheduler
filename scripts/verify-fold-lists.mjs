@@ -20,8 +20,9 @@ await ln.waitForFunction(() => !!window.lightnote, null, { timeout: 8000 })
 
 // Bullet list: Parent > (child a, child b), then a top-level Sibling.
 const ids = await ln.evaluate(async () => {
-  const nb = (await window.lightnote.getNotebooks())[0]
-  const sec = (await window.lightnote.getSections(nb.id))[0]
+  // 견본 노트북은 이제 자동으로 생기지 않는다 — 시험이 직접 만든다
+  const nb = await window.lightnote.createNotebook('Projects', '#4dabf7')
+  const sec = await window.lightnote.createSection(nb.id, 'Overview', null)
   const page = await window.lightnote.createPage(nb.id, sec.id, 'ListFold')
   const delta = { ops: [
     { insert: 'Parent' }, { insert: '\n', attributes: { list: 'bullet' } },

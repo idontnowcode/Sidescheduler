@@ -27,7 +27,7 @@ const typeModal = async (text) => {
 }
 
 // ── Create notebook via the + button ───────────────────────────────────────
-await ln.click('.sidebar-top .icon-btn-sm')
+await ln.click('.sidebar-top .icon-btn-sm[data-icon="add"]')
 await typeModal('Project Alpha')
 ok('create notebook via UI', (await ln.locator('.nb-name', { hasText: 'Project Alpha' }).count()) === 1)
 
@@ -79,6 +79,9 @@ await ln.waitForTimeout(400)
 // pick "Data model" inside the picker modal
 await ln.getByText('Data model', { exact: false }).last().click()
 await ln.waitForTimeout(500)
+// 고르는 창은 여러 개를 연달아 고를 수 있게 열린 채로 남는다 — Done 으로 닫는다
+const doneBtn = ln.getByRole('button', { name: 'Done', exact: true })
+if (await doneBtn.count()) { await doneBtn.first().click(); await ln.waitForTimeout(300) }
 const relCount = await ln.getByText(/related pages \(\d+\)/i).count()
 const chipNav = ln.getByRole('button', { name: /Data model/ })
 ok('#2 page link adds Related pages chip', relCount >= 1 && (await chipNav.count()) >= 1)

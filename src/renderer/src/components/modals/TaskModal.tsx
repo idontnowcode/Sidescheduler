@@ -156,7 +156,7 @@ export default function TaskModal({ mode, task, defaultDueDate, onClose, onSaved
       <form onSubmit={submit} onClick={(e) => e.stopPropagation()}
         className={fullWindow
           ? 'glass-panel w-screen h-screen border border-ink-200 dark:border-ink-800 overflow-hidden flex flex-col'
-          : 'glass-panel rounded-2xl w-full max-w-md border border-ink-200 dark:border-ink-800'}>
+          : 'glass-panel rounded-2xl w-full max-w-md max-h-full overflow-hidden flex flex-col border border-ink-200 dark:border-ink-800'}>
         <div className={`flex-shrink-0 px-5 py-4 border-b border-ink-100 dark:border-ink-800 flex items-center justify-between${fullWindow ? ' cursor-move select-none' : ''}`}
           style={fullWindow ? { WebkitAppRegion: 'drag' } as any : undefined}>
           <h2 className="text-base font-semibold">{isEdit ? t('modal.editTask') : t('modal.addTask')}</h2>
@@ -164,7 +164,8 @@ export default function TaskModal({ mode, task, defaultDueDate, onClose, onSaved
             style={{ WebkitAppRegion: 'no-drag' } as any}>✕</button>
         </div>
 
-        <div className={fullWindow ? 'flex-1 overflow-y-auto min-h-0' : ''}>
+        {/* 창이 낮으면 모달이 창보다 길어져 위·아래(저장 단추)가 잘렸다 — 가운데만 스크롤 */}
+        <div className="flex-1 overflow-y-auto min-h-0">
         <div className="p-5 space-y-4">
           <div>
             <label className="block text-2xs font-medium text-ink-500 mb-1.5 uppercase tracking-wider">{t('field.title')}</label>

@@ -69,8 +69,8 @@ const pos = await ln.evaluate(async () => {
   img.click()
   await new Promise(r => setTimeout(r, 250))
   // The box has a 2px purple border; locate by border-color
-  const box = [...document.querySelectorAll('.quill-wrapper > div')]
-    .find(d => /rgb\(124, 111, 240\)/.test(getComputedStyle(d).borderColor))
+  // 테두리 색은 테마 강조색(--accent)을 따른다 — 색이 아니라 칸 이름으로 찾는다
+  const box = document.querySelector('.quill-wrapper .ln-img-ring')
   if (!box) return { err: 'no box' }
   const br = box.getBoundingClientRect()
   const ir = img.getBoundingClientRect()
@@ -102,28 +102,25 @@ const initialIdx = await ln.evaluate(() => {
 })
 ok('initial image is in the middle paragraph (idx=1)', initialIdx === 1, String(initialIdx))
 
-const moved = await ln.evaluate(async () => {
+// 그림 옮기기는 HTML 끌어놓기가 아니라 마우스 누름→이동→뗌으로 한다(본문이 그림을
+// 직접 옮긴다). 실제 마우스로 그림을 "A" 문단 맨 앞에 떨어뜨린다.
+const geo = await ln.evaluate(async () => {
   const root = document.querySelector('.ql-editor')
   root.scrollTop = 0
-  await new Promise(r => setTimeout(r, 50))
-  const img = root.querySelector('img')
-  // Synthesize a drag of the image and drop it on top of paragraph "A" (caret at 0).
-  const dt = new DataTransfer()
-  img.dispatchEvent(new DragEvent('dragstart', { bubbles: true, cancelable: true, dataTransfer: dt }))
-  await new Promise(r => setTimeout(r, 50))
-  // Get drop coordinates: top-left of "A" paragraph
-  const targetP = [...root.querySelectorAll('p')].find(p => /^A/.test(p.textContent || ''))
-  const tr = targetP.getBoundingClientRect()
-  const clientX = tr.left + 1
-  const clientY = tr.top + 1
-  // The drop handler uses the SAME dt to read the internal marker
-  root.dispatchEvent(new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer: dt, clientX, clientY }))
-  root.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: dt, clientX, clientY }))
-  await new Promise(r => setTimeout(r, 250))
-  // Read the new paragraph order
-  const ps = [...root.querySelectorAll('p')]
-  const newIdx = ps.findIndex(p => p.querySelector('img'))
-  return { newIdx, paraCount: ps.length, firstText: ps[0]?.textContent || '' }
+  await new Promise(r => setTimeout(r, 80))
+  const ir = root.querySelector('img').getBoundingClientRect()
+  const tr = [...root.querySelectorAll('p')].find(p => /^A/.test(p.textContent || '')).getBoundingClientRect()
+  return { ix: ir.left + ir.width / 2, iy: ir.top + ir.height / 2, tx: tr.left + 1, ty: tr.top + tr.height / 2 }
+})
+await ln.mouse.move(geo.ix, geo.iy)
+await ln.mouse.down()
+await ln.mouse.move(geo.ix + 6, geo.iy - 6, { steps: 3 })
+await ln.mouse.move(geo.tx, geo.ty, { steps: 8 })
+await ln.mouse.up()
+await ln.waitForTimeout(300)
+const moved = await ln.evaluate(() => {
+  const ps = [...document.querySelectorAll('.ql-editor p')]
+  return { newIdx: ps.findIndex(p => p.querySelector('img')), paraCount: ps.length, firstText: ps[0]?.textContent || '' }
 })
 ok('after dropping at the top, image is now in the FIRST paragraph', moved.newIdx === 0, JSON.stringify(moved))
 

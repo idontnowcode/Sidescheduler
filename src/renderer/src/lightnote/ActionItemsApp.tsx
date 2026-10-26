@@ -20,6 +20,8 @@ interface Row {
   dday: string
   /** 본문에 체크박스로 적어둔 줄이면 그 줄 번호 (업무 속성 할일이면 없음) */
   line?: number
+  /** 체크할 때 본문 줄과 대조할 글자(기한 '~MM/DD' 를 뗀 표시 글자와 다를 때) */
+  matchText?: string
 }
 
 /** 본문 체크박스 → 할 일 줄. 아직 체크 안 한 것만.
@@ -27,11 +29,12 @@ interface Row {
  *  업무 속성의 "다음 Action"만 세면 노트에 체크박스로 적어둔 것들이 어디에도
  *  안 잡힌다. 적는 사람에겐 둘 다 할 일이라, 여기 같이 모은다. 기한은 없다 —
  *  본문 체크박스에는 날짜를 붙일 자리가 없다. */
-function buildBodyRows(pages: BodyTaskPage[]): Row[] {
+function buildBodyRows(pages: BodyTaskPage[], skip: Set<string> = new Set()): Row[] {
   const rows: Row[] = []
   for (const p of pages) {
     for (const it of p.items) {
       if (it.done) continue
+      if (skip.has(`${p.pageId}:${it.line}`)) continue   // 업무 페이지의 본문 A/I — 업무 줄로 이미 나온다
       rows.push({
         key: `${p.pageId}:line:${it.line}`,
         text: it.text, due: null,
@@ -60,6 +63,8 @@ function buildRows(items: WorkObjectListItem[]): Row[] {
         notebookId: it.notebookId, sectionId: it.sectionId, pageId: it.pageId,
         overdue,
         dday: diff == null ? '' : diff < 0 ? `지연 D+${-diff}` : diff === 0 ? 'D-DAY' : `D-${diff}`,
+        // 업무 페이지 본문 A/I — 여기서도 체크하면 본문 줄이 바뀐다
+        ...(a.fromBody && a.line != null ? { line: a.line, matchText: a.lineText } : {}),
       })
     }
   }
@@ -79,7 +84,8 @@ export default function ActionItemsApp() {
       window.lightnote.bodyTasksList().catch(() => []),
     ]).then(([work, body]) => {
       // 기한 있는 것 먼저 오도록 합쳐서 다시 정렬한다(본문 체크박스는 기한 없음).
-      const all = [...buildRows(work), ...buildBodyRows(body)]
+      const bodyAi = new Set(work.flatMap(w => (w.nextActions || []).filter(a => a.fromBody).map(a => `${w.pageId}:${a.line}`)))
+      const all = [...buildRows(work), ...buildBodyRows(body, bodyAi)]
       all.sort((a, b) => (a.due ?? Infinity) - (b.due ?? Infinity))
       setRows(all)
       setLoaded(true)
@@ -146,7 +152,7 @@ function ActionRow({ row, onDone }: { row: Row; onDone: () => void }) {
             onClick={async (e) => {
               e.stopPropagation()
               await window.lightnote.bodyTaskToggle(
-                row.notebookId, row.sectionId, row.pageId, row.line as number, row.text,
+                row.notebookId, row.sectionId, row.pageId, row.line as number, row.matchText ?? row.text,
               ).catch(() => {})
               onDone()
             }}>☐</button>

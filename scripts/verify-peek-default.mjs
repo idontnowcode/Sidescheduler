@@ -44,7 +44,8 @@ ok('시작 시 선택 가능 — pass-through 잠금 off',
 const afterToggle = await main.evaluate(() => new Promise(async (resolve) => {
   const t = setTimeout(() => resolve('timeout'), 4000)
   await window.electronAPI.setSettings({ clickThrough: false })
-  window.electronAPI.onSidebarPeek((p) => { clearTimeout(t); resolve(p) })
+  // 끈 쪽 방송이 늦게 도착할 수 있다 — 다시 켠 뒤의 방송(enabled:true)을 기다린다
+  window.electronAPI.onSidebarPeek((p) => { if (p.enabled) { clearTimeout(t); resolve(p) } })
   await window.electronAPI.setSettings({ clickThrough: true })
 }))
 ok('모드를 껐다 켜도 선택 가능에서 시작',

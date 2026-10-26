@@ -46,7 +46,8 @@ async function readFavorites() {
 async function writeFavorites(map) {
   const p = favPath();
   await fs.mkdir(path.dirname(p), { recursive: true });
-  const tmp = p + '.tmp';
+  // 같은 파일을 동시에 두 번 저장하면 임시 파일 이름이 겹쳐 한쪽이 ENOENT 로 실패했다 — 매번 다른 이름
+  const tmp = p + '.' + process.pid + '-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7) + '.tmp';
   await fs.writeFile(tmp, JSON.stringify(map, null, 2));
   try {
     await fs.rename(tmp, p);

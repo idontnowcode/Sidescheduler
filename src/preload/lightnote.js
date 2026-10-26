@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron'
+import { contextBridge, ipcRenderer, webUtils } from 'electron'
 // 일정 쪽(빠른 추가·오늘·대시보드)을 LightNote 창 **안에서** 그리려면 그
 // 화면들이 쓰는 window.electronAPI 가 이 창에도 있어야 한다. 같은 앱·같은
 // 렌더러 묶음이라 한 줄 import 로 그대로 얹는다(여기서 다시 나열하면
@@ -52,6 +52,8 @@ contextBridge.exposeInMainWorld('lightnote', {
 
   // 업무 진행 현황 보고서 내보내기 (선택한 업무들 → 개조식 평문 .md)
   exportReport: (pageIds) => ipcRenderer.invoke('lightnote:export-report', { pageIds }),
+  // 주간 업무 현황 보고 — 업무 페이지 전체에서 자동(본문 소제목 그대로). week: 'this' | 'last'
+  exportWeeklyReport: (week) => ipcRenderer.invoke('lightnote:export-weekly-report', { week }),
 
   // 페이지 템플릿 (실제로는 숨김 노트북 안의 일반 페이지 — templateStoreLocation으로 열기)
   templateStoreLocation: () => ipcRenderer.invoke('lightnote:templates:store-location'),
@@ -72,6 +74,35 @@ contextBridge.exposeInMainWorld('lightnote', {
   // 참조 (논문식 [1] 각주)
   refsList: (pageId) => ipcRenderer.invoke('lightnote:refs:list', { pageId }),
   refsAddText: (pageId, text, caption) => ipcRenderer.invoke('lightnote:refs:add-text', { pageId, text, caption }),
+  refsAddResource: (pageId, resId, caption) => ipcRenderer.invoke('lightnote:refs:add-resource', { pageId, resId, caption }),
+  // 자료 (웹·파일·폴더 링크 — LinkMap 을 옮긴 것)
+  resList: () => ipcRenderer.invoke('lightnote:res:list'),
+  resAdd: (items) => ipcRenderer.invoke('lightnote:res:add', { items }),
+  resUpdate: (id, patch) => ipcRenderer.invoke('lightnote:res:update', { id, patch }),
+  resRemove: (ids) => ipcRenderer.invoke('lightnote:res:remove', { ids }),
+  resRestore: (ids) => ipcRenderer.invoke('lightnote:res:restore', { ids }),
+  resTagCreate: (name) => ipcRenderer.invoke('lightnote:res:tag-create', { name }),
+  resTagUpdate: (id, patch) => ipcRenderer.invoke('lightnote:res:tag-update', { id, patch }),
+  resTagDelete: (id) => ipcRenderer.invoke('lightnote:res:tag-delete', { id }),
+  resTagMerge: (from, into) => ipcRenderer.invoke('lightnote:res:tag-merge', { from, into }),
+  resOpen: (id) => ipcRenderer.invoke('lightnote:res:open', { id }),
+  resReveal: (id) => ipcRenderer.invoke('lightnote:res:reveal', { id }),
+  resRead: (id) => ipcRenderer.invoke('lightnote:res:read', { id }),
+  resPick: (mode) => ipcRenderer.invoke('lightnote:res:pick', { mode }),
+  resPickJson: () => ipcRenderer.invoke('lightnote:res:pick-json'),
+  resFetchTitle: (url) => ipcRenderer.invoke('lightnote:res:fetch-title', { url }),
+  resFolderList: (path) => ipcRenderer.invoke('lightnote:res:folder-list', { path }),
+  resFolderImport: (root, rels, extTags) => ipcRenderer.invoke('lightnote:res:folder-import', { root, rels, extTags }),
+  resFolderPreview: (tagId) => ipcRenderer.invoke('lightnote:res:folder-preview', { tagId }),
+  resFolderSync: (tagId) => ipcRenderer.invoke('lightnote:res:folder-sync', { tagId }),
+  resExclusions: (tagId) => ipcRenderer.invoke('lightnote:res:exclusions', { tagId }),
+  resSetExclusions: (tagId, rels) => ipcRenderer.invoke('lightnote:res:set-exclusions', { tagId, rels }),
+  resRemap: (id, actual) => ipcRenderer.invoke('lightnote:res:remap', { id, actual }),
+  resSetContent: (id, content) => ipcRenderer.invoke('lightnote:res:content', { id, content }),
+  resUsedBy: (id) => ipcRenderer.invoke('lightnote:res:used-by', { id }),
+  resImportLinkMap: (path) => ipcRenderer.invoke('lightnote:res:import-linkmap', { path }),
+  // 끌어다 놓은 파일의 실제 경로 (Electron 32+ 는 File.path 가 없다)
+  pathForFile: (file) => { try { return webUtils.getPathForFile(file) } catch { return '' } },
   refsAddImageData: (pageId, dataUrl, caption) => ipcRenderer.invoke('lightnote:refs:add-image-data', { pageId, dataUrl, caption }),
   refsAddImageFile: (pageId) => ipcRenderer.invoke('lightnote:refs:add-image-file', { pageId }),
   refsUpdate: (pageId, id, patch) => ipcRenderer.invoke('lightnote:refs:update', { pageId, id, patch }),

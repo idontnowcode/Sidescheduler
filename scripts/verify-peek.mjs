@@ -41,11 +41,14 @@ const stripOpacity = () => win.evaluate(() => {
 // 1) Enable peek mode → window becomes click-through, renderer told enabled+inactive, strip dims.
 await win.evaluate(() => window.electronAPI.setSettings({ clickThrough: true }))
 await win.waitForTimeout(300)
-ok('enable peek → window is click-through (setIgnoreMouseEvents true)', (await lastIgnore()) === true, `ime=${await lastIgnore()}`)
+// 51a747e 부터 클릭 통과 잠금은 항상 꺼진 채로 시작한다 — 모드를 켜도 바로 눌리고,
+// 통과는 단축키(Ctrl+Shift+S)로 켠다. 켜자마자 마우스가 안 먹으면 앱이 고장 난 것처럼 보였다.
+ok('enable peek → window stays interactive until the hotkey (setIgnoreMouseEvents false)', (await lastIgnore()) === false, `ime=${await lastIgnore()}`)
 const ps1 = await peekState()
-ok('enable peek → renderer gets {enabled:true, active:false}', !!ps1 && ps1.enabled === true && ps1.active === false, JSON.stringify(ps1))
+ok('enable peek → renderer gets {enabled:true, active:true}', !!ps1 && ps1.enabled === true && ps1.active === true, JSON.stringify(ps1))
 const op1 = await stripOpacity()
-ok('enable peek → strip is dimmed (opacity < 1)', op1 !== null && op1 < 1, `opacity=${op1}`)
+// 흐리게 보이는 건 통과 잠금이 켜졌을 때(단축키)뿐이다
+ok('enable peek (still interactive) → strip not dimmed', op1 === 1, `opacity=${op1}`)
 
 // 2) Disable peek mode → window interactive again, strip full opacity.
 await win.evaluate(() => window.electronAPI.setSettings({ clickThrough: false }))

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import type { PageReference } from './types'
+import type { PageReference, Resource } from './types'
+import ResourcePicker from './ResourcePicker'
 
 // 논문식 참조 목록. 패널 껍데기(탭·접기·폭)는 RightPanel이 맡고 여기서는
 // 목록만 그린다.
@@ -23,6 +24,8 @@ interface Props {
   onAddText: (text: string) => void
   onAddImageFile: () => void
   onAddImagePaste: () => void
+  /** 자료(resources.json)를 가리키는 참조 — 파일을 복사하지 않는다 */
+  onAddResource: (res: Resource) => void
   onRemove: (ref: PageReference) => void
   onRename: (ref: PageReference, caption: string) => void
 }
@@ -38,10 +41,31 @@ function RefImage({ pageId, file }: { pageId: string; file: string }) {
   return <img className="ref-img" src={src} alt="" />
 }
 
+/** 자료를 가리키는 참조 카드 — 눌러서 연다. 이 PC에서 못 찾으면 그렇게 적는다. */
+function RefResource({ res }: { res?: Resource }) {
+  if (!res) return <div className="ref-text ref-res-gone">자료 목록에서 지워진 자료입니다.</div>
+  const icon = res.kind === 'web' ? '🌐' : res.kind === 'folder' ? '📁' : '📄'
+  return (
+    <div className={`ref-res${res.missing ? ' missing' : ''}`}>
+      <button className="ref-res-open" title={res.missing ? '이 PC에서 찾을 수 없습니다 — 자료 화면에서 위치를 다시 지정하세요' : '열기'}
+        disabled={res.missing} onClick={() => { void window.lightnote.resOpen(res.id) }}>{icon} {res.title}</button>
+      <div className="ref-res-path">{res.missing ? '이 PC에서 찾을 수 없음 · ' : ''}{res.resolved}</div>
+    </div>
+  )
+}
+
 export default function ReferencePanel({
   pageId, refs, numberOf, selected, onSelectedChange, onInsertMarker, onJumpToCitation,
-  onAddText, onAddImageFile, onAddImagePaste, onRemove, onRename,
+  onAddText, onAddImageFile, onAddImagePaste, onAddResource, onRemove, onRename,
 }: Props) {
+  const [picking, setPicking] = useState(false)
+  // 자료 참조 카드에 제목·경로·있음/없음을 보이려고 자료 목록을 한 번 읽어 둔다
+  const [resMap, setResMap] = useState<Map<string, Resource>>(new Map())
+  const hasRes = refs.some(r => r.kind === 'resource')
+  useEffect(() => {
+    if (!hasRes) return
+    window.lightnote.resList().then(d => setResMap(new Map(d.items.map(i => [i.id, i])))).catch(() => {})
+  }, [hasRes, refs])
   const [editingId, setEditingId] = useState<string | null>(null)
   const [draft, setDraft] = useState('')
   // Electron은 window.prompt를 지원하지 않는다(아무 일도 안 일어난다).
@@ -83,7 +107,7 @@ export default function ReferencePanel({
           ) : (
             <button className="ref-caption" title="이름 바꾸기"
               onClick={() => { setDraft(r.caption); setEditingId(r.id) }}>
-              {r.caption || (r.kind === 'image' ? '(이미지)' : '(제목 없음)')}
+              {r.caption || (r.kind === 'image' ? '(이미지)' : r.kind === 'resource' ? (resMap.get(r.resId || '')?.title || '(자료)') : '(제목 없음)')}
             </button>
           )}
           <div className="ref-spacer" />
@@ -98,6 +122,7 @@ export default function ReferencePanel({
         <div className="ref-card-body">
           {r.kind === 'image'
             ? <RefImage pageId={pageId!} file={r.file || ''} />
+            : r.kind === 'resource' ? <RefResource res={resMap.get(r.resId || '')} />
             : <div className="ref-text">{r.text}</div>}
         </div>
       </div>
@@ -112,7 +137,9 @@ export default function ReferencePanel({
         <button className="ref-add" title="텍스트 자료 등록" onClick={() => setTextDraft('')}><span className="g-ico" data-g="plus">＋</span> 텍스트</button>
         <button className="ref-add" title="이미지 파일에서 등록" onClick={onAddImageFile}><span className="g-ico" data-g="image">🖼</span> 이미지</button>
         <button className="ref-add" title="클립보드 이미지 등록" onClick={onAddImagePaste}><span className="g-ico" data-g="clipboard">📋</span> 붙여넣기</button>
+        <button className="ref-add" title="자료(파일·폴더·웹 주소)에서 골라 가리키기 — 파일을 복사하지 않습니다" onClick={() => setPicking(true)}><span className="g-ico" data-g="link">📎</span> 자료</button>
       </div>
+      {picking && <ResourcePicker onClose={() => setPicking(false)} onPick={(res) => { setPicking(false); onAddResource(res) }} />}
 
       {refs.length > 0 && (
         <div className="ref-filter">

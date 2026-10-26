@@ -362,6 +362,8 @@ const THEMES = {
       '--tbi-link': `url(${assetUrl('icon-link.png')})`, '--tbi-image': `url(${assetUrl('icon-image.png')})`, '--tbi-attach': `url(${assetUrl('icon-clip.png')})`,
       '--tbi-svg': '0', '--tbi-size': '70%', '--tbi-active': 'brightness(1.45) drop-shadow(0 0 3px rgba(217,171,85,0.55))',
       '--tb-sep-img': `url(${assetUrl('s-divider-v.png')})`, '--tb-sep-w': '3px',
+      // 업무 페이지 칸(소제목) 사이 구분선 — 가는 선 대신 장식 구분선 그림
+      '--work-div-img': `url(${assetUrl('o-divider.png')})`, '--work-div-w': '0px', '--work-div-h': '10px', '--work-div-pad': '16px',
       '--tb-cell-bg': 'rgba(255, 232, 190, 0.035)', '--tb-cell-gap': '0px', '--tb-cell-pad-l': '8px', '--tb-cell-pad-r': '10px', '--tb-cell-h': '34px',
       // 구분선 · 스크롤 · 배지 · 체크칸 · 드롭다운
       '--secbar-bw': '0',

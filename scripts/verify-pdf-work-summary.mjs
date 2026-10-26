@@ -75,11 +75,16 @@ const openPage = async (title) => {
   await ln.reload()
   await ln.waitForFunction(() => !!window.lightnote, null, { timeout: 8000 })
   await ln.waitForSelector('.nb-header', { timeout: 8000 })
-  await ln.locator('.nb-header', { hasText: '업무' }).click()
-  await ln.waitForTimeout(200)
-  await ln.locator('.sec-header', { hasText: 'S' }).click()
-  await ln.waitForTimeout(300)
-  await ln.locator('.page-item', { hasText: title }).click()
+  // 트리는 펼친 상태를 기억한다 — 이미 펼쳐져 있으면 누르지 않는다(누르면 도로 접힌다)
+  if (!(await ln.locator('.sec-header', { hasText: 'S' }).first().isVisible().catch(() => false))) {
+    await ln.locator('.nb-header', { hasText: '업무' }).first().click()
+    await ln.waitForTimeout(200)
+  }
+  if (!(await ln.locator('.page-item', { hasText: title }).first().isVisible().catch(() => false))) {
+    await ln.locator('.sec-header', { hasText: 'S' }).first().click()
+    await ln.waitForTimeout(300)
+  }
+  await ln.locator('.page-item', { hasText: title }).first().click()
   await ln.waitForSelector('.ql-editor', { timeout: 8000 })
   await ln.waitForTimeout(600)
 }

@@ -219,7 +219,11 @@ const restored = stickyWindows(app)[0]
 await restored.waitForFunction(() => !!window.lightnote, null, { timeout: 8000 })
 await restored.waitForTimeout(900)
 const titles = []
-for (const w of stickyWindows(app)) titles.push((await w.locator('.sn-title').textContent()) || '')
+// 창마다 노트를 다 읽어 올 때까지 기다린다 — 읽기 전엔 자리표시 제목('새 메모')이 보인다
+for (const w of stickyWindows(app)) {
+  await w.waitForFunction(() => { const t = document.querySelector('.sn-title')?.textContent || ''; return t && t !== '새 메모' }, null, { timeout: 8000 }).catch(() => {})
+  titles.push((await w.locator('.sn-title').textContent()) || '')
+}
 ok('다시 뜬 스티커가 적어둔 내용 그대로임',
   titles.includes('자재 발주 확인') && titles.includes('설계 변경 메모'), JSON.stringify(titles))
 

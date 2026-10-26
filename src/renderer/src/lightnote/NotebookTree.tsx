@@ -3,8 +3,10 @@ import type { Notebook, Section, Page, Selected, TrashNode, PageTemplate } from 
 import TrashPanel, { type TrashPanelHandle } from './TrashPanel'
 import TemplatesPanel from './TemplatesPanel'
 import { useClampedMenuPosition } from './clampMenu'
+import { useDismiss } from './useDismiss'
 import { useDragAutoScroll } from './dragAutoScroll'
 import { confirmDialog } from './dialogHost'
+import { WORK_TEMPLATES, type BuiltinTemplateKey } from './workTemplates'
 
 interface ContextMenuState {
   x: number; y: number
@@ -300,6 +302,8 @@ const NotebookTree = forwardRef<TreeHandle, Props>(({ selected, onPageSelect, on
   }, [])
 
   const hideCtx = useCallback(() => setCtxMenu(null), [])
+  // 사이드바 밖(본문·목록)을 누르거나 Esc 로도 닫힌다
+  useDismiss(!!ctxMenu, hideCtx, [ctxMenuRef])
 
   const handleRename = useCallback(async () => {
     if (!ctxMenu) return
@@ -361,6 +365,68 @@ const NotebookTree = forwardRef<TreeHandle, Props>(({ selected, onPageSelect, on
     await loadPages(tp.notebookId, tp.sectionId)
     onPageSelect(tp.notebookId, tp.sectionId, page.id, `${nb?.name || ''} › ${sec?.name || ''} › ${t.name}`)
   }, [templatePicker, notebooks, sectionsByNb, reload, loadPages, onPageSelect])
+
+  // ── 업무 페이지: 새로 만들기 · 전환 · 해제 (docs/02-design/features/work-page.design.md §3) ──
+  const [workDlg, setWorkDlg] = useState<{ nbId: string; secId: string; nbName: string; secName: string; templates: PageTemplate[] } | null>(null)
+  const [wdTitle, setWdTitle] = useState('')
+  const [wdDue, setWdDue] = useState('')
+  const [wdTpl, setWdTpl] = useState<string>(() => { try { return localStorage.getItem('ln-work-template') || 'basic' } catch { return 'basic' } })
+  const showWorkTab = () => window.dispatchEvent(new CustomEvent('ln-show-work-tab'))
+
+  const openWorkDlg = useCallback(async () => {
+    if (!ctxMenu || ctxMenu.target.type !== 'section' || !ctxMenu.target.sectionId) return
+    const { notebookId, sectionId } = ctxMenu.target
+    hideCtx()
+    const nb = notebooks.find(n => n.id === notebookId)
+    const sec = findSection(sectionsByNb[notebookId] || [], sectionId)
+    const templates = await window.lightnote.listTemplates().catch(() => [] as PageTemplate[])
+    setWdTitle(''); setWdDue('')
+    setWdTpl(t => (t.startsWith('custom:') && !templates.some(x => `custom:${x.id}` === t)) ? 'basic' : t)
+    setWorkDlg({ nbId: notebookId, secId: sectionId, nbName: nb?.name || '', secName: sec?.name || '', templates })
+  }, [ctxMenu, hideCtx, notebooks, sectionsByNb])
+
+  const createWorkPage = useCallback(async () => {
+    const d = workDlg
+    if (!d) return
+    setWorkDlg(null)
+    try { localStorage.setItem('ln-work-template', wdTpl) } catch { /* private mode */ }
+    const title = wdTitle.trim() || '새 업무'
+    let ops: unknown[] = WORK_TEMPLATES.basic.ops as unknown as unknown[]
+    if (wdTpl.startsWith('custom:')) {
+      const full = await window.lightnote.getTemplate(wdTpl.slice(7)).catch(() => null)
+      ops = (full?.delta as { ops?: unknown[] } | undefined)?.ops || (WORK_TEMPLATES.empty.ops as unknown as unknown[])
+    } else if (wdTpl in WORK_TEMPLATES) ops = WORK_TEMPLATES[wdTpl as BuiltinTemplateKey].ops as unknown as unknown[]
+    const page = await window.lightnote.createPage(d.nbId, d.secId, title)
+    // 틀은 저장 API 로 넣는다 — 편집기를 거치지 않으니 줄 날짜가 없어 보고에 섞이지 않는다
+    await window.lightnote.savePage({ notebookId: d.nbId, sectionId: d.secId, pageId: page.id, title, delta: { ops } as never })
+    const due = wdDue ? new Date(`${wdDue}T12:00:00`).getTime() : null
+    await window.lightnote.workObjectSet(page.id, { enabled: true, status: '예정', start: Date.now(), due })
+    setExpandedSecs(prev => new Set([...prev, d.secId]))
+    await reload()
+    await loadPages(d.nbId, d.secId)
+    onPageSelect(d.nbId, d.secId, page.id, `${d.nbName} › ${d.secName} › ${title}`)
+    showWorkTab()
+  }, [workDlg, wdTpl, wdTitle, wdDue, reload, loadPages, onPageSelect])
+
+  /** 업무로 전환(on) · 해제(off). 해제는 기록을 지우지 않고 숨기기만 한다 — 다시 전환하면 그대로. */
+  const setWork = useCallback(async (pageIds: string[], on: boolean) => {
+    hideCtx()
+    for (const pid of pageIds) {
+      if (on) {
+        const cur = await window.lightnote.workObjectGet(pid).catch(() => null)
+        await window.lightnote.workObjectSet(pid, { enabled: true, start: cur?.start ?? Date.now() })
+      } else {
+        await window.lightnote.workObjectSet(pid, { enabled: false })
+      }
+    }
+    clearMsel()
+    await reload()
+    window.dispatchEvent(new CustomEvent('ln-work-changed'))
+    if (on) showWorkTab()
+    showToast(on
+      ? (pageIds.length > 1 ? `${pageIds.length}개 페이지를 업무로 전환했습니다` : '업무로 전환했습니다')
+      : '업무 해제 — 기록은 숨겨 두었습니다. 다시 전환하면 그대로 돌아옵니다')
+  }, [hideCtx, clearMsel, reload])
 
   const deleteTemplate = useCallback(async (t: PageTemplate) => {
     if (!(await confirmDialog(`"${t.name}" 템플릿을 삭제할까요?`))) return
@@ -933,6 +999,14 @@ const NotebookTree = forwardRef<TreeHandle, Props>(({ selected, onPageSelect, on
         <div ref={ctxMenuRef} className="context-menu" style={{ left: ctxMenu.x, top: ctxMenu.y }} onClick={e => e.stopPropagation()}>
           {msel.length > 1 && (
             <>
+              {(() => {
+                const pids = msel.filter(m => m.type === 'page' && m.pageId).map(m => m.pageId as string)
+                if (!pids.length) return null
+                const plain = pids.filter(p => !workPageIds.has(p))
+                return plain.length
+                  ? <div className="ctx-item ctx-work" onClick={() => setWork(plain, true)}>📋 업무로 전환 ({plain.length})</div>
+                  : <div className="ctx-item" onClick={() => setWork(pids, false)}>📄 업무 해제 ({pids.length})</div>
+              })()}
               <div className="ctx-item ctx-danger" onClick={deleteSelected}>🗑 선택 삭제 ({msel.length})</div>
               <div className="ctx-item" onClick={() => { clearMsel(); hideCtx() }}>선택 해제</div>
               <div className="ctx-sep" />
@@ -941,6 +1015,10 @@ const NotebookTree = forwardRef<TreeHandle, Props>(({ selected, onPageSelect, on
           <div className="ctx-item" onClick={handleRename}>Rename</div>
           {ctxMenu.target.type === 'page' && (
             <>
+              {ctxMenu.target.pageId && (workPageIds.has(ctxMenu.target.pageId)
+                ? <div className="ctx-item" onClick={() => setWork([ctxMenu.target.pageId!], false)}>📄 업무 해제</div>
+                : <div className="ctx-item ctx-work" onClick={() => setWork([ctxMenu.target.pageId!], true)}>📋 업무로 전환</div>)}
+              <div className="ctx-sep" />
               <div className="ctx-item" onClick={handleAddSubpage}>📑 하위 페이지 추가</div>
               <div className="ctx-item" onClick={handleSaveAsTemplate}>💾 템플릿으로 저장</div>
               <div className="ctx-item" onClick={handleDuplicate}>📋 Duplicate</div>
@@ -953,6 +1031,7 @@ const NotebookTree = forwardRef<TreeHandle, Props>(({ selected, onPageSelect, on
           {ctxMenu.target.type === 'section' && (
             <>
               <div className="ctx-sep" />
+              <div className="ctx-item ctx-work" onClick={openWorkDlg}>📋 새 업무 페이지</div>
               <div className="ctx-item" onClick={handleAddSubsection}>📁 Add subfolder</div>
               <div className="ctx-item" onClick={handleAddChild}>📄 Add page</div>
               <div className="ctx-item" onClick={openTemplatePicker}>📑 템플릿에서 페이지 추가</div>
@@ -992,6 +1071,35 @@ const NotebookTree = forwardRef<TreeHandle, Props>(({ selected, onPageSelect, on
       )}
 
       {/* Input modal */}
+      {workDlg && (
+        <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) setWorkDlg(null) }}>
+          <form className="modal-box work-dlg" onSubmit={e => { e.preventDefault(); createWorkPage() }}
+            onKeyDown={e => { if (e.key === 'Escape') setWorkDlg(null) }}>
+            <div className="modal-title">새 업무 페이지</div>
+            <label className="work-dlg-label" htmlFor="wd-title">제목</label>
+            <input id="wd-title" className="modal-input" autoFocus maxLength={100} value={wdTitle}
+              placeholder="업무 이름" onChange={e => setWdTitle(e.target.value)} />
+            <label className="work-dlg-label" htmlFor="wd-due">기한 <span className="work-dlg-sub">(선택 — 나중에 업무 탭에서 넣어도 됩니다)</span></label>
+            <input id="wd-due" type="date" className="modal-input" value={wdDue} onChange={e => setWdDue(e.target.value)} />
+            <label className="work-dlg-label" htmlFor="wd-tpl">본문 틀</label>
+            <select id="wd-tpl" className="modal-input" value={wdTpl} onChange={e => setWdTpl(e.target.value)}>
+              <option value="basic">{WORK_TEMPLATES.basic.label} — 진행 메모 · 배경 · 진행 현황 · 논의/의사결정 · Action Item · 참고 자료</option>
+              <option value="simple">{WORK_TEMPLATES.simple.label} — 진행 메모 · Action Item · 참고 자료</option>
+              {workDlg.templates.length > 0 && (
+                <optgroup label="사용자 지정 (내 템플릿)">
+                  {workDlg.templates.map(t => <option key={t.id} value={`custom:${t.id}`}>{t.name}</option>)}
+                </optgroup>
+              )}
+              <option value="empty">{WORK_TEMPLATES.empty.label}</option>
+            </select>
+            <div className="modal-actions">
+              <button type="button" className="btn-secondary" onClick={() => setWorkDlg(null)}>취소</button>
+              <button type="submit" className="btn-primary">만들기</button>
+            </div>
+          </form>
+        </div>
+      )}
+
       {inputModal && (
         <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) cancelInput() }}>
           <div className="modal-box">

@@ -18,6 +18,17 @@ const ln = await app.waitForEvent('window', { predicate: (w) => w.url().includes
 await ln.waitForLoadState('domcontentloaded')
 await ln.waitForFunction(() => !!window.lightnote, null, { timeout: 8000 })
 await ln.waitForTimeout(500)
+// 견본 노트북(Projects/Overview)은 이제 자동으로 생기지 않는다 — 시험이 직접 만든다
+await ln.evaluate(async () => {
+  const L = window.lightnote
+  const nb = await L.createNotebook('Projects', '#4dabf7')
+  const sec = await L.createSection(nb.id, 'Overview', null)
+  const p = await L.createPage(nb.id, sec.id, '견본 노트')
+  await L.savePage({ notebookId: nb.id, sectionId: sec.id, pageId: p.id, title: '견본 노트', delta: { ops: [{ insert: '견본 본문\n' }] } })
+})
+await ln.reload()
+await ln.waitForFunction(() => !!window.lightnote, null, { timeout: 8000 })
+await ln.waitForTimeout(800)
 
 // Open Settings (⚙ button, title="Settings")
 await ln.locator('button[title="Settings"]').first().click()

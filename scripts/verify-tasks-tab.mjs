@@ -79,10 +79,11 @@ await dash.waitForTimeout(200)
 await dash.getByRole('button', { name: '+ Add task' }).click()
 await dash.waitForTimeout(300)
 // TaskModal title input — type and save
-const titleInput = dash.locator('input[type="text"]').first()
+// 화면에 다른 글 칸(검색 등)이 먼저 있을 수 있다 — 모달 폼 안의 제목 칸을 집는다
+const titleInput = dash.locator('form input[type="text"]').first()
 await titleInput.fill('Added From Tab')
 // Click the modal's submit button
-await dash.locator('button[type="submit"]').first().click()
+await dash.locator('form button[type="submit"]').first().click()
 await dash.waitForTimeout(700)
 
 const created = await main.evaluate(async () => {

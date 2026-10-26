@@ -31,6 +31,8 @@ const Icons = {
   work: <svg {...ICON}><rect x="3" y="7" width="18" height="13" rx="2" /><path d="M8.5 7V5.5A1.5 1.5 0 0 1 10 4h4a1.5 1.5 0 0 1 1.5 1.5V7" /><line x1="3" y1="12" x2="21" y2="12" /></svg>,
   action: <svg {...ICON}><path d="M4 7.2l2 2 3.2-3.4" /><path d="M4 16.2l2 2 3.2-3.4" /><line x1="12.5" y1="7.5" x2="20.5" y2="7.5" /><line x1="12.5" y1="16.5" x2="20.5" y2="16.5" /></svg>,
   journal: <svg {...ICON}><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" /><line x1="8.5" y1="10" x2="15.5" y2="10" /><line x1="8.5" y1="13.5" x2="13" y2="13.5" /></svg>,
+  // 자료 — 클립(이어 붙인 링크)
+  resources: <svg {...ICON}><path d="M10 13.5a4 4 0 0 0 5.7.3l3-3a4 4 0 0 0-5.7-5.7l-1.2 1.2" /><path d="M14 10.5a4 4 0 0 0-5.7-.3l-3 3a4 4 0 0 0 5.7 5.7l1.2-1.2" /></svg>,
   sticky: <svg {...ICON}><path d="M4 4.5h15.5v9.5L14 19.5H4z" /><path d="M19.5 14H14v5.5" /></svg>,
   ai: <svg {...ICON}><path d="M12 3.5l1.9 4.6 4.6 1.9-4.6 1.9L12 16.5l-1.9-4.6L5.5 10l4.6-1.9z" /><circle cx="18" cy="18" r="2" /></svg>,
   plus: <svg {...ICON}><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>,
@@ -118,6 +120,8 @@ export default function Rail(p: Props) {
         active={p.view === 'action'} onClick={() => p.onView('action')} />
       <ViewBtn id="journal" icon={Icons.journal} label="기록장" title="기록장 — 날짜별로 자동 정리되는 짧은 기록"
         active={p.view === 'journal'} onClick={() => p.onView('journal')} />
+      <ViewBtn id="resources" icon={Icons.resources} label="자료" title="자료 — 파일·폴더·웹 주소를 태그로 모아 보기(미리보기·폴더 동기화)"
+        active={p.view === 'resources'} onClick={() => p.onView('resources')} />
       <ActBtn id="sticky" icon={Icons.sticky} label="스티커"
         title="스티커 메모 — 바탕화면에 붙여두는 작은 창 (새 노트로 만들어집니다)"
         onClick={p.onSticky} />

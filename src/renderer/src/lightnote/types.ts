@@ -62,14 +62,17 @@ export interface SearchResult { pageId: string; notebookId: string; sectionId: s
 // from the note body. All optional except a default status; AI-free.
 export type WorkStatus = '예정' | '진행중' | '대기' | '완료' | '보류'
 export type WorkPriority = '' | '상' | '중' | '하'
-export interface WorkAction { id: string; text: string; done: boolean; doneAt: number | null; due?: number | null; taskId?: string | null }
+export interface WorkAction { id: string; text: string; done: boolean; doneAt: number | null; due?: number | null; taskId?: string | null
+  /** 본문 'Action Item' 칸의 체크칸 줄에서 온 A/I — 저장하지 않고, 체크는 본문 줄을 바꾼다 */
+  fromBody?: boolean; line?: number; lineText?: string }
 export interface WorkDecision { id: string; at: number; text: string }
 // A related-document link: an external URL/file, or a link to another LightNote page.
 export interface WorkDocLink {
   id: string
-  kind: 'url' | 'page'
+  kind: 'url' | 'page' | 'resource'
   label: string
   url?: string          // kind === 'url'
+  resId?: string        // kind === 'resource' — 자료(resources.json) id
   pageId?: string       // kind === 'page'
   notebookId?: string
   sectionId?: string
@@ -114,9 +117,23 @@ export interface TocItem { level: number; text: string; index: number }
 // 논문식 참조 한 건. 본문 마커는 번호가 아니라 이 id를 들고 있고, 화면에
 // 보이는 번호는 본문 등장 순서로 매번 계산한다 — 중간에 인용을 끼워 넣어도
 // 저장값을 고칠 필요가 없다. 본문에 아직 안 쓴 참조는 번호가 없다(미인용).
+// 자료 — 웹·파일·폴더 링크(LinkMap 을 옮긴 것). target 은 저장형(%USERPROFILE% 토큰),
+// resolved 는 이 기기에서 실제 경로, missing 은 이 기기에서 찾지 못함.
+export type ResourceKind = 'web' | 'file' | 'folder'
+export interface Resource {
+  id: string; kind: ResourceKind; title: string; target: string; resolved: string; missing: boolean
+  tags: string[]; note: string; favorite: boolean; content: string; contentAt: number
+  createdAt: number; updatedAt: number; openedAt: number; deletedAt: number | null
+}
+export interface ResourceTag { id: string; name: string; color: string; source: string | null }
+export interface ResourceData { items: Resource[]; tags: ResourceTag[]; exclusions: { tagId: string; rel: string }[] }
+export interface FolderEntry { rel: string; abs: string; dir: boolean; depth: number }
+
 export interface PageReference {
   id: string
-  kind: 'image' | 'text'
+  kind: 'image' | 'text' | 'resource'
+  /** kind === 'resource' — 자료(resources.json) id */
+  resId?: string
   text: string
   file: string | null
   caption: string
@@ -142,7 +159,7 @@ export interface StickyTarget { pageId: string; notebookId: string; sectionId: s
 export interface RecentPage extends PageRefLoc { updatedAt: number }
 
 /** 가운데 칸에 서 있는 화면. 맨 왼쪽 버튼 바가 이것 하나를 고른다. */
-export type LnView = 'note' | 'work' | 'action' | 'journal' | 'planner'
+export type LnView = 'note' | 'work' | 'action' | 'journal' | 'planner' | 'resources'
 
 /** 페이지 리스트 칸이 무엇을 줄 세우고 있는가.
  *  fav·recent·inbox 는 왼쪽 맨 위에서 고르는 목록이고, folder 는 지금 보고
@@ -257,6 +274,7 @@ declare global {
         conflicts?: { pageId: string; incomingTitle: string; incomingUpdatedAt: number | null; existingTitle: string; existingUpdatedAt: number | null; notebookName: string; sectionName: string }[] }>
       importBundleApply: (mode: 'copy' | 'update') => Promise<{ success?: boolean; error?: string; mode?: string; updated?: number; pageCount?: number; notebookName?: string | null }>
       exportReport: (pageIds: string[]) => Promise<{ success?: boolean; canceled?: boolean; filePath?: string; error?: string }>
+      exportWeeklyReport: (week: 'this' | 'last') => Promise<{ success?: boolean; canceled?: boolean; filePath?: string; copied?: boolean; error?: string }>
       templateStoreLocation: () => Promise<{ notebookId: string; sectionId: string }>
       listTemplates: () => Promise<PageTemplate[]>
       getTemplate: (id: string) => Promise<{ id: string; name: string; delta: unknown } | null>
@@ -269,6 +287,33 @@ declare global {
       attachReveal: (pageId: string, stored: string) => Promise<{ success?: boolean; error?: string }>
       refsList: (pageId: string) => Promise<PageReference[]>
       refsAddText: (pageId: string, text: string, caption: string) => Promise<PageReference>
+      refsAddResource: (pageId: string, resId: string, caption: string) => Promise<PageReference>
+      resList: () => Promise<ResourceData>
+      resAdd: (items: { target: string; title?: string; kind?: ResourceKind; tags?: string[] }[]) => Promise<Resource[]>
+      resUpdate: (id: string, patch: Partial<Pick<Resource, 'title' | 'note' | 'favorite' | 'tags' | 'target'>>) => Promise<Resource | null>
+      resRemove: (ids: string[]) => Promise<boolean>
+      resRestore: (ids: string[]) => Promise<boolean>
+      resTagCreate: (name: string) => Promise<ResourceTag>
+      resTagUpdate: (id: string, patch: Partial<Pick<ResourceTag, 'name' | 'color'>>) => Promise<ResourceTag | null>
+      resTagDelete: (id: string) => Promise<boolean>
+      resTagMerge: (from: string, into: string) => Promise<boolean>
+      resOpen: (id: string) => Promise<{ ok: boolean; reason?: string }>
+      resReveal: (id: string) => Promise<boolean>
+      resRead: (id: string) => Promise<{ ok: boolean; reason?: string; data?: Uint8Array; mtime?: number }>
+      resPick: (mode: 'files' | 'folder') => Promise<string[]>
+      resPickJson: () => Promise<string | null>
+      resFetchTitle: (url: string) => Promise<string | null>
+      resFolderList: (path: string) => Promise<{ root: string; entries: FolderEntry[]; truncated: boolean }>
+      resFolderImport: (root: string, rels: string[], extTags: boolean) => Promise<{ tag: ResourceTag; created: number; existed: number }>
+      resFolderPreview: (tagId: string) => Promise<{ tagId: string; root: string; added: { rel: string; abs: string }[]; removed: { id: string; title: string; target: string }[]; unchanged: number }>
+      resFolderSync: (tagId: string) => Promise<{ added: number; removed: number }>
+      resExclusions: (tagId: string) => Promise<string[]>
+      resSetExclusions: (tagId: string, rels: string[]) => Promise<boolean>
+      resRemap: (id: string, actual: string) => Promise<{ rule: { from: string; to: string } | null; item: Resource | null } | null>
+      resSetContent: (id: string, content: string) => Promise<boolean>
+      resUsedBy: (id: string) => Promise<string[]>
+      resImportLinkMap: (path: string) => Promise<{ items: number; tags: number; skipped: number }>
+      pathForFile: (file: File) => string
       refsAddImageData: (pageId: string, dataUrl: string, caption: string) => Promise<PageReference | { error: string }>
       refsAddImageFile: (pageId: string) => Promise<{ success?: boolean; canceled?: boolean; refs?: PageReference[]; error?: string }>
       refsUpdate: (pageId: string, id: string, patch: { caption?: string; text?: string }) => Promise<PageReference[]>

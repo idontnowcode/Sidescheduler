@@ -62,6 +62,11 @@ const bar = () => ln.evaluate(() => {
     shown: groups.filter((g) => g.getBoundingClientRect().height > 0).length,
   }
 })
+// 한 줄이 다 들어갈 만큼 넓은 창에서 잰다 — 좁으면 접힌 줄도 잘리지 않고 두 줄로 넘어간다
+await app.evaluate(({ BrowserWindow }) => {
+  for (const w of BrowserWindow.getAllWindows()) if (w.webContents.getURL().includes('#lightnote')) w.setContentSize(1700, 950)
+})
+await ln.waitForTimeout(600)
 const open = await bar()
 await ln.evaluate(() => document.querySelector('.ql-toolbar').classList.remove('ln-tb-open'))
 await ln.waitForTimeout(400)
@@ -69,10 +74,11 @@ const compact = await bar()
 ok('접으면 한 줄로 줄어든다', compact.h < open.h * 0.7, `${open.h}px → ${compact.h}px`)
 ok('자주 쓰는 묶음만 남는다', compact.shown < compact.total && compact.shown >= 5,
   `${compact.shown}/${compact.total} 묶음`)
-ok('⋯ 버튼은 접혀도 보인다',
+ok('⋯ 버튼은 접혀도 보인다(툴바 안에 있다)',
   await ln.evaluate(() => {
     const b = document.querySelector('.ql-toolbar button.ql-more')
-    return !!b && b.getBoundingClientRect().height > 0
+    const r = b?.getBoundingClientRect(), t = document.querySelector('.ql-toolbar').getBoundingClientRect()
+    return !!b && r.height > 0 && r.right <= t.right + 1 && r.bottom <= t.bottom + 1
   }))
 
 // ⋯ 를 누르면 펴지고, 그 상태를 기억한다

@@ -1,8 +1,9 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
+import { SECTION_RE, SECTION_TITLE, type BodySection } from './bodySections'
 import WindowControls from './WindowControls'
 import 'quill/dist/quill.snow.css'
 import './lightnote.css'
-import type { Selected, TrashNode, SearchResult, TocItem, OpenTab, PageReference, DataDirStatus, LnView, ListSource } from './types'
+import type { Selected, TrashNode, SearchResult, TocItem, OpenTab, PageReference, DataDirStatus, LnView, ListSource, Resource } from './types'
 import DataDirBlocked from './DataDirBlocked'
 import NotebookTree, { type TreeHandle } from './NotebookTree'
 import Editor, { type EditorHandle } from './Editor'
@@ -16,6 +17,8 @@ import PageList from './PageList'
 import SmartLists from './SmartLists'
 import Rail from './Rail'
 import { PlannerPane, QuickAddOverlay } from './PlannerEmbed'
+import ResourcesView from './ResourcesView'
+import ConflictAlert from './ConflictAlert'
 import AIAssistant from './AIAssistant'
 import SettingsModal, { initAppearance } from './SettingsModal'
 import TabBar from './TabBar'
@@ -35,6 +38,14 @@ export default function LightnoteApp() {
   useEffect(() => { selectedRef.current = selected }, [selected])
   // 본문에서 속성으로 승격했을 때 패널이 다시 읽게 하는 신호.
   const [woRefresh, setWoRefresh] = useState(0)
+  // 열린 본문의 소제목 칸 — 업무 패널이 본문을 원본으로 읽어 보여 준다
+  const [bodySections, setBodySections] = useState<BodySection[]>([])
+  // 트리에서 업무로 전환·해제하면 열린 업무 패널·숫자도 다시 읽는다
+  useEffect(() => {
+    const on = () => setWoRefresh(n => n + 1)
+    window.addEventListener('ln-work-changed', on)
+    return () => window.removeEventListener('ln-work-changed', on)
+  }, [])
   // 업무 탭에 점을 찍어 '이 노트엔 업무 속성이 있다'를 알려준다.
   const [hasWork, setHasWork] = useState(false)
   const [trashNode, setTrashNode] = useState<TrashNode | null>(null)
@@ -162,6 +173,32 @@ export default function LightnoteApp() {
   }, [leftW, rightW, listW])
 
   const editorRef = useRef<EditorHandle>(null)
+
+  // 예전 업무 패널 기록 → 본문 칸 (본문이 원본). 원래 날짜는 줄 날짜로 남겨 주간 보고가 그대로 맞는다.
+  // 캘린더에 등록된 미완료 Action 은 일정 연결이 끊기지 않게 패널에 남긴다.
+  const migratePanelToBody = useCallback(async () => {
+    const pid = selectedRef.current.pageId
+    const E = editorRef.current
+    if (!pid || !E) return
+    const wo = await window.lightnote.workObjectGet(pid)
+    if (!wo) return
+    if (!(await confirmDialog('예전 업무 패널 기록(배경·목적·진행 현황·결정·Action)을 본문 칸으로 옮길까요? 옮긴 뒤 패널 쪽 기록은 비웁니다.'))) return
+    const mmdd = (t: number) => { const d = new Date(t); return `${d.getMonth() + 1}/${d.getDate()}` }
+    const bg = [wo.background || '', wo.purpose ? `목적: ${wo.purpose}` : ''].filter(x => x.trim())
+      .flatMap(x => x.trim().split('\n')).map(text => ({ text }))
+    E.appendToSection(SECTION_TITLE.background, SECTION_RE.background, bg)
+    E.appendToSection(SECTION_TITLE.progress, SECTION_RE.progress,
+      [...(wo.progressLog || [])].sort((a, b) => a.at - b.at).map(p => ({ text: p.text, at: p.at })))
+    E.appendToSection(SECTION_TITLE.decision, SECTION_RE.decision, [
+      ...(wo.decisions || []).map(d => ({ text: `결정: ${d.text}`, at: d.at })),
+      ...(wo.pendingDecisions || []).map(p => ({ text: `${p.resolved ? '해결' : '미결'}: ${p.text}`, at: p.resolved ? p.resolvedAt : p.raisedAt })),
+    ].sort((a, b) => (a.at || 0) - (b.at || 0)))
+    const keep = (wo.nextActions || []).filter(a => a.taskId && !a.done)
+    E.appendToSection(SECTION_TITLE.action, SECTION_RE.action, (wo.nextActions || []).filter(a => !keep.includes(a))
+      .map(a => ({ text: `${a.text}${a.due ? ` ~${mmdd(a.due)}` : ''}`, list: a.done ? 'checked' : 'unchecked', at: a.done ? a.doneAt : null })))
+    await window.lightnote.workObjectSet(pid, { background: '', purpose: '', progressLog: [], decisions: [], pendingDecisions: [], nextActions: keep })
+    setWoRefresh(n => n + 1)
+  }, [])
   const treeRef = useRef<TreeHandle>(null)
 
   // 공유 노트 폴더를 지정했는데 못 읽는 상태면 노트 화면을 아예 열지 않는다.
@@ -397,6 +434,13 @@ export default function LightnoteApp() {
     await reloadRefs(pageId)
   }, [reloadRefs])
 
+  const addResourceRef = useCallback(async (res: Resource) => {
+    const pageId = selectedRef.current.pageId
+    if (!pageId) return
+    await window.lightnote.refsAddResource(pageId, res.id, res.title.slice(0, 80))
+    await reloadRefs(pageId)
+  }, [reloadRefs])
+
   const addImageFileRef = useCallback(async () => {
     const pageId = selectedRef.current.pageId
     if (!pageId) return
@@ -579,24 +623,13 @@ export default function LightnoteApp() {
 
   return (
     <div className="ln-root" style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh / var(--ui-zoom, 1))', overflow: 'hidden' }}>
-      {conflicts.length > 0 && !conflictsHidden && (
-        <div className="cc-bar">
-          <span className="cc-text">
-            동기화 충돌 사본 {conflicts.length}개가 있습니다 — 앱이 읽지 않는 파일이라,
-            저쪽 PC에서 적은 내용이 그 안에 남아 있을 수 있습니다.
-          </span>
-          <span className="cc-names" title={conflicts.map(c => c.path).join('\n')}>
-            {conflicts.slice(0, 2).map(c => c.name).join(', ')}{conflicts.length > 2 ? ' …' : ''}
-          </span>
-          <button className="cc-btn" onClick={() => window.lightnote.revealPath(conflicts[0].path)}>폴더 열기</button>
-          <button className="cc-btn" title="닫기" onClick={() => setConflictsHidden(true)}>✕</button>
-        </div>
-      )}
       {/* 제목 표시줄과 합친 헤더. 창 조작 단추는 운영체제가 이 줄 오른쪽에
           그린다(그래서 오른쪽을 비워 둔다). 로고와 이름은 **한 번만** 둔다. */}
       <header className="app-header">
         <span className="app-name">LightNote</span>
         <SearchBar onOpen={openSearchResult} />
+        {/* 동기화 충돌 사본은 줄을 통째로 차지하지 않고 검색칸 오른쪽의 경고 단추로 알린다 */}
+        {!conflictsHidden && <ConflictAlert conflicts={conflicts} onHide={() => setConflictsHidden(true)} />}
         <WindowControls />
       </header>
 
@@ -615,6 +648,15 @@ export default function LightnoteApp() {
           onSettings={() => setIsSettingsOpen(true)}
           onSearch={() => (document.querySelector('.ln-search-input') as HTMLInputElement | null)?.focus()}
         />
+        {view === 'resources' && (
+          <ResourcesView
+            onClose={() => setView('note')}
+            onOpenPage={(pg) => {
+              handlePageSelect(pg.notebookId, pg.sectionId, pg.pageId, `${pg.notebookName || ''} › ${pg.sectionName || ''} › ${pg.title}`)
+              setView('note')
+            }}
+          />
+        )}
         {view === 'journal' && (
           <JournalView
             onClose={() => setView('note')}
@@ -706,6 +748,8 @@ export default function LightnoteApp() {
           )}
           <Editor
             ref={editorRef}
+            isWorkPage={hasWork}
+            onBodyChange={setBodySections}
             isFavorite={!!selected.pageId && favIds.has(selected.pageId)}
             onToggleFavorite={toggleFavorite}
             onOpenSettings={() => setIsSettingsOpen(true)}
@@ -757,6 +801,7 @@ export default function LightnoteApp() {
                   onAddText={addTextRef}
                   onAddImageFile={addImageFileRef}
                   onAddImagePaste={addPastedImageRef}
+                  onAddResource={addResourceRef}
                   onRemove={removeRef}
                   onRename={renameRef}
                 />
@@ -777,6 +822,8 @@ export default function LightnoteApp() {
                   onOpenPage={handlePageSelect}
                   onEnabledChange={() => { treeRef.current?.reload(); setWoRefresh(n => n + 1) }}
                   refreshKey={woRefresh}
+                  body={bodySections}
+                  onMigrateToBody={migratePanelToBody}
                 />
               ) : (
                 <div className="rp-empty">노트를 열면 업무 속성을 볼 수 있습니다.</div>

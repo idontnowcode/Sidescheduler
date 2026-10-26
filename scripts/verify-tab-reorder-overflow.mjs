@@ -179,7 +179,8 @@ ok('보이던 탭을 드롭다운 버튼 위로 드래그하면 숨은 쪽으로
   `${r2.tries}번째 시도, 옮긴 탭=${firstVisibleName}: ${JSON.stringify(r2.before)} → ${JSON.stringify(r2.after)}`)
 
 // 넓게 창을 늘리면 오버플로가 다시 사라져야 한다
-await ln.setViewportSize({ width: 1400, height: 800 })
+// 사이드바·목록·오른쪽 패널 기본 폭이 넓어져(320/280/314) 1400px 로는 탭 7개(약 710px)가 안 들어간다
+await ln.setViewportSize({ width: 2100, height: 800 })
 await ln.waitForTimeout(500)
 ok('창을 넓히면 오버플로 버튼이 사라짐(전부 다시 보임)', await ln.locator('.ln-tab-overflow-btn').count() === 0)
 ok('넓힌 뒤 탭 7개가 모두 보임', await ln.locator('.ln-tabbar .ln-tab').count() === 7,

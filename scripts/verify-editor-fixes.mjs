@@ -29,8 +29,9 @@ await ln.evaluate(async () => {
 await ln.reload()
 await ln.waitForFunction(() => !!window.lightnote, null, { timeout: 8000 })
 await ln.waitForTimeout(500)
-await ln.getByText('N', { exact: false }).first().click(); await ln.waitForTimeout(200)
-await ln.getByText('S', { exact: false }).first().click(); await ln.waitForTimeout(200)
+// 한 글자 이름이라 getByText 로 찾으면 엉뚱한 글자를 누른다 — 트리 칸으로 찾는다
+await ln.locator('.nb-name', { hasText: /^N$/ }).first().click(); await ln.waitForTimeout(200)
+await ln.locator('.sec-name', { hasText: /^S$/ }).first().click(); await ln.waitForTimeout(200)
 await ln.locator('.page-name', { hasText: 'P' }).first().click(); await ln.waitForTimeout(600)
 
 // ── 1) Clipboard image paste produces exactly ONE image ────────────────────

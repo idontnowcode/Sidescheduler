@@ -129,8 +129,8 @@ await ln.mouse.down()
 await ln.mouse.up()
 await ln.waitForTimeout(250)
 const boxVisible = await ln.evaluate(() => {
-  const box = [...document.querySelectorAll('.quill-wrapper > div')]
-    .find(d => /rgb\(124, 111, 240\)/.test(getComputedStyle(d).borderColor))
+  // 테두리 색은 테마 강조색을 따른다 — 칸 이름으로 찾는다
+  const box = document.querySelector('.quill-wrapper .ln-img-ring')
   return !!box
 })
 ok('a plain click on the image still surfaces the resize box', boxVisible)

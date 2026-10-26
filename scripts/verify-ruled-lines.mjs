@@ -60,7 +60,7 @@ const borderOf = () => ln.evaluate(() => {
 ok('기본값은 꺼짐 — 밑줄 없음', (await borderOf()) === '0px', String(await borderOf()))
 
 // ── 설정에서 켠다 ───────────────────────────────────────────────────────
-await ln.locator('.icon-btn', { hasText: '⚙' }).click()
+await ln.locator('.rail .icon-btn[title="Settings"]').click()
 await ln.waitForTimeout(500)
 ok('설정에 줄노트 표기 토글이 있음', await ln.locator('.ln-ruled-row input').count() === 1)
 await ln.locator('.ln-ruled-row input').check()
@@ -91,7 +91,7 @@ await openTestPage()
 ok('앱을 다시 켜도 켜둔 상태가 유지됨', (await borderOf()) === '1px', String(await borderOf()))
 
 // ── 다시 끄면 사라진다 ──────────────────────────────────────────────────
-await ln.locator('.icon-btn', { hasText: '⚙' }).click()
+await ln.locator('.rail .icon-btn[title="Settings"]').click()
 await ln.waitForTimeout(500)
 await ln.locator('.ln-ruled-row input').uncheck()
 await ln.waitForTimeout(300)

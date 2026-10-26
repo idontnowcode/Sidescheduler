@@ -36,7 +36,8 @@ async function readAll() {
 async function writeAll(map) {
   const p = filePath();
   await fs.mkdir(path.dirname(p), { recursive: true });
-  const tmp = p + '.tmp';
+  // 같은 파일을 동시에 두 번 저장하면 임시 파일 이름이 겹쳐 한쪽이 ENOENT 로 실패했다 — 매번 다른 이름
+  const tmp = p + '.' + process.pid + '-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7) + '.tmp';
   await fs.writeFile(tmp, JSON.stringify(map, null, 2));
   try {
     await fs.rename(tmp, p);
@@ -58,9 +59,11 @@ async function add(pageId, ref) {
   const rows = all[pageId] ? all[pageId].slice() : [];
   const row = {
     id: crypto.randomUUID(),
-    kind: ref.kind === 'image' ? 'image' : 'text',
+    kind: ref.kind === 'image' ? 'image' : ref.kind === 'resource' ? 'resource' : 'text',
     text: String(ref.text || ''),
     file: ref.file || null,
+    // 자료(resources.json)를 가리키는 참조 — 파일을 복사하지 않고 그 자료를 가리킨다
+    ...(ref.kind === 'resource' ? { resId: String(ref.resId || '') } : {}),
     caption: String(ref.caption || '').slice(0, 200),
     createdAt: Date.now(),
   };

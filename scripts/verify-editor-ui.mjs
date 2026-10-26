@@ -73,6 +73,12 @@ const treeUpdated = await ln.locator('.page-item', { hasText: 'BrandNew' }).coun
 ok('renaming the title updates the tree live', treeUpdated > 0, `matches=${treeUpdated}`)
 
 // ── #3: resize the left sidebar via its divider; width persists ─────────────
+// 창이 좁으면 본문 최소 폭(500px)을 지키려고 사이드바 폭을 자동으로 줄여 보여 준다 —
+// 끌어서 넓힌 값은 저장되지만 화면엔 안 늘어난다. 넓은 창에서 확인한다.
+await app.evaluate(({ BrowserWindow }) => {
+  for (const w of BrowserWindow.getAllWindows()) if (w.webContents.getURL().includes('#lightnote')) w.setContentSize(1900, 900)
+})
+await ln.waitForTimeout(500)
 const beforeW = await ln.evaluate(() => document.querySelector('.ln-sidebar').getBoundingClientRect().width)
 const rez = ln.locator('.ln-resizer').first()
 const box = await rez.boundingBox()

@@ -93,11 +93,19 @@ export default function WeekView({ current, events, tasks, onReload, onNavigate,
   const [taskH, setTaskH] = useState(220)
   const resizingTask = useRef(false)
 
+  // LightNote 안에 띄우면 테마 배율(zoom)이 걸린다 — 마우스 이동량(화면 px)을 칸 안 px 로
+  // 바꿔야 끈 만큼 일정이 움직인다. 배율이 없으면 1.
+  const zk = () => {
+    const el = scrollRef.current
+    if (!el || !el.offsetHeight) return 1
+    const h = el.getBoundingClientRect().height
+    return h > 0 ? h / el.offsetHeight : 1
+  }
   const onTaskResizeStart = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
     resizingTask.current = true
     const startY = e.clientY, startH = taskH
-    const onMove = (me: MouseEvent) => { if (!resizingTask.current) return; setTaskH(clamp(startH - (me.clientY - startY), 80, 450)) }
+    const onMove = (me: MouseEvent) => { if (!resizingTask.current) return; setTaskH(clamp(startH - (me.clientY - startY) / zk(), 80, 450)) }
     const onUp = () => { resizingTask.current = false; document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp) }
     document.addEventListener('mousemove', onMove)
     document.addEventListener('mouseup', onUp)
@@ -137,7 +145,7 @@ export default function WeekView({ current, events, tasks, onReload, onNavigate,
     const t = tasks.find((x) => x.id === taskId)
     if (!t) return
     const rect = e.currentTarget.getBoundingClientRect()
-    const y = e.clientY - rect.top
+    const y = (e.clientY - rect.top) / zk()
     const dur = t.estimatedMinutes && t.estimatedMinutes > 0 ? t.estimatedMinutes : 60
     const startMin = clamp(Math.round((y / HOUR_H * 60) / SNAP_MIN) * SNAP_MIN, 0, 24 * 60 - dur)
     const start = dayStart(day) + startMin * 60000
@@ -162,7 +170,7 @@ export default function WeekView({ current, events, tasks, onReload, onNavigate,
         const targetDay = days[targetIdx] ?? days[0]
         const scrollTop = scrollRef.current?.scrollTop ?? 0
         const scrollAreaTop = scrollRef.current?.getBoundingClientRect().top ?? 0
-        const yInContent = e.clientY - scrollAreaTop + scrollTop - offsetInEventPx
+        const yInContent = (e.clientY - scrollAreaTop) / zk() + scrollTop - offsetInEventPx
         const dur = ev.endAt - ev.startAt
         const newStartMin = clamp(Math.round((yInContent / HOUR_H * 60) / SNAP_MIN) * SNAP_MIN, 0, 24 * 60 - Math.ceil(dur / 60000))
         const newStart = dayStart(targetDay) + newStartMin * 60000
@@ -170,7 +178,7 @@ export default function WeekView({ current, events, tasks, onReload, onNavigate,
       }
       if (resizeRef.current) {
         const { ev, day, startY, origEnd } = resizeRef.current
-        const dy = e.clientY - startY
+        const dy = (e.clientY - startY) / zk()
         const dMin = Math.round((dy / HOUR_H * 60) / SNAP_MIN) * SNAP_MIN
         const newEnd = clamp(origEnd + dMin * 60000, ev.startAt + 15 * 60000, dayStart(day) + 86400000)
         setResizePreview({ id: ev.id, height: tsToY(newEnd, day) - tsToY(ev.startAt, day) })
@@ -183,7 +191,7 @@ export default function WeekView({ current, events, tasks, onReload, onNavigate,
         const targetDay = days[targetIdx] ?? days[0]
         const scrollTop = scrollRef.current?.scrollTop ?? 0
         const scrollAreaTop = scrollRef.current?.getBoundingClientRect().top ?? 0
-        const yInContent = e.clientY - scrollAreaTop + scrollTop - offsetInEventPx
+        const yInContent = (e.clientY - scrollAreaTop) / zk() + scrollTop - offsetInEventPx
         const dur = ev.endAt - ev.startAt
         const newStartMin = clamp(Math.round((yInContent / HOUR_H * 60) / SNAP_MIN) * SNAP_MIN, 0, 24 * 60 - Math.ceil(dur / 60000))
         const newStart = dayStart(targetDay) + newStartMin * 60000
@@ -196,7 +204,7 @@ export default function WeekView({ current, events, tasks, onReload, onNavigate,
       }
       if (resizeRef.current) {
         const { ev, day, startY, origEnd } = resizeRef.current
-        const dy = e.clientY - startY
+        const dy = (e.clientY - startY) / zk()
         const dMin = Math.round((dy / HOUR_H * 60) / SNAP_MIN) * SNAP_MIN
         const newEnd = clamp(origEnd + dMin * 60000, ev.startAt + 15 * 60000, dayStart(day) + 86400000)
         resizeRef.current = null; setResizePreview(null)
@@ -345,7 +353,7 @@ export default function WeekView({ current, events, tasks, onReload, onNavigate,
                         const scrollAreaTop = scrollRef.current?.getBoundingClientRect().top ?? 0
                         // Store how far from the event's top the user clicked, so the event
                         // follows the cursor rather than snapping to its top edge.
-                        const offsetInEventPx = e.clientY - scrollAreaTop + scrollTop - top
+                        const offsetInEventPx = (e.clientY - scrollAreaTop) / zk() + scrollTop - top
                         dragTargetDayIdxRef.current = colIdx
                         dragRef.current = { ev, day, origDayIdx: colIdx, startY: e.clientY, origStart: ev.startAt, origEnd: ev.endAt, offsetInEventPx }
                         setPreview({ id: ev.id, dayIdx: colIdx, top, height: baseH })

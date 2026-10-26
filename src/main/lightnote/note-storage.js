@@ -24,7 +24,8 @@ async function readJson(filePath) {
 async function writeJson(filePath, data) {
   const dir = path.dirname(filePath);
   await fs.mkdir(dir, { recursive: true });
-  const tmp = filePath + '.tmp';
+  // 같은 파일을 동시에 두 번 저장하면 임시 파일 이름이 겹쳐 한쪽이 ENOENT 로 실패했다 — 매번 다른 이름
+  const tmp = filePath + '.' + process.pid + '-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7) + '.tmp';
   await fs.writeFile(tmp, JSON.stringify(data, null, 2));
   try {
     await fs.rename(tmp, filePath);
@@ -271,7 +272,8 @@ async function savePage(notebookId, sectionId, pageId, delta, title) {
   const now = Date.now();
   const pagePath = pageJsonPath(notebookId, sectionId, pageId);
   await fs.mkdir(path.dirname(pagePath), { recursive: true });
-  const tmp = pagePath + '.tmp';
+  // 같은 파일을 동시에 두 번 저장하면 임시 파일 이름이 겹쳐 한쪽이 ENOENT 로 실패했다 — 매번 다른 이름
+  const tmp = pagePath + '.' + process.pid + '-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7) + '.tmp';
   await fs.writeFile(tmp, JSON.stringify({ id: pageId, title, delta, updatedAt: now }, null, 2));
   try {
     await fs.rename(tmp, pagePath);

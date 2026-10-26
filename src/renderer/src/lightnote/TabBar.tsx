@@ -1,4 +1,5 @@
 import { useRef, useEffect, useState, useCallback } from 'react'
+import { useDismiss } from './useDismiss'
 import type { OpenTab } from './types'
 import { useClampedMenuPosition } from './clampMenu'
 
@@ -96,16 +97,7 @@ export default function TabBar({ tabs, activeId, onSelect, onClose, onCloseOther
   }, [])
   // 오버플로우 목록이 비면(다 옮겨졌으면) 자동으로 닫는다.
   useEffect(() => { if (overflowOpen && hidden.length === 0) setOverflowOpen(false) }, [overflowOpen, hidden.length])
-  useEffect(() => {
-    if (!overflowOpen) return
-    const close = (e: MouseEvent) => {
-      if (overflowPanelRef.current?.contains(e.target as Node)) return
-      if (overflowBtnRef.current?.contains(e.target as Node)) return
-      setOverflowOpen(false)
-    }
-    const id = setTimeout(() => document.addEventListener('click', close), 0)
-    return () => { clearTimeout(id); document.removeEventListener('click', close) }
-  }, [overflowOpen])
+  useDismiss(overflowOpen, () => setOverflowOpen(false), [overflowPanelRef, overflowBtnRef])
 
   // 활성 탭이 화면 밖이면 보이게 스크롤 (탭이 많아졌을 때)
   useEffect(() => {
@@ -113,34 +105,9 @@ export default function TabBar({ tabs, activeId, onSelect, onClose, onCloseOther
     el?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
   }, [activeId, tabs.length])
 
-  // 컨텍스트 메뉴는 아무 데나 누르면 닫힌다. 메뉴를 연 그 우클릭이 아직
-  // 버블링 중이라 즉시 붙이면 열리자마자 닫히므로 한 틱 뒤에 등록한다.
-  useEffect(() => {
-    if (!ctx) return
-    const close = () => setCtx(null)
-    const id = setTimeout(() => {
-      document.addEventListener('click', close)
-      document.addEventListener('contextmenu', close)
-    }, 0)
-    return () => {
-      clearTimeout(id)
-      document.removeEventListener('click', close)
-      document.removeEventListener('contextmenu', close)
-    }
-  }, [ctx])
-  useEffect(() => {
-    if (!hiddenCtx) return
-    const close = () => setHiddenCtx(null)
-    const id = setTimeout(() => {
-      document.addEventListener('click', close)
-      document.addEventListener('contextmenu', close)
-    }, 0)
-    return () => {
-      clearTimeout(id)
-      document.removeEventListener('click', close)
-      document.removeEventListener('contextmenu', close)
-    }
-  }, [hiddenCtx])
+  // 메뉴는 밖을 누르거나 Esc 로 닫힌다(useDismiss)
+  useDismiss(!!ctx, () => setCtx(null), [ctxRef])
+  useDismiss(!!hiddenCtx, () => setHiddenCtx(null), [hiddenCtxRef])
 
   // 가로 스크롤: 세로 휠을 가로 이동으로 바꿔준다 (탭 줄에는 세로 스크롤이 없다)
   const onWheel = (e: React.WheelEvent) => {
